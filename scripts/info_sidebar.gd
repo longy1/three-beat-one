@@ -14,13 +14,33 @@ func _ready() -> void:
 	set_trump(null)
 
 
-## 主牌展示：一张「正 R」牌面（主花色 + R，如 ♠ 主 R=2 → ♠2）；
-## 未叫主时展示牌背
+## 主牌展示：一张「正 R」牌面（主花色 + R，如 ♠ 主 R=2 → ♠2）。
+## 未叫主：牌背微透明 + 居中问号，下方注明「未叫主」。
 func set_trump(card: Card) -> void:
-	var slot: Control = $VBox/TrumpRow/TrumpSlot
+	var slot: Control = $VBox/TrumpRow/TrumpStack/TrumpSlot
+	var state_label: Label = $VBox/TrumpRow/TrumpStack/TrumpStateLabel
 	for child in slot.get_children():
 		child.queue_free()
-	slot.add_child(CardWidget.create(card, card != null, true))
+	if card == null:
+		# 未叫主：微透明牌背 + 问号
+		var back := CardWidget.create(null, false, true)
+		back.modulate = Color(1, 1, 1, 0.45)
+		slot.add_child(back)
+		var q := Label.new()
+		q.text = "？"
+		q.set_anchors_preset(Control.PRESET_FULL_RECT)
+		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		q.add_theme_font_size_override("font_size", 22)
+		q.modulate = Color(1, 0.85, 0.4)
+		q.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(q)
+		state_label.text = "未叫主"
+		state_label.modulate = Color(0.75, 0.8, 0.78)
+	else:
+		slot.modulate = Color.WHITE
+		slot.add_child(CardWidget.create(card, true, true))
+		state_label.text = ""
 
 
 ## 手牌统计：主牌/副牌行 + 各点数行（rows: [{text, present}]，present=false 灰显）

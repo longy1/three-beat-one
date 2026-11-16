@@ -95,6 +95,19 @@ modulate = Color(1, 0.8, 0.3, 1)
 text = ""
 horizontal_alignment = 1
 
+[node name="BidCenterLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 0
+anchor_left = 0.214
+anchor_top = 0.45
+anchor_right = 0.614
+anchor_bottom = 0.55
+theme_override_font_sizes/font_size = 24
+modulate = Color(1, 0.85, 0.4, 0.95)
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="ResultPanel" type="PanelContainer" parent="."]
 visible = false
 layout_mode = 1

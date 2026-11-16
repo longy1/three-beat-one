@@ -44,6 +44,7 @@ var _pile_popup: PanelContainer   ## 悬停查看某玩家出牌历史的弹出�
 var _human_pile_chip: Button      ## 人类玩家（0 号位）的牌堆悬停入口
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
+@onready var bid_center_label: Label = $BidCenterLabel
 @onready var sidebar: InfoSidebar = $Sidebar
 @onready var toast_label: Label = $ToastLabel
 @onready var hint_label: Label = $BottomArea/HintLabel
@@ -506,12 +507,15 @@ func _build_rank_rows(hand: Array) -> Array:
 func _refresh_top_bar() -> void:
 	var info := "第 %d 局" % engine.round_index
 	if engine.phase == GameEngine.Phase.AUCTION:
-		info += " ｜ 叫分拍卖中（最高 %d）" % engine.current_highest_bid()
+		# 叫分提示显示在主牌桌正中央（本土用语，不用「拍卖」）
+		bid_center_label.text = "叫分中（最高 %d）" % engine.current_highest_bid()
 	elif engine.banker_seat >= 0:
 		info += " ｜ 出牌庄 %s" % SEAT_NAMES[engine.banker_seat]
 		if engine.contract > 0:
 			info += " ｜ 叫分 %d" % engine.contract
 	game_info.text = info
+	if engine.phase != GameEngine.Phase.AUCTION:
+		bid_center_label.text = ""
 	# 主牌提示：一张「正 R」牌面放入信息栏（仅叫主变化时重建）
 	if engine.trump != _last_trump_shown:
 		_last_trump_shown = engine.trump

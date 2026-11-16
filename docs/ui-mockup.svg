@@ -4,7 +4,8 @@
   <text x="16" y="24" font-size="13" fill="#5a7a68">1280 × 720 ｜ 区域图（视觉稿）｜ 全部留白 12px</text>
   <!-- 画面两大区域：主牌桌区域（0~1060）｜ 侧信息板区域（1060~1280） -->
   <line x1="1060" y1="0" x2="1060" y2="720" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="10 7" opacity="0.6"/>
-  <text x="530" y="352" font-size="26" fill="#2e5a42" font-weight="bold" text-anchor="middle" opacity="0.9">主 牌 桌 区 域</text>
+  <text x="530" y="332" font-size="24" fill="#ffd140" text-anchor="middle" opacity="0.95">叫分中（最高 130）</text>
+  <text x="530" y="360" font-size="20" fill="#2e5a42" font-weight="bold" text-anchor="middle" opacity="0.9">主 牌 桌 区 域</text>
   <text x="530" y="378" font-size="12" fill="#3a6a4e" text-anchor="middle">Main Table Area（x 0~1060，占 82.8%）</text>
   <text x="1170" y="70" font-size="15" fill="#e8b84a" text-anchor="middle" opacity="0.85">侧信息板区域</text>
   <text x="1170" y="88" font-size="11" fill="#9a824a" text-anchor="middle">Side Info Panel（1060~1280）</text>
@@ -93,9 +94,9 @@
   <text x="1170" y="76" font-size="16" fill="#e8b84a" text-anchor="middle" font-weight="bold">信息栏（独立组件 InfoSidebar）</text>
   <line x1="1084" y1="88" x2="1256" y2="88" stroke="#2c4a38"/>
   <text x="1084" y="112" font-size="13" fill="#9ab5a5">主牌（正 R）</text>
-  <rect x="1084" y="122" width="44" height="64" rx="6" fill="#f7f3e8" stroke="#888"/>
-  <text x="1090" y="137" font-size="12" fill="#1a1a24">♠2</text>
-  <text x="1136" y="160" font-size="12" fill="#9ab5a5">← 一张正 R 牌面</text>
+  <rect x="1084" y="122" width="44" height="64" rx="6" fill="#f7f3e8" stroke="#888" opacity="0.4"/>
+  <text x="1106" y="162" font-size="22" fill="#ffd140" text-anchor="middle">？</text>
+  <text x="1084" y="204" font-size="12" fill="#9ab5a5">未叫主（叫主后翻出正 R 牌面）</text>
 
   <!-- 统计块 -->
   <text x="1084" y="112" font-size="13" fill="#9ab5a5">手牌统计</text>
