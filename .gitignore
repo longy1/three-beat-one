@@ -1,9 +1,8 @@
 # Godot 4 生成的缓存目录
 .godot/
 
-# 导出产物
+# 导出产物与字体源文件（子集产物 font/*.subset.otf 入库，原始大字体不入库）
 build/
-export.cfg
 
 # ZCode 本地工作区配置
 .zcode/
