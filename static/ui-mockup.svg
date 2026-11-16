@@ -48,6 +48,13 @@
   <rect x="252" y="262" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
   <text x="276" y="298" font-size="18" fill="#1a1a24" text-anchor="middle">♠</text>
   <text x="226" y="360" font-size="12" fill="#5a7a68">丁·出牌（200~400）</text>
+  <!-- 【无主】公示印章（规则 7.3）：主牌轮垫牌者面板右下角（VoidStamp，斜置红圈） -->
+  <g transform="translate(147,300) rotate(-12)">
+    <circle cx="21" cy="21" r="21" fill="none" stroke="#d42a1f" stroke-width="2.5" opacity="0.9"/>
+    <circle cx="21" cy="21" r="17" fill="none" stroke="#d42a1f" stroke-width="1" opacity="0.9"/>
+    <text x="21" y="27" font-size="14" fill="#d42a1f" text-anchor="middle" font-weight="bold">无主</text>
+  </g>
+  <text x="102" y="365" font-size="12" fill="#d42a1f" text-anchor="middle">【无主】印章：主牌轮垫牌公示（面板右下角）</text>
 
   <!-- ═══ 乙（右带 面板 880~1060） ═══ -->
   <rect x="880" y="244" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
@@ -62,7 +69,7 @@
 
   <!-- 中央空旷区标注 -->
   <text x="536" y="230" font-size="12" fill="#5a7a68" text-anchor="middle">中央空旷区（y136~432）</text>
-  <text x="536" y="248" font-size="12" fill="#5a7a68" text-anchor="middle">居中展示层（叫主点数面板 / 牌堆弹层 / 结算面板）：点锚主牌桌十字中心 + grow BOTH</text>
+  <text x="536" y="248" font-size="12" fill="#5a7a68" text-anchor="middle">居中展示层（叫主点数面板 / 牌堆弹层 / 翻底底牌面板 / 结算面板）：点锚主牌桌十字中心 + grow BOTH</text>
 
   <!-- ═══ 你的出牌（手牌正上方 y384~461） ═══ -->
   <rect x="460" y="388" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
@@ -82,6 +89,13 @@
   <!-- 牌堆按钮 -->
   <rect x="12" y="514" width="46" height="30" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
   <text x="35" y="534" font-size="13" fill="#d8e5dd" text-anchor="middle">牌堆</text>
+  <!-- 人类位【无主】印章：手牌区上方左侧（与历史/牌堆同列） -->
+  <g transform="translate(14,446) rotate(-12)">
+    <circle cx="21" cy="21" r="21" fill="none" stroke="#d42a1f" stroke-width="2.5" opacity="0.9"/>
+    <circle cx="21" cy="21" r="17" fill="none" stroke="#d42a1f" stroke-width="1" opacity="0.9"/>
+    <text x="21" y="27" font-size="14" fill="#d42a1f" text-anchor="middle" font-weight="bold">无主</text>
+  </g>
+  <text x="42" y="500" font-size="11" fill="#d42a1f">你的无主章</text>
 
   <!-- 手牌双虚线框（居中于牌桌区 536） -->
   <rect x="150" y="552" width="170" height="106" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="7 5"/>
@@ -89,6 +103,7 @@
   <rect x="336" y="552" width="620" height="106" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="7 5"/>
   <text x="646" y="610" font-size="15" fill="#e8f0ea" text-anchor="middle">副牌框</text>
   <text x="340" y="690" font-size="12" fill="#5a7a68">手牌区（150~956，居中于牌桌区，不再被统计遮挡）</text>
+  <text x="340" y="706" font-size="12" fill="#5a7a68">主牌框内牌力并列的副R/副2 按 ♠→♥→♣→♦ 同花色相邻；选牌跨轮保留；庄家翻底后底牌 8 张自动选中（拿起态）</text>
 
   <!-- ═══ ★ 右侧竖直信息栏（新增 x1072~1268, y48~708） ═══ -->
   <rect x="1072" y="48" width="196" height="660" rx="10" fill="#132b1f" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="6 4"/>
