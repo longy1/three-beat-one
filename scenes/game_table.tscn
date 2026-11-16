@@ -182,44 +182,6 @@ theme_override_font_sizes/font_size = 16
 modulate = Color(1, 0.8, 0.3, 1)
 text = ""
 
-[node name="StatsPanel" type="PanelContainer" parent="."]
-layout_mode = 1
-anchors_preset = 3
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -216.0
-offset_top = -362.0
-offset_right = -12.0
-offset_bottom = -202.0
-grow_horizontal = 0
-grow_vertical = 0
-mouse_filter = 2
-
-[node name="VBox" type="VBoxContainer" parent="StatsPanel"]
-layout_mode = 2
-theme_override_constants/separation = 4.0
-
-[node name="TitleLabel" type="Label" parent="StatsPanel/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-text = "手牌统计"
-horizontal_alignment = 1
-
-[node name="MainLabel" type="Label" parent="StatsPanel/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-text = ""
-
-[node name="RankGrid" type="GridContainer" parent="StatsPanel/VBox"]
-layout_mode = 2
-theme_override_constants/h_separation = 8.0
-theme_override_constants/v_separation = 0.0
-columns = 4
-
 [node name="ResultPanel" type="PanelContainer" parent="."]
 visible = false
 layout_mode = 1
@@ -297,3 +259,39 @@ horizontal_alignment = 1
 [node name="HandRow" type="Control" parent="BottomArea"]
 layout_mode = 2
 size_flags_vertical = 3
+
+[node name="StatsPanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -190.0
+offset_top = -280.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="VBox" type="VBoxContainer" parent="StatsPanel"]
+layout_mode = 2
+theme_override_constants/separation = 3.0
+
+[node name="TitleLabel" type="Label" parent="StatsPanel/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+text = "手牌统计"
+horizontal_alignment = 1
+
+[node name="MainLabel" type="Label" parent="StatsPanel/VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+text = ""
+
+[node name="RankGrid" type="GridContainer" parent="StatsPanel/VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 8.0
+theme_override_constants/v_separation = 0.0
+columns = 1
