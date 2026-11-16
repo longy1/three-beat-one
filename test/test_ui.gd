@@ -106,6 +106,28 @@ func test_pile_popup_uses_seat_name(test) -> void:
 	await _release_table(table)
 
 
+## 弹层延迟隐藏：移出入口后 0.35s 内仍可见（可移动视线/滚动），到期自动关闭
+func test_pile_popup_delayed_hide(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)
+	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	eng.submit_discard(0, AiPolicy.choose_discard(eng.hands[0], eng.trump))
+	table._human_pile_chip.mouse_entered.emit()
+	var popup: PanelContainer = table._pile_popup
+	test.check(popup.visible, "悬停后弹层显示")
+	table._human_pile_chip.mouse_exited.emit()  # 移出入口 → 启动延迟隐藏
+	await tree_pause()  # ~0.05s < 0.35s：弹层应仍在
+	test.check(popup.visible, "移出后 0.35s 内弹层保持显示（延迟隐藏）")
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.create_timer(0.5).timeout
+	test.check(not popup.visible, "到期后弹层自动关闭")
+	await _release_table(table)
+
+
 ## 回归：庄家是自己时，扣底完成后皇冠下方「牌堆」按钮可见，悬停显示底牌 8 张（2×4）
 func test_bottom_pile_button_for_human_banker(test) -> void:
 	var table = await _spawn_table()
