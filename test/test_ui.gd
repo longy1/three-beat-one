@@ -126,6 +126,34 @@ func test_bottom_pile_button_for_human_banker(test) -> void:
 	await _release_table(table)
 
 
+## 回归：扣底提交后直接进入可出牌状态（select_mode="play" + 出牌按钮），
+## 不得被 submit 后的清理毁掉（人类坐庄喊主后无法出牌的卡死）
+func test_discard_submit_leads_to_play_ui(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)
+	table._pending_trump_suit = Card.Suit.SPADE
+	table._submit_human_trump(Card.RANK_9)
+	table.selected.clear()
+	var hand: Array = eng.hands[0]
+	for i in range(8):
+		table.selected.append(hand[hand.size() - 1 - i])
+	table._submit_human_discard()
+	await tree_pause()
+	test.eq(eng.phase, Phase.TRICKS, "进入出牌阶段")
+	test.eq(table.select_mode, "play", "扣底提交后处于可出牌态（回归：卡死）")
+	var bar: HBoxContainer = table.get_node("BottomArea/ActionBar")
+	var found := false
+	for c in bar.get_children():
+		if c is Button and c.visible and not c.is_queued_for_deletion() and "出牌" in c.text:
+			found = true
+	test.check(found, "出牌按钮存在（回归：卡死）")
+	await _release_table(table)
+
+
 ## 叫主后信息栏展示「正 R」牌面；未叫主时注明「未叫主」
 func test_trump_display_in_sidebar(test) -> void:
 	var table = await _spawn_table()

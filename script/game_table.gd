@@ -492,11 +492,9 @@ func _submit_human_discard() -> void:
 	if not verdict.ok:
 		_toast(verdict.error)
 		return
-	select_mode = ""
-	selected.clear()
-	_clear_action_bar()
+	# submit_discard 同步触发 play_required(庄家=自己)：handler 已重建出牌阶段 UI
+	# （select_mode="play"、出牌按钮、手牌），此处不得做任何破坏性清理，只收底牌展示
 	_clear_bottom_cards()
-	_refresh()
 
 
 func _show_play_bar() -> void:
@@ -512,6 +510,10 @@ func _submit_human_play() -> void:
 	var verdict: Dictionary = engine.submit_play(HUMAN_SEAT, selected.duplicate())
 	if not verdict.legal:
 		_toast(verdict.text)
+		return
+	# submit_play 同步触发信号：若下一手仍是自己（连庄领出），handler 已重建出牌 UI，
+	# 此处不得清理；仅当下一手为 AI / 局已结束时才清自己的按钮与选择态
+	if engine.phase == GameEngine.Phase.TRICKS and engine.turn_seat == HUMAN_SEAT:
 		return
 	selected.clear()
 	select_mode = ""
