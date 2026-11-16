@@ -26,6 +26,10 @@ const CROWN_TARGETS := {
 	3: Vector2(0.031, 0.35),
 }
 
+## 主牌桌区域中心（相对比例）：画面分为左「主牌桌区域」（x 0~82.8%）与
+## 右「侧信息板区域」（82.8%~100%），皇冠在主牌桌区域正中央出现
+const MAIN_TABLE_CENTER := Vector2(0.414, 0.5)
+
 var engine: GameEngine
 var selected: Array = []   # Array[Card]，选中的手牌引用
 var select_mode := ""      # "" | "discard" | "play"
@@ -230,7 +234,7 @@ func _play_crown_animation(seat: int) -> void:
 	_crown = CrownBadge.new()
 	_crown.size = Vector2(30, 22)
 	_crown.pivot_offset = _crown.size / 2.0
-	_crown.position = Vector2(0.419, 0.408) * size - _crown.size / 2.0  # 牌桌正中央
+	_crown.position = MAIN_TABLE_CENTER * size - _crown.size / 2.0  # 主牌桌区域正中央
 	_crown.scale = Vector2(4, 4)
 	_crown.z_index = 60
 	add_child(_crown)

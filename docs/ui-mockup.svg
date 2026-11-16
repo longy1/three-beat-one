@@ -2,6 +2,12 @@
   <!-- ═══ 底图：牌桌背景 ═══ -->
   <rect width="1280" height="720" fill="#0b2218"/>
   <text x="16" y="24" font-size="13" fill="#5a7a68">1280 × 720 ｜ 区域图（视觉稿）｜ 全部留白 12px</text>
+  <!-- 画面两大区域：主牌桌区域（0~1060）｜ 侧信息板区域（1060~1280） -->
+  <line x1="1060" y1="0" x2="1060" y2="720" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="10 7" opacity="0.6"/>
+  <text x="530" y="352" font-size="26" fill="#2e5a42" font-weight="bold" text-anchor="middle" opacity="0.9">主 牌 桌 区 域</text>
+  <text x="530" y="378" font-size="12" fill="#3a6a4e" text-anchor="middle">Main Table Area（x 0~1060，占 82.8%）</text>
+  <text x="1170" y="70" font-size="15" fill="#e8b84a" text-anchor="middle" opacity="0.85">侧信息板区域</text>
+  <text x="1170" y="88" font-size="11" fill="#9a824a" text-anchor="middle">Side Info Panel（1060~1280）</text>
 
   <!-- ═══ 顶栏（x12~1060，避开信息栏） ═══ -->
   <rect x="12" y="8" width="1048" height="32" rx="6" fill="#12291d" stroke="#2c4a38"/>
@@ -13,14 +19,14 @@
   <text x="536" y="76" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丙（电脑）</text>
   <text x="536" y="96" font-size="13" fill="#9ab5a5" text-anchor="middle">17 张 ｜ 叫 135</text>
   <!-- 皇冠动画：叫分结束 → 中央大皇冠减速飞向庄家名字旁 -->
-  <path d="M 536 240 Q 500 160 476 88" fill="none" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <path d="M 530 360 Q 480 220 476 88" fill="none" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="5 4"/>
   <g transform="translate(460,64)">
     <path d="M 0 17 L 0 7 L 7 12 L 15 0 L 23 12 L 30 7 L 30 17 Z" fill="#ffd140" stroke="#d9a10e"/>
     <rect x="0" y="17" width="30" height="5" fill="#d9a10e"/>
   </g>
-  <circle cx="536" cy="240" r="26" fill="none" stroke="#e8b84a" stroke-width="1" stroke-dasharray="4 4"/>
-  <text x="536" y="245" font-size="13" fill="#e8b84a" text-anchor="middle">👑</text>
-  <text x="560" y="270" font-size="12" fill="#e8b84a">皇冠：中央×4 → 减速缩小飞至庄家名旁</text>
+  <circle cx="530" cy="360" r="30" fill="none" stroke="#e8b84a" stroke-width="1" stroke-dasharray="4 4"/>
+  <text x="530" y="365" font-size="13" fill="#e8b84a" text-anchor="middle">👑</text>
+  <text x="575" y="392" font-size="12" fill="#e8b84a">皇冠：主区域正中心 ×4 → 减速缩小飞至庄家名旁</text>
   <!-- 丙出牌（信息板正下方 460~560，对称十字上点） -->
   <rect x="460" y="132" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
   <text x="484" y="168" font-size="18" fill="#1a1a24" text-anchor="middle">♠</text>
