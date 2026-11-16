@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/seat_panel.gd" id="1_seat"]
 
 [node name="SeatPanel" type="PanelContainer"]
+custom_minimum_size = Vector2(180, 100)
 script = ExtResource("1_seat")
 
 [node name="VBox" type="VBoxContainer" parent="."]

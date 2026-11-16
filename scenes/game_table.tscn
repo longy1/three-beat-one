@@ -49,24 +49,24 @@ layout_mode = 1
 anchors_preset = 0
 anchor_left = 0.3484
 anchor_top = 0.0667
-anchor_right = 0.4891
-anchor_bottom = 0.2056
+anchor_right = 0.3484
+anchor_bottom = 0.0667
 
 [node name="SeatLeft" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0
 anchor_left = 0.0094
 anchor_top = 0.3389
-anchor_right = 0.15
-anchor_bottom = 0.4778
+anchor_right = 0.0094
+anchor_bottom = 0.3389
 
 [node name="SeatRight" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0
 anchor_left = 0.6875
 anchor_top = 0.3389
-anchor_right = 0.8281
-anchor_bottom = 0.4778
+anchor_right = 0.6875
+anchor_bottom = 0.3389
 
 [node name="TrickArea" type="Control" parent="."]
 layout_mode = 1

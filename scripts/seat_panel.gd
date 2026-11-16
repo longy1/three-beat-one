@@ -1,6 +1,8 @@
 class_name SeatPanel
 extends PanelContainer
 ## 座位信息面板组件（乙/丙/丁复用）：姓名 / 牌数 / 状态 + 悬停查看出牌历史。
+## 组件自带统一尺寸（tscn 内 custom_minimum_size = 180×100，720p 基准）；
+## 实例只负责定位（anchor 锚定左上角，不拉伸），改尺寸只需改组件一处。
 
 
 signal pile_hovered(seat: int)
