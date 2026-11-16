@@ -284,9 +284,65 @@ func _refresh() -> void:
 	_refresh_top_bar()
 	_refresh_seats()
 	_refresh_trick_area()
+	_refresh_stats()
 	_render_hand()
 	if select_mode == "discard":
 		_update_discard_button()
+
+
+## 右下角手牌统计：主牌数量、副牌各花色数量、各点数数量（含王、2）
+func _refresh_stats() -> void:
+	if engine.hands.is_empty():
+		return
+	var hand: Array = engine.get_hand(HUMAN_SEAT)
+	var trump := engine.trump
+	var suit_chars := ["♠", "♥", "♣", "♦"]
+
+	# 主副计数（叫主前王无花色，不计入花色）
+	var trump_count := 0
+	var suit_counts := {Card.Suit.SPADE: 0, Card.Suit.HEART: 0, Card.Suit.CLUB: 0, Card.Suit.DIAMOND: 0}
+	for c in hand:
+		if trump != null:
+			if trump.is_trump(c):
+				trump_count += 1
+			else:
+				suit_counts[c.suit] += 1
+		elif not c.is_joker():
+			suit_counts[c.suit] += 1
+	var main_label: Label = $StatsPanel/VBox/MainLabel
+	var bits: Array[String] = []
+	if trump == null:
+		for s in Card.NORMAL_SUITS:
+			bits.append("%s%d" % [suit_chars[s], suit_counts[s]])
+		main_label.text = "未叫主 ｜ " + " ".join(bits)
+	else:
+		for s in Card.NORMAL_SUITS:
+			if s != trump.suit:
+				bits.append("%s%d" % [suit_chars[s], suit_counts[s]])
+		main_label.text = "主 %d ｜ 副 %s" % [trump_count, " ".join(bits)]
+
+	# 各点数数量（含王、2）
+	var grid: GridContainer = $StatsPanel/VBox/RankGrid
+	for child in grid.get_children():
+		child.queue_free()
+	var rank_counts := {}
+	for c in hand:
+		rank_counts[c.rank] = int(rank_counts.get(c.rank, 0)) + 1
+	var rank_names := {
+		Card.RANK_5: "5", Card.RANK_7: "7", Card.RANK_8: "8", Card.RANK_9: "9",
+		Card.RANK_10: "10", Card.RANK_J: "J", Card.RANK_Q: "Q", Card.RANK_K: "K",
+		Card.RANK_A: "A", Card.RANK_2: "2",
+		Card.RANK_SMALL_JOKER: "小王", Card.RANK_BIG_JOKER: "大王",
+	}
+	for rank in [Card.RANK_5, Card.RANK_7, Card.RANK_8, Card.RANK_9, Card.RANK_10,
+			Card.RANK_J, Card.RANK_Q, Card.RANK_K, Card.RANK_A, Card.RANK_2,
+			Card.RANK_SMALL_JOKER, Card.RANK_BIG_JOKER]:
+		var l := Label.new()
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		l.add_theme_font_size_override("font_size", 12)
+		l.text = "%s×%d" % [rank_names[rank], int(rank_counts.get(rank, 0))]
+		l.modulate = Color(1, 1, 1) if rank_counts.has(rank) else Color(1, 1, 1, 0.35)
+		grid.add_child(l)
 
 
 func _refresh_top_bar() -> void:
