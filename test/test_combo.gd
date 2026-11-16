@@ -231,8 +231,14 @@ func test_tractor_power_order(test) -> void:
 		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.CLUB, Card.RANK_Q, 1),
 	])
 	test.check(Combo.compare(four_jokers, main_a2, trump) > 0, "四王 > ♠AA♠22")
-	# 6.3 同类比"较大一组"位置：♠1010♠99 的大组是正9（600）> ♠AA♠22 的大组正2（400）
-	test.check(Combo.compare(main_10_9, main_a2, trump) > 0, "♠1010♠99 > ♠AA♠22（较大一组正R > 正2）")
+	# 规则修订（2026-11-16）：AA22 在其花色的同类拖拉机中排最小
+	# ——主花色 AA22 < ♠1010♠99 < ♠7788（若存在）
+	var main_7_8 := detect([
+		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_7, 1),
+		C(Card.Suit.SPADE, Card.RANK_8, 0), C(Card.Suit.SPADE, Card.RANK_8, 1),
+	])
+	test.check(Combo.compare(main_10_9, main_a2, trump) > 0, "♠1010♠99 > ♠AA♠22（AA22 同类最小）")
+	test.check(Combo.compare(main_7_8, main_a2, trump) > 0, "♠7788 > ♠AA♠22（主牌 AA22 < 主牌 7788）")
 	test.check(Combo.compare(main_10_9, side_kq, trump) > 0, "主牌拖拉机 > 副牌拖拉机")
 	var side_j10 := detect([
 		C(Card.Suit.CLUB, Card.RANK_J, 0), C(Card.Suit.CLUB, Card.RANK_J, 1),

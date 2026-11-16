@@ -146,6 +146,11 @@ static func pair_groups(cards: Array) -> Dictionary:
 ## 牌型比较用牌力（3.1 全序 + 6.3 拖拉机比较）。
 ## - 单/对：该牌（对子两张同点同力）的 card_power
 ## - 拖拉机：主牌类拖拉机(100000+) > 一切副牌拖拉机(50000+)；同类比"较大一组"的位置
+## 牌力比较用牌力（3.1 全序 + 6.3 拖拉机比较）。
+## - 单/对：该牌（对子两张同点同力）的 card_power
+## - 拖拉机：主牌类拖拉机 > 一切副牌拖拉机；同类比"较大一组"在 3.1 全序中的位置
+## - 规则修订（2026-11-16）：AA22（A 对+2 对的拖拉机）在其花色的同类拖拉机中排最小
+##   （如主牌 AA22 < 主牌 7788）；跨花色比较仍按大类（主牌类 > 副牌类）
 static func power(combo: Combo, trump: TrumpInfo) -> int:
 	match combo.type:
 		Type.SINGLE, Type.PAIR:
@@ -155,8 +160,19 @@ static func power(combo: Combo, trump: TrumpInfo) -> int:
 			var top := 0
 			for key in groups:
 				top = maxi(top, trump.card_power(groups[key][0]))
-			return (100000 if combo.suit == TrumpInfo.CLASS_TRUMP else 50000) + top
+			var base := 100000 if combo.suit == TrumpInfo.CLASS_TRUMP else 50000
+			if _is_a2_tractor(combo):
+				return base - 1  # AA22 同类最小（仍高于一切副牌类，保持杀必赢）
+			return base + top
 	return 0
+
+
+## 是否为 AA22 拖拉机（两对分别为 A 对与 2 对）
+static func _is_a2_tractor(combo: Combo) -> bool:
+	var ranks := {}
+	for c in combo.cards:
+		ranks[c.rank] = true
+	return ranks.size() == 2 and ranks.has(Card.RANK_2) and ranks.has(Card.RANK_A)
 
 
 ## 比较两个同类牌型：返回 1（a 大）/ -1（b 大）/ 0（并列，先出者大由 Trick 处理）
