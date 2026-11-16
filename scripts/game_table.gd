@@ -416,26 +416,28 @@ func _update_discard_button() -> void:
 			child.text = "确认扣底（%d/8）" % selected.size()
 
 
-## 手牌排序键（用于降序显示）：主副 → 花色 → 点数大小。
-## 主牌类居最左（组内按 3.1 牌力，大王最左）；副花色按 ♥→♣→♦ 依次向右分组，
-## 组内点数大者靠左（A 贴近主牌组）。整个顺序即"从左往右"阅读：
-## 主牌 → ♥ → ♣ → ♦（若主为其中一门，则该门移入主牌组，其余按花色值顺延）。
+## 手牌排序键（小 = 靠左）。整体布局：[主牌组 | 副牌组]。
+## - 主牌组居左，组内按 3.1 牌力升序：主5 最左 → … → 主A → 副2 → 正2 → 副R → 正R
+##   → 小王 → 大王（大王最右，紧邻副牌）
+## - 副牌居右，"从右往左"阅读为 花色（♥→♣→♦）→ 大小（A→5），
+##   即屏幕从左到右为 ♦→♣→♥ 分组、组内点数升序（A 靠右）
+## - 叫主前无主牌组：全部按花色降序、点数升序（♦→♣→♥→♠）
 static func _hand_order_key(card: Card, trump: TrumpInfo) -> Array:
 	if trump != null and trump.is_trump(card):
-		# 主牌类（含常主，3.3 脱离原花色）：组内按牌力序
+		# 主牌类（含常主，3.3 脱离原花色）：组内按牌力升序
 		return [2, 0, trump.card_power(card)]
 	if trump == null:
-		# 叫主前：纯花色分组
-		return [1, card.suit, card.rank]
-	# 副牌：花色分组，组内点数序
-	return [0, card.suit, card.rank]
+		# 叫主前：纯花色分组（降序）、点数升序
+		return [1, -card.suit, card.rank]
+	# 副牌：花色降序分组、组内点数升序
+	return [0, -card.suit, card.rank]
 
 
-## 返回显示顺序（从左到右，键降序）的手牌数组
+## 返回显示顺序（从左到右）的手牌数组
 static func sort_hand_for_display(cards: Array, trump: TrumpInfo) -> Array:
 	var ordered := cards.duplicate()
 	ordered.sort_custom(func(a: Card, b: Card) -> bool:
-		return _hand_order_key(a, trump) > _hand_order_key(b, trump))
+		return _hand_order_key(a, trump) < _hand_order_key(b, trump))
 	return ordered
 
 
