@@ -118,6 +118,7 @@ func _setup_pile_ui() -> void:
 	# 电脑玩家入口：各自座位面板悬停（SeatPanel 组件信号）
 	for seat in seat_panels:
 		var panel: SeatPanel = seat_panels[seat]
+		panel.setup(seat)  # 注入座位号（组件悬停信号携带它定位牌堆）
 		panel.pile_hovered.connect(_show_pile)
 		panel.pile_exited.connect(_hide_pile)
 	# 弹出层（居中，不拦截鼠标）
