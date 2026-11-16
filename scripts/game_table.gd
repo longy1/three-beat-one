@@ -472,59 +472,89 @@ func _update_discard_button() -> void:
 			child.text = "确认扣底（%d/8）" % selected.size()
 
 
-## 手牌排序键（小 = 靠左）。整体布局：[主牌组 | 副牌组]。
-## - 主牌组居左，组内按 3.1 牌力升序：主5 最左 → … → 主A → 副2 → 正2 → 副R → 正R
-##   → 小王 → 大王（大王最右，紧邻副牌）
-## - 副牌居右，"从右往左"阅读为 花色（♥→♣→♦）→ 大小（A→5），
-##   即屏幕从左到右为 ♦→♣→♥ 分组、组内点数升序（A 靠右）
-## - 叫主前无主牌组：全部按花色降序、点数升序（♦→♣→♥→♠）
-static func _hand_order_key(card: Card, trump: TrumpInfo) -> Array:
-	if trump != null and trump.is_trump(card):
-		# 主牌类（含常主，3.3 脱离原花色）：组内按牌力升序
-		return [2, 0, trump.card_power(card)]
-	if trump == null:
-		# 叫主前：纯花色分组（降序）、点数升序
-		return [1, -card.suit, card.rank]
-	# 副牌：花色降序分组、组内点数升序
-	return [0, -card.suit, card.rank]
+## 副牌显示排序：花色按 ♠→♥→♣→♦ 顺序分组，组内点数从大到小（A 前 5 后）
+static func _side_display_cmp(a: Card, b: Card) -> bool:
+	if a.suit != b.suit:
+		return a.suit < b.suit
+	return a.rank > b.rank
 
 
-## 返回显示顺序（从左到右）的手牌数组
-static func sort_hand_for_display(cards: Array, trump: TrumpInfo) -> Array:
-	var ordered := cards.duplicate()
-	ordered.sort_custom(func(a: Card, b: Card) -> bool:
-		return _hand_order_key(a, trump) < _hand_order_key(b, trump))
-	return ordered
-
-
-## 手牌：手动布局（可重叠），点击选择
+## 手牌：德州扑克桌面式分区——左框主牌、右框副牌（圆角虚线框），
+## 每个区域内从左至右按从大到小排列。
 func _render_hand() -> void:
 	for child in hand_row.get_children():
 		child.queue_free()
 	if engine == null or engine.hands.is_empty():
 		return
-	var hand: Array = sort_hand_for_display(engine.get_hand(HUMAN_SEAT), engine.trump)
-	var n := hand.size()
-	if n == 0:
+	var trump := engine.trump
+	var trump_cards: Array = []
+	var side_cards: Array = []
+	for c in engine.get_hand(HUMAN_SEAT):
+		if trump != null and trump.is_trump(c):
+			trump_cards.append(c)
+		else:
+			side_cards.append(c)
+	# 主牌区：3.1 牌力从大到小（大王最左 → 主5 最右）
+	trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
+		return trump.card_power(a) > trump.card_power(b))
+	# 副牌区：花色分组、组内从大到小；叫主前无主牌区，全部进副牌区
+	side_cards.sort_custom(_side_display_cmp)
+
+	var groups: Array = []
+	if trump != null and not trump_cards.is_empty():
+		groups.append(trump_cards)
+	if not side_cards.is_empty():
+		groups.append(side_cards)
+	if groups.is_empty():
 		return
+
 	var avail: float = hand_row.size.x
 	if avail < 100:
 		avail = 1100.0  # 首帧布局未就绪时的兜底宽度
-	var card_width := CardWidget.SIZE_NORMAL.x
-	var spacing := (avail - card_width) / maxi(1, n - 1)
+	var card_w := CardWidget.SIZE_NORMAL.x
+	var card_h := CardWidget.SIZE_NORMAL.y
+	var pad := 10.0
+	var gap := 16.0
+	var n := trump_cards.size() + side_cards.size()
+	var spacing := 40.0
+	if n > 2:
+		spacing = (avail - gap - 4 * pad - 2 * card_w) / (n - 2)
 	spacing = clampf(spacing, 8, 40)
-	var total := card_width + spacing * (n - 1)
+
+	var widths: Array = []
+	for g in groups:
+		widths.append(card_w + spacing * (g.size() - 1) + 2 * pad)
+	var total: float = 0.0
+	for w in widths:
+		total += w
+	if groups.size() == 2:
+		total += gap
 	var x := (avail - total) / 2.0
-	for c in hand:
-		var w := CardWidget.create(c, true)
-		var is_selected: bool = selected.has(c)
-		w.set_selected(is_selected)
-		w.position = Vector2(x, 14 if is_selected else 28)
-		w.gui_input.connect(func(event: InputEvent):
-			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-				_toggle_select(c))
-		hand_row.add_child(w)
-		x += spacing
+	var frame_h := card_h + 2 * pad
+	var frame_y := 2.0
+	if hand_row.size.y > frame_h + 8:
+		frame_y = (hand_row.size.y - frame_h) / 2.0
+
+	for i in groups.size():
+		var g: Array = groups[i]
+		var frame := DashedRoundedFrame.new()
+		frame.position = Vector2(x, frame_y)
+		frame.size = Vector2(widths[i], frame_h)
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hand_row.add_child(frame)
+		var cx: float = x + pad
+		for c in g:
+			var card_widget := CardWidget.create(c, true)
+			var is_selected: bool = selected.has(c)
+			card_widget.set_selected(is_selected)
+			card_widget.position = Vector2(cx, frame_y + pad - (8 if is_selected else 0))
+			var card_ref: Card = c
+			card_widget.gui_input.connect(func(event: InputEvent):
+				if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+					_toggle_select(card_ref))
+			hand_row.add_child(card_widget)
+			cx += spacing
+		x += widths[i] + (gap if i == 0 and groups.size() == 2 else 0.0)
 
 
 func _toggle_select(card: Card) -> void:
