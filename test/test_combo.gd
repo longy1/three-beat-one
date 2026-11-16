@@ -141,13 +141,20 @@ func test_tractor_rank_equals_a(test) -> void:
 		C(Card.Suit.CLUB, Card.RANK_A, 0), C(Card.Suit.CLUB, Card.RANK_A, 1),
 		C(Card.Suit.CLUB, Card.RANK_2, 0), C(Card.Suit.CLUB, Card.RANK_2, 1),
 	], t_nine), "R≠A 时 ♣AA♣22 仍非法")
-	# 牌力：R=A 常主拖 > 副花色拖
+	# 牌力：R=A 常主拖 > 一切副牌拖（含同花色副牌拖——主牌类 > 副牌类）
 	var heart_tr := Combo.detect([
 		C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
 		C(Card.Suit.HEART, Card.RANK_Q, 0), C(Card.Suit.HEART, Card.RANK_Q, 1),
 	], t_spade_a)
 	if club_a22 != null and heart_tr != null:
-		test.check(Combo.compare(club_a22, heart_tr, t_spade_a) > 0, "♣AA♣22（R=A 常主拖）> ♥KK♥QQ")
+		test.check(Combo.compare(club_a22, heart_tr, t_spade_a) > 0, "♣AA♣22（主牌类）> ♥KK♥QQ（副牌拖）")
+	var club_kq := Combo.detect([
+		C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1),
+		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.CLUB, Card.RANK_Q, 1),
+	], t_spade_a)
+	if club_a22 != null and club_kq != null:
+		test.check(Combo.compare(club_a22, club_kq, t_spade_a) > 0,
+			"♣AA♣22（主牌类）> ♣KK♣QQ（同花色副牌拖）")
 
 
 func test_tractor_rank_variants(test) -> void:
