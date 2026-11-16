@@ -12,12 +12,14 @@ const SIZE_SMALL := Vector2(44, 64)
 var card: Card = null
 var face_up := true
 var selected := false
+var back_mark := "哈"  ## 背面中央标记字；置空则背面无字（如信息栏未叫主态，仅问号）
 
 
-static func create(p_card: Card, p_face_up: bool, small := false) -> CardWidget:
+static func create(p_card: Card, p_face_up: bool, small := false, p_back_mark := "哈") -> CardWidget:
 	var w := CardWidget.new()
 	w.card = p_card
 	w.face_up = p_face_up
+	w.back_mark = p_back_mark
 	var sz := SIZE_SMALL if small else SIZE_NORMAL
 	w.custom_minimum_size = sz
 	w.size = sz
@@ -47,15 +49,16 @@ func _refresh() -> void:
 
 	if not face_up or card == null:
 		style.bg_color = BACK_COLOR
-		var back := Label.new()
-		back.text = "哈"
-		back.set_anchors_preset(Control.PRESET_FULL_RECT)
-		back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		back.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		back.add_theme_font_size_override("font_size", 24 if small else 32)
-		back.modulate = Color(0.72, 0.8, 0.95)
-		back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(back)
+		if back_mark != "":
+			var back := Label.new()
+			back.text = back_mark
+			back.set_anchors_preset(Control.PRESET_FULL_RECT)
+			back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			back.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			back.add_theme_font_size_override("font_size", 24 if small else 32)
+			back.modulate = Color(0.72, 0.8, 0.95)
+			back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			add_child(back)
 		return
 
 	var is_red: bool = card.suit == Card.Suit.HEART or card.suit == Card.Suit.DIAMOND \

@@ -88,16 +88,25 @@ func test_info_sidebar_component(test) -> void:
 	sb.set_state("闲家捉分 45", "累计：甲 +3")
 	test.eq(sb.get_node("VBox/CapturedLabel").text, "闲家捉分 45", "捉分行")
 	test.eq(sb.get_node("VBox/CumulativeLabel").text, "累计：甲 +3", "累计行")
-	# 主牌展示：未叫主态 → 问号+注字；叫主后 → 正 R 牌面
+	# 主牌展示：未叫主态 → 无字牌背微透明+问号（无哈字）；叫主后 → 正 R 牌面
 	sb.set_trump(null)
 	var stack: VBoxContainer = sb.get_node("VBox/TrumpRow/TrumpStack")
 	test.check("未叫主" in stack.get_node("TrumpStateLabel").text, "未叫主注字")
 	var slot: Control = stack.get_node("TrumpSlot")
 	var has_back := false
+	var has_question := false
+	var has_ha_mark := false
 	for c in slot.get_children():
 		if c is CardWidget and c.card == null:
 			has_back = true
-	test.check(has_back, "未叫主显示牌背")
+		if c is Label:
+			if c.text == "？":
+				has_question = true
+			if c.text == "哈":
+				has_ha_mark = true
+	test.check(has_back, "未叫主显示无字牌背")
+	test.check(has_question and not has_ha_mark, "问号展示且无哈字")
+	test.check(has_question and has_back and slot.get_child_count() >= 2, "问号叠于牌背")
 	sb.set_trump(Card.new(Card.Suit.SPADE, Card.RANK_9))
 	var has_trump := false
 	for c in slot.get_children():

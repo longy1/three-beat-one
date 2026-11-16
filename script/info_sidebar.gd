@@ -22,8 +22,8 @@ func set_trump(card: Card) -> void:
 	for child in slot.get_children():
 		child.queue_free()
 	if card == null:
-		# 未叫主：微透明牌背 + 问号
-		var back := CardWidget.create(null, false, true)
+		# 未叫主：无字牌背微透明 + 问号（问号颜色与牌背哈字一致）
+		var back := CardWidget.create(null, false, true, "")
 		back.modulate = Color(1, 1, 1, 0.45)
 		slot.add_child(back)
 		var q := Label.new()
@@ -32,7 +32,7 @@ func set_trump(card: Card) -> void:
 		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		q.add_theme_font_size_override("font_size", 22)
-		q.modulate = Color(1, 0.85, 0.4)
+		q.modulate = Color(0.72, 0.8, 0.95)
 		q.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot.add_child(q)
 		state_label.text = "未叫主"
