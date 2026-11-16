@@ -506,16 +506,18 @@ func _refresh_seats() -> void:
 
 func _refresh_trick_area() -> void:
 	_clear_trick_area()
-	# 本轮各家出牌（与座位布局一致，逆时针）：0 下、1 右、2 上、3 左。
+	# 本轮各家出牌：TrickArea 为全屏层，锚点即屏幕绝对坐标。
+	# 每家出牌显示在自己座位带内（你=手牌正上方、丙=上带右侧、
+	# 乙/丁=面板朝向桌心一侧），互不遮挡座位信息。
 	# 结算后 current_plays 已清空，改用 last_trick 快照停留展示（约 1 秒）
 	var shown: Array = engine.current_plays
 	if shown.is_empty():
 		shown = engine.last_trick
 	var anchors := {
-		0: Vector2(320, 210),
-		1: Vector2(560, 105),
-		2: Vector2(320, 10),
-		3: Vector2(80, 105),
+		0: Vector2(640, 396),
+		1: Vector2(980, 294),
+		2: Vector2(870, 84),
+		3: Vector2(300, 294),
 	}
 	for play in shown:
 		var seat: int = play.seat
@@ -569,7 +571,7 @@ func _show_bottom_cards() -> void:
 		cards_row.add_child(CardWidget.create(c, true, true))
 	box.add_child(cards_row)
 	trick_area.add_child(box)
-	box.position = Vector2(320, 110) - Vector2(220, 30)
+	box.position = Vector2(640, 300) - Vector2(220, 40)
 
 
 func _clear_bottom_cards() -> void:
