@@ -14,7 +14,7 @@ const SEAT_NAMES := ["甲（你）", "乙（电脑）", "丙（电脑）", "丁�
 const TRICK_ANCHORS := {
 	0: Vector2(0.419, 0.55),
 	1: Vector2(0.604, 0.408),
-	2: Vector2(0.419, 0.267),
+	2: Vector2(0.419, 0.28),
 	3: Vector2(0.234, 0.408),
 }
 
@@ -743,15 +743,17 @@ func _refresh_trick_area() -> void:
 		shown = engine.last_trick
 	for play in shown:
 		var seat: int = play.seat
-		# 出牌区只渲染牌（归属信息在姓名版）；赢家标记见姓名版「✓ 上轮赢」
+		# 出牌区只渲染牌（归属信息在姓名版）；赢家标记见姓名版「✓ 上轮赢」。
+		# 卡牌尺寸按张数自适应：≤2 张正常、≥3 张中号（拖拉机不遮挡姓名版）
+		var card_size: Vector2 = CardWidget.SIZE_NORMAL if play.cards.size() <= 2 			else CardWidget.SIZE_MEDIUM
 		var cards_row := HBoxContainer.new()
 		cards_row.add_theme_constant_override("separation", 4)
 		for c in play.cards:
-			cards_row.add_child(CardWidget.create(c, true))
+			cards_row.add_child(CardWidget.create_sized(c, true, card_size))
 		trick_area.add_child(cards_row)
-		var width: float = play.cards.size() * (CardWidget.SIZE_NORMAL.x + 4)
+		var width: float = play.cards.size() * (card_size.x + 4)
 		var base: Vector2 = TRICK_ANCHORS[seat] * trick_area.size  # 相对锚点 × 层尺寸
-		cards_row.position = base - Vector2(width / 2.0, CardWidget.SIZE_NORMAL.y / 2.0)
+		cards_row.position = base - Vector2(width / 2.0, card_size.y / 2.0)
 	# 新一轮开始（无快照、至多只有领出）时清除赢家标记
 	if engine.last_trick.is_empty() and engine.current_plays.size() <= 1:
 		_last_trick_winner = -1

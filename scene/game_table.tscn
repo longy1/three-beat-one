@@ -54,9 +54,9 @@ text = "第 1 局"
 layout_mode = 1
 anchors_preset = 0
 anchor_left = 0.3484
-anchor_top = 0.0667
+anchor_top = 0.0611
 anchor_right = 0.3484
-anchor_bottom = 0.0667
+anchor_bottom = 0.0611
 
 [node name="SeatLeft" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
