@@ -1,8 +1,10 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://script/game_table.gd" id="1_table"]
 [ext_resource type="PackedScene" path="res://scene/seat_panel.tscn" id="2_seat"]
 [ext_resource type="PackedScene" path="res://scene/info_sidebar.tscn" id="3_sidebar"]
+[ext_resource type="Script" path="res://script/action_bar.gd" id="4_action_bar"]
+[ext_resource type="Script" path="res://script/hand_area.gd" id="5_hand_area"]
 
 [sub_resource type="StyleBoxFlat" id="SB_result"]
 content_margin_left = 15.0
@@ -112,10 +114,12 @@ vertical_alignment = 1
 visible = false
 layout_mode = 1
 anchors_preset = 0
-anchor_left = 0.216
-anchor_top = 0.264
-anchor_right = 0.622
-anchor_bottom = 0.708
+anchor_left = 0.419
+anchor_top = 0.408
+anchor_right = 0.419
+anchor_bottom = 0.408
+grow_horizontal = 2
+grow_vertical = 2
 theme_override_styles/panel = SubResource("SB_result")
 
 [node name="VBox" type="VBoxContainer" parent="ResultPanel"]
@@ -146,7 +150,7 @@ custom_minimum_size = Vector2(160, 46)
 theme_override_font_sizes/font_size = 20
 text = "下一局"
 
-[node name="MenuButton2" type="Button" parent="ResultPanel/VBox/Buttons"]
+[node name="MenuButton" type="Button" parent="ResultPanel/VBox/Buttons"]
 layout_mode = 2
 custom_minimum_size = Vector2(160, 46)
 theme_override_font_sizes/font_size = 20
@@ -174,6 +178,7 @@ offset_bottom = 48.0
 grow_horizontal = 2
 alignment = 1
 theme_override_constants/separation = 14.0
+script = ExtResource("4_action_bar")
 
 [node name="HintLabel" type="Label" parent="BottomArea"]
 layout_mode = 1
@@ -195,6 +200,7 @@ offset_top = 86.0
 offset_bottom = -12.0
 grow_horizontal = 2
 grow_vertical = 2
+script = ExtResource("5_hand_area")
 
 [node name="Sidebar" parent="." instance=ExtResource("3_sidebar")]
 layout_mode = 1

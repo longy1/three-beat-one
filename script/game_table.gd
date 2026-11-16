@@ -1,6 +1,10 @@
 extends Control
 ## 牌桌控制器（M2 单机完整对局）：人类 0 号位（下方），其余三家为 AiPolicy 电脑。
-## 引擎（GameEngine）纯逻辑驱动，本脚本只做呈现与输入转发。
+## 引擎（GameEngine）纯逻辑驱动，本脚本只做呈现编排与输入转发。
+## 组件分工：HandArea（手牌区）/ PileViewer（牌堆弹层）/ ActionBar（操作按钮条）/
+## TrumpRankPicker（叫主点数面板）/ CrownAnimator（皇冠动画）——各自持有职责状态。
+## 刷新纪律：_refresh() 是唯一刷新入口，仅由引擎信号处理器调用；
+## 按钮界面只由 *_required 处理器重建（ActionBar.reset 幂等清理）。
 
 
 const HUMAN_SEAT := 0
@@ -18,49 +22,32 @@ const TRICK_ANCHORS := {
 	3: Vector2(0.234, 0.408),
 }
 
-## 皇冠动画落点（相对比例 ×窗口尺寸；仅人类 0 号位使用——其余座位动态计算名字位置）。
-## 0 号位（庄家是自己）：左下固定位置——手牌左侧，不随牌变动
-const CROWN_HUMAN_TARGET := Vector2(0.075, 0.833)
-
-## 主牌桌区域十字中心（相对比例）：左右对齐丙面板中轴（x 0.419）、
-## 上下对齐乙/丁面板中轴（y 0.408）——所有居中展示组件的统一锚点
-const MAIN_TABLE_CENTER := Vector2(0.419, 0.408)
-
 var engine: GameEngine
-var selected: Array = []   # Array[Card]，选中的手牌引用
-var select_mode := ""      # "" | "discard" | "play"
-var _last_trick_winner := -1
+var _piles: PileViewer
+var _crown_anim := CrownAnimator.new()
+var _trump_picker: TrumpRankPicker = null
+var _discard_button: Button = null       ## 扣底确认按钮（计数文案更新用）
 var _pending_trump_suit := -1
-var _crown: CrownBadge = null
-var _last_trump_shown = null  ## 上次送入信息栏的主牌（TrumpInfo 引用），避免重复重建
-var _card_widgets := {}       ## Card → CardWidget（手牌精准刷新，避免整排重建闪烁）
-var _drag_selecting := false  ## 左键按住滑动批量选择中
-var _drag_target := false     ## 本次拖选的目标态（选中/取消），滑过的牌对齐到该态
-var _trick_display_cleared := false  ## 停留结束后已主动清空上一轮牌面
-
-## 选中牌上浮高度 = 牌高的 20%（交互规范，AGENTS.md 第 6 章）
-const SELECT_LIFT_RATIO := 0.2
-const HAND_BASE_Y := 16.0  ## 手牌基准 y（虚线框 frame_y 6 + 内边距 10）
+var _last_trick_winner := -1
+var _trick_display_cleared := false      ## 停留结束后已主动清空上一轮牌面
+var _last_trump_shown = null             ## 上次送入信息栏的主牌（TrumpInfo 引用），避免重复重建
 
 var _ai_timer: Timer
 var _trick_timer: Timer
-var _pile_popup: PanelContainer   ## 悬停查看某玩家出牌历史的弹出层
-var _human_pile_chip: Button      ## 人类玩家出牌历史入口（左下，始终显示）
-var _bottom_pile_button: Button   ## 庄家是自己时的「牌堆」入口（皇冠下方，悬停看底牌）
-var _bottom_popup: PanelContainer ## 底牌堆弹层（2 行 × 4 张，仅庄家自己可见）
-var _trump_rank_panel: PanelContainer = null  ## 叫主点数选择面板（居中多排）
-var _pile_hide_timer: Timer       ## 弹层延迟隐藏（移出入口后 0.35s 才关，防误隐）
-var _sync_accum := 0.0            ## 兜底刷新累计（每 0.5s 强制同步局面显示）
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var bid_center_label: Label = $BidCenterLabel
 @onready var sidebar: InfoSidebar = $Sidebar
 @onready var toast_label: Label = $ToastLabel
 @onready var hint_label: Label = $BottomArea/HintLabel
-@onready var action_bar: HBoxContainer = $BottomArea/ActionBar
-@onready var hand_row: Control = $BottomArea/HandRow
+@onready var action_bar: ActionBar = $BottomArea/ActionBar
+@onready var hand_area: HandArea = $BottomArea/HandRow
 @onready var trick_area: Control = $TrickArea
 @onready var result_panel: PanelContainer = $ResultPanel
+@onready var result_title: Label = $ResultPanel/VBox/ResultTitle
+@onready var result_detail: Label = $ResultPanel/VBox/ResultDetail
+@onready var result_next_button: Button = $ResultPanel/VBox/Buttons/NextButton
+@onready var result_menu_button: Button = $ResultPanel/VBox/Buttons/MenuButton
 
 ## 座位 → SeatPanel 组件实例（0 号位无座位面板，手牌即呈现）。
 ## 布局使出牌顺序 0→1→2→3 在屏幕上呈逆时针：你(下) → 乙(右) → 丙(上) → 丁(左)
@@ -79,13 +66,14 @@ func _ready() -> void:
 	_trick_timer = Timer.new()
 	_trick_timer.one_shot = true
 	_trick_timer.wait_time = TRICK_PAUSE
+	_trick_timer.timeout.connect(_on_trick_pause_ended)
 	add_child(_trick_timer)
 
 	sidebar.menu_pressed.connect(_on_menu)
-	UiStyle.pad_button($ResultPanel/VBox/Buttons/NextButton)
-	UiStyle.pad_button($ResultPanel/VBox/Buttons/MenuButton2)
-	$ResultPanel/VBox/Buttons/NextButton.pressed.connect(_on_next_game)
-	$ResultPanel/VBox/Buttons/MenuButton2.pressed.connect(_on_menu)
+	UiStyle.pad_button(result_next_button)
+	UiStyle.pad_button(result_menu_button)
+	result_next_button.pressed.connect(_on_next_game)
+	result_menu_button.pressed.connect(_on_menu)
 
 	engine = GameEngine.new()
 	engine.auction_required.connect(_on_auction_required)
@@ -94,283 +82,69 @@ func _ready() -> void:
 	engine.play_required.connect(_on_play_required)
 	engine.trick_settled.connect(_on_trick_settled)
 	engine.game_over.connect(_on_game_over)
-	engine.phase_changed.connect(func(_p): _refresh())
 	engine.engine_fault.connect(_on_engine_fault)
-	_setup_pile_ui()
-	engine.start_session()
-	_refresh()
 
+	hand_area.selection_changed.connect(_on_selection_changed)
+	hand_area.select_capped.connect(func(): _toast("最多选择 8 张"))
+	hand_area.play_requested.connect(_submit_human_play)
+	_piles = PileViewer.new()
+	_piles.setup(self)
+	_piles.history_chip.mouse_entered.connect(func(): _piles.show_history(HUMAN_SEAT, engine.trick_history, SEAT_NAMES))
+	_piles.history_chip.mouse_exited.connect(_piles.hide_timer.start)
+	_piles.bottom_button.mouse_entered.connect(func():
+		if engine.banker_seat == HUMAN_SEAT:
+			_piles.show_bottom(engine.buried))
+	_piles.bottom_button.mouse_exited.connect(_piles.hide_timer.start)
+	for seat in seat_panels:
+		var panel: SeatPanel = seat_panels[seat]
+		panel.setup(seat)  # 注入座位号（组件悬停信号携带它定位牌堆）
+		panel.pile_hovered.connect(func(s: int): _piles.show_history(s, engine.trick_history, SEAT_NAMES))
+		panel.pile_exited.connect(func(): _piles.hide_timer.start)
 
-func _process(delta: float) -> void:
-	# 兜底：每 0.5s 校验局面显示与引擎数据一致（防御任何信号时序遗漏）
-	_sync_accum += delta
-	if _sync_accum >= 0.5:
-		_sync_accum = 0.0
-		if engine != null and sidebar != null and engine.round_index > 0:
-			_refresh_top_bar()
+	engine.start_session()  # 同步发出首个 auction_required，由处理器完成首帧刷新
 
 
 func _on_menu() -> void:
 	get_tree().change_scene_to_file("res://scene/main_menu.tscn")
 
 
-## ============================= 玩家牌堆（悬停查看出牌历史） =============================
-
-func _setup_pile_ui() -> void:
-	# 弹层延迟隐藏计时器：移出入口后 0.35s 才关（期间重新进入则取消）
-	_pile_hide_timer = Timer.new()
-	_pile_hide_timer.one_shot = true
-	_pile_hide_timer.wait_time = 0.35
-	_pile_hide_timer.timeout.connect(_hide_pile)
-	add_child(_pile_hide_timer)
-	# 人类玩家出牌历史入口：左下角小按钮（文字「历史」，悬停查看自己的出牌记录）
-	_human_pile_chip = Button.new()
-	_human_pile_chip.text = "历史"
-	_human_pile_chip.add_theme_font_size_override("font_size", 14)
-	UiStyle.pad_button(_human_pile_chip)
-	_human_pile_chip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_human_pile_chip.offset_left = 12
-	_human_pile_chip.offset_right = 58
-	_human_pile_chip.offset_top = -196
-	_human_pile_chip.offset_bottom = -166
-	_human_pile_chip.mouse_entered.connect(func(): _show_pile(HUMAN_SEAT))
-	_human_pile_chip.mouse_exited.connect(_pile_hide_timer.start)
-	add_child(_human_pile_chip)
-	# 庄家是自己时的「牌堆」入口：皇冠下方（左下固定），悬停查看底牌堆
-	_bottom_pile_button = Button.new()
-	_bottom_pile_button.text = "牌堆"
-	_bottom_pile_button.add_theme_font_size_override("font_size", 14)
-	UiStyle.pad_button(_bottom_pile_button)
-	_bottom_pile_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_bottom_pile_button.offset_left = 70
-	_bottom_pile_button.offset_right = 122
-	_bottom_pile_button.offset_top = -100
-	_bottom_pile_button.offset_bottom = -70
-	_bottom_pile_button.visible = false
-	_bottom_pile_button.mouse_entered.connect(_show_bottom_pile)
-	_bottom_pile_button.mouse_exited.connect(_pile_hide_timer.start)
-	add_child(_bottom_pile_button)
-	# 电脑玩家入口：各自座位面板悬停（SeatPanel 组件信号）
-	for seat in seat_panels:
-		var panel: SeatPanel = seat_panels[seat]
-		panel.setup(seat)  # 注入座位号（组件悬停信号携带它定位牌堆）
-		panel.pile_hovered.connect(_show_pile)
-		panel.pile_exited.connect(func(): _pile_hide_timer.start())
-	# 弹出层（居中，可交互滚动；移出入口后延迟隐藏）
-	_pile_popup = PanelContainer.new()
-	_pile_popup.name = "PilePopup"
-	_pile_popup.visible = false
-	_pile_popup.mouse_filter = Control.MOUSE_FILTER_STOP
-	_pile_popup.mouse_entered.connect(_pile_hide_timer.stop)
-	_pile_popup.mouse_exited.connect(_pile_hide_timer.start)
-	# 居中规范：锚点 = 丙中轴 × 乙/丁中轴，grow 向四周自适应（尺寸随内容）
-	_pile_popup.anchor_left = MAIN_TABLE_CENTER.x
-	_pile_popup.anchor_right = MAIN_TABLE_CENTER.x
-	_pile_popup.anchor_top = MAIN_TABLE_CENTER.y
-	_pile_popup.anchor_bottom = MAIN_TABLE_CENTER.y
-	_pile_popup.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_pile_popup.grow_vertical = Control.GROW_DIRECTION_BOTH
-	add_child(_pile_popup)
-	var vbox := VBoxContainer.new()
-	vbox.name = "VBox"
-	vbox.add_theme_constant_override("separation", 6)
-	_pile_popup.add_child(vbox)
-	var title := Label.new()
-	title.name = "Title"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 17)
-	vbox.add_child(title)
-	var scroll := ScrollContainer.new()
-	scroll.name = "Scroll"
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vbox.add_child(scroll)
-	var list := VBoxContainer.new()
-	list.name = "List"
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 4)
-	scroll.add_child(list)
-	# 底牌堆弹层（庄家是自己时）：标题 + 2 行 × 4 张网格
-	_bottom_popup = PanelContainer.new()
-	_bottom_popup.name = "BottomPopup"
-	_bottom_popup.visible = false
-	_bottom_popup.mouse_filter = Control.MOUSE_FILTER_STOP
-	_bottom_popup.mouse_entered.connect(_pile_hide_timer.stop)
-	_bottom_popup.mouse_exited.connect(_pile_hide_timer.start)
-	_bottom_popup.anchor_left = MAIN_TABLE_CENTER.x
-	_bottom_popup.anchor_right = MAIN_TABLE_CENTER.x
-	_bottom_popup.anchor_top = MAIN_TABLE_CENTER.y
-	_bottom_popup.anchor_bottom = MAIN_TABLE_CENTER.y
-	_bottom_popup.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_bottom_popup.grow_vertical = Control.GROW_DIRECTION_BOTH
-	add_child(_bottom_popup)
-	var bp_vbox := VBoxContainer.new()
-	bp_vbox.name = "VBox"
-	bp_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bp_vbox.add_theme_constant_override("separation", 6)
-	_bottom_popup.add_child(bp_vbox)
-	var bp_title := Label.new()
-	bp_title.name = "Title"
-	bp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	bp_title.add_theme_font_size_override("font_size", 17)
-	bp_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bp_vbox.add_child(bp_title)
-	var grid := GridContainer.new()
-	grid.name = "Grid"
-	grid.columns = 4
-	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	grid.add_theme_constant_override("h_separation", 6)
-	grid.add_theme_constant_override("v_separation", 6)
-	bp_vbox.add_child(grid)
-
-
-## 悬停某座位：按旧→新列出该玩家每轮的出牌（赢轮标 ✓ 高亮）
-func _show_pile(seat: int) -> void:
-	if engine == null:
-		return
-	var title: Label = _pile_popup.get_node("VBox/Title")
-	title.text = "%s 的出牌（旧 → 新）" % SEAT_NAMES[seat]
-	var list: VBoxContainer = _pile_popup.get_node("VBox/Scroll/List")
-	for child in list.get_children():
-		child.queue_free()
-	var history: Array = engine.trick_history
-	if history.is_empty():
-		var empty := Label.new()
-		empty.text = "暂无出牌记录"
-		empty.add_theme_font_size_override("font_size", 14)
-		empty.modulate = Color(0.8, 0.85, 0.9)
-		list.add_child(empty)
-	var round_no := 0
-	for th in history:
-		round_no += 1
-		for play in th.plays:
-			if play.seat != seat:
-				continue
-			var row := HBoxContainer.new()
-			row.add_theme_constant_override("separation", 4)
-			row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			var is_winner: bool = th.winner == seat
-			var tag := Label.new()
-			tag.text = ("✓ " if is_winner else "") + "第%d轮" % round_no
-			tag.add_theme_font_size_override("font_size", 13)
-			tag.custom_minimum_size = Vector2(70, 0)
-			tag.modulate = Color(1, 0.85, 0.3) if is_winner else Color(0.8, 0.85, 0.9)
-			row.add_child(tag)
-			for c in play.cards:
-				row.add_child(CardWidget.create(c, true, true))
-			list.add_child(row)
-	_pile_popup.visible = true
-	_pile_hide_timer.stop()
-
-
-func _hide_pile() -> void:
-	if _pile_popup != null:
-		_pile_popup.visible = false
-	if _bottom_popup != null:
-		_bottom_popup.visible = false
-
-
-## 庄家是自己时：悬停「牌堆」按钮查看底牌堆（2 行 × 4 张，仅自己可见）
-func _show_bottom_pile() -> void:
-	if engine == null or engine.banker_seat != HUMAN_SEAT:
-		return
-	var title: Label = _bottom_popup.get_node("VBox/Title")
-	title.text = "你的底牌（仅你可见）"
-	var grid: GridContainer = _bottom_popup.get_node("VBox/Grid")
-	for child in grid.get_children():
-		child.queue_free()
-	for c in engine.buried:
-		grid.add_child(CardWidget.create(c, true, true))
-	_bottom_popup.visible = true
-	_pile_hide_timer.stop()
-
-
-func _on_next_game() -> void:
-	result_panel.visible = false
-	selected.clear()
-	select_mode = ""
-	_last_trick_winner = -1
-	_clear_trick_area()
-	engine.start_next_game()
-	_refresh()
-
-
-## ============================= 信号处理 =============================
+## ============================= 引擎信号处理 =============================
+## 纪律：座位非人类时统一 action_bar.reset()——按钮界面只在人类轮到时存在，
+## submit 提交方法因此无须任何清理（旧版「不得清理」竞态补丁的根治点）。
 
 func _on_auction_required(seat: int) -> void:
-	# 新局拍卖开始：清除上一局的庄家皇冠
-	if _crown != null:
-		_crown.queue_free()
-		_crown = null
+	_crown_anim.clear()  # 新局拍卖开始：清除上一局的庄家皇冠
 	_refresh()
 	if seat == HUMAN_SEAT:
 		_show_auction_bar()
 	else:
+		action_bar.reset()
 		hint_label.text = "等待 %s 表态…" % SEAT_NAMES[seat]
 		_run_ai(func(): engine.submit_bid(seat, AiPolicy.choose_bid(engine.hands[seat], engine.current_highest_bid())))
 
 
 func _on_trump_required(seat: int) -> void:
 	_refresh()
-	_play_crown_animation(seat)  # 拍卖结束：皇冠飞向出牌庄家
+	_crown_anim.play(self, seat, seat_panels)  # 拍卖结束：皇冠飞向出牌庄家
 	if seat == HUMAN_SEAT:
 		_show_trump_picker()
 	else:
+		action_bar.reset()
 		hint_label.text = "等待 %s 叫主…" % SEAT_NAMES[seat]
 		_run_ai(func():
 			var choice: Dictionary = AiPolicy.choose_trump(engine.hands[seat])
 			engine.submit_trump(seat, choice.suit, choice.rank))
 
 
-## 皇冠：从主牌桌正中央放大出现，一边缩小一边减速移动，
-## 停驻在出牌庄家名字首字之前，高度与名字字号一致。
-func _play_crown_animation(seat: int) -> void:
-	if _crown != null:
-		_crown.queue_free()
-	_crown = CrownBadge.new()
-	_crown.size = Vector2(24, 18)  # 高度 = NameLabel 字号（18）
-	_crown.pivot_offset = _crown.size / 2.0
-	_crown.position = MAIN_TABLE_CENTER * size - _crown.size / 2.0  # 主牌桌区域正中央
-	_crown.scale = Vector2(4, 4)
-	_crown.z_index = 60
-	add_child(_crown)
-	await get_tree().process_frame  # 等待名字标签完成本帧布局
-	if not is_inside_tree() or _crown == null:
-		return
-	var target: Vector2 = _crown_target(seat)
-	var tw := create_tween()
-	tw.set_parallel(true)
-	# TRANS_CUBIC + EASE_OUT：起步快、逐渐减速（加速度减小）
-	tw.tween_property(_crown, "position", target - _crown.size / 2.0, 1.0) \
-		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(_crown, "scale", Vector2.ONE, 1.0) \
-		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-
-
-## 皇冠落点（中心）：庄家名字文字左缘前方；人类 0 号位无面板，用常量
-func _crown_target(seat: int) -> Vector2:
-	if seat == 0 or not seat_panels.has(seat):
-		return CROWN_HUMAN_TARGET * size
-	var name_label: Label = seat_panels[seat].get_node("VBox/NameLabel")
-	var font: Font = name_label.get_theme_font("font")
-	if font == null or name_label.text.is_empty():
-		return CROWN_HUMAN_TARGET * size
-	var font_size: int = name_label.get_theme_font_size("font_size")
-	var text_w: float = font.get_string_size(name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var center_x: float = name_label.global_position.x + name_label.size.x / 2.0
-	var row_y: float = name_label.global_position.y + name_label.size.y / 2.0
-	# 名字文字左缘再往前留 4px，皇冠中心再往左半个冠宽
-	return Vector2(center_x - text_w / 2.0 - 4.0 - _crown.size.x / 2.0, row_y)
-
-
 func _on_discard_required(seat: int) -> void:
 	_refresh()
 	if seat == HUMAN_SEAT:
-		select_mode = "discard"
-		selected.clear()
+		hand_area.begin_select("discard")
 		_show_discard_bar()
 		_show_bottom_cards()
 		_render_hand()
 	else:
+		action_bar.reset()
 		hint_label.text = "等待 %s 扣底…" % SEAT_NAMES[seat]
 		_run_ai(func(): engine.submit_discard(seat, AiPolicy.choose_discard(engine.hands[seat], engine.trump)))
 
@@ -380,16 +154,16 @@ func _on_play_required(seat: int) -> void:
 		await _trick_timer.timeout
 		if not is_inside_tree():
 			return
-	# 停留窗口结束：清✓赢标记，并主动清空上一轮牌面（不再等新牌替换）
+	# 停留窗口结束：清 ✓ 赢家标记并主动清空上一轮牌面（不再等新牌替换）
 	_last_trick_winner = -1
 	_trick_display_cleared = true
 	_refresh()
 	if seat == HUMAN_SEAT:
-		select_mode = "play"
-		selected.clear()
+		hand_area.begin_select("play")
 		_render_hand()
 		_show_play_bar()
 	else:
+		action_bar.reset()
 		hint_label.text = "等待 %s 出牌…" % SEAT_NAMES[seat]
 		_run_ai(func():
 			var verdict: Dictionary = engine.submit_play(seat, AiPolicy.choose_play(engine, seat))
@@ -401,19 +175,27 @@ func _on_trick_settled(info: Dictionary) -> void:
 	_last_trick_winner = info.winner
 	_trick_display_cleared = false
 	_refresh()
-	_trick_timer.start()
+	_trick_timer.start()  # 结算停留 1.5s，到期主动清空牌面（_on_trick_pause_ended）
 
 
 func _on_game_over(result: Dictionary) -> void:
 	_refresh()
-	select_mode = ""
+	hand_area.end_select()
+	action_bar.reset()
 	hint_label.text = ""
-	# 末轮牌面停留 1 秒再弹结算面板
+	# 末轮牌面停留结束后再弹结算面板
 	if _trick_timer.time_left > 0:
 		await _trick_timer.timeout
 	if not is_inside_tree():
 		return
 	_show_result(result)
+
+
+## 结算停留到期：清 ✓ 赢家标记、主动清空出牌桌（1.5 秒后，不依赖下一手替换）
+func _on_trick_pause_ended() -> void:
+	_last_trick_winner = -1
+	_trick_display_cleared = true
+	_refresh()
 
 
 ## 引擎内部一致性破坏（正常对局不会发生）：显性提示，冻结等待诊断
@@ -432,25 +214,8 @@ func _run_ai(action: Callable) -> void:
 
 ## ============================= 人类操作面板 =============================
 
-func _clear_action_bar() -> void:
-	for child in action_bar.get_children():
-		child.queue_free()
-
-
-func _add_button(text: String, handler: Callable, disabled := false) -> Button:
-	var b := Button.new()
-	b.text = text
-	b.add_theme_font_size_override("font_size", 18)
-	b.custom_minimum_size = Vector2(120, 44)
-	b.disabled = disabled
-	UiStyle.pad_button(b)  # 文字与按钮边框留空 ≥ 半字号（UI 规范）
-	b.pressed.connect(handler)
-	action_bar.add_child(b)
-	return b
-
-
 func _show_auction_bar() -> void:
-	_clear_action_bar()
+	action_bar.reset()
 	var highest := engine.current_highest_bid()
 	if highest >= GameEngine.BID_CAP:
 		hint_label.text = "叫分已封顶 200，只能放弃"
@@ -463,24 +228,21 @@ func _show_auction_bar() -> void:
 		if not options.has(GameEngine.BID_CAP):
 			options.append(GameEngine.BID_CAP)
 		for v in options:
-			_add_button("叫 %d" % v, func(): _submit_human_bid(v))
+			action_bar.add_button("叫 %d" % v, func(): _submit_human_bid(v))
 		hint_label.text = "轮到你表态（当前最高 %d）" % highest
-	_add_button("放弃", func(): _submit_human_bid(GameEngine.BID_PASS))
+	action_bar.add_button("放弃", func(): _submit_human_bid(GameEngine.BID_PASS))
 
 
 func _submit_human_bid(value: int) -> void:
 	var verdict := engine.submit_bid(HUMAN_SEAT, value)
 	if not verdict.ok:
 		_toast(verdict.error)
-		return
-	# 仅当拍卖仍在继续时清自己的旧按钮；拍卖结束则下一阶段 UI 已同步接管
-	if engine.phase == GameEngine.Phase.AUCTION:
-		_clear_action_bar()
+	# 后续由下一个 *_required 处理器统一重建按钮（人类轮→新面板；AI 轮→reset）
 
 
 func _show_trump_picker() -> void:
-	_clear_action_bar()
-	_close_trump_rank_panel()
+	action_bar.reset()
+	_close_trump_picker()
 	_pending_trump_suit = -1
 	hint_label.text = "你是出牌庄家，请先叫主（看底牌之前）：选择主花色"
 	var suits := [
@@ -489,67 +251,23 @@ func _show_trump_picker() -> void:
 	]
 	for entry in suits:
 		var suit: int = entry[1]
-		_add_button(entry[0], func(): _pick_trump_suit(suit))
+		action_bar.add_button(entry[0], func(): _pick_trump_suit(suit))
 
 
 func _pick_trump_suit(suit: int) -> void:
 	_pending_trump_suit = suit
-	_clear_action_bar()
+	action_bar.reset()
 	hint_label.text = "主花色已选，再选常主点数 R（可任选，不必持有）"
-	_show_trump_rank_picker()
+	_trump_picker = TrumpRankPicker.new()
+	_trump_picker.name = "TrumpRankPicker"
+	_trump_picker.rank_picked.connect(_submit_human_trump)
+	add_child(_trump_picker)
 
 
-## 常主点数选择面板：居中多排（2 排 × 6），避免 12 个按钮挤在单行溢出屏幕
-func _show_trump_rank_picker() -> void:
-	_close_trump_rank_panel()
-	_trump_rank_panel = PanelContainer.new()
-	_trump_rank_panel.name = "TrumpRankPicker"
-	# 居中规范：锚点 = 主牌桌十字中心，grow 向四周自适应（尺寸随内容）
-	_trump_rank_panel.anchor_left = MAIN_TABLE_CENTER.x
-	_trump_rank_panel.anchor_right = MAIN_TABLE_CENTER.x
-	_trump_rank_panel.anchor_top = MAIN_TABLE_CENTER.y
-	_trump_rank_panel.anchor_bottom = MAIN_TABLE_CENTER.y
-	_trump_rank_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_trump_rank_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	add_child(_trump_rank_panel)
-	var vbox := VBoxContainer.new()
-	vbox.name = "VBox"
-	vbox.add_theme_constant_override("separation", 10)
-	_trump_rank_panel.add_child(vbox)
-	var title := Label.new()
-	title.name = "Title"
-	title.text = "选择常主点数 R"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 18)
-	vbox.add_child(title)
-	var grid := GridContainer.new()
-	grid.name = "Grid"
-	grid.columns = 6
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
-	vbox.add_child(grid)
-	for r in Card.RANKS:
-		var rank: int = r
-		var label_text: String
-		if rank == Card.RANK_SMALL_JOKER:
-			label_text = "小王"
-		elif rank == Card.RANK_BIG_JOKER:
-			label_text = "大王"
-		else:
-			label_text = Card.new(Card.Suit.JOKER, rank).label()
-		var b := Button.new()
-		b.text = label_text
-		b.add_theme_font_size_override("font_size", 20)
-		b.custom_minimum_size = Vector2(92, 48)
-		UiStyle.pad_button(b)
-		b.pressed.connect(func(): _submit_human_trump(rank))
-		grid.add_child(b)
-
-
-func _close_trump_rank_panel() -> void:
-	if _trump_rank_panel != null:
-		_trump_rank_panel.queue_free()
-		_trump_rank_panel = null
+func _close_trump_picker() -> void:
+	if _trump_picker != null:
+		_trump_picker.queue_free()
+		_trump_picker = null
 
 
 func _submit_human_trump(rank: int) -> void:
@@ -557,33 +275,31 @@ func _submit_human_trump(rank: int) -> void:
 	if not verdict.ok:
 		_toast(verdict.error)
 		return
-	_close_trump_rank_panel()
-	# submit_trump 会同步进入扣底阶段：discard bar 已清旧按钮并创建「确认扣底」，
-	# 此处不再清理（否则会把新按钮一并删掉）
+	_close_trump_picker()
+	# submit_trump 同步进入扣底阶段：discard_required 处理器已重建扣底界面
 
 
 func _show_discard_bar() -> void:
-	_clear_action_bar()
-	_add_button("确认扣底（0/8）", func(): _submit_human_discard())
+	action_bar.reset()
+	_discard_button = action_bar.add_button("确认扣底（0/8）", func(): _submit_human_discard())
 	hint_label.text = "翻底完成：请从手牌选 8 张扣回（建议副牌分牌）"
 
 
 func _submit_human_discard() -> void:
-	if selected.size() != GameEngine.BOTTOM_SIZE:
-		_toast("须恰好选 8 张扣底（当前 %d 张）" % selected.size())
+	if hand_area.selected.size() != GameEngine.BOTTOM_SIZE:
+		_toast("须恰好选 8 张扣底（当前 %d 张）" % hand_area.selected.size())
 		return
-	var verdict := engine.submit_discard(HUMAN_SEAT, selected.duplicate())
+	var verdict := engine.submit_discard(HUMAN_SEAT, hand_area.selected.duplicate())
 	if not verdict.ok:
 		_toast(verdict.error)
 		return
-	# submit_discard 同步触发 play_required(庄家=自己)：handler 已重建出牌阶段 UI
-	# （select_mode="play"、出牌按钮、手牌），此处不得做任何破坏性清理，只收底牌展示
+	# submit_discard 同步触发 play_required：处理器已重建出牌阶段界面
 	_clear_bottom_cards()
 
 
 func _show_play_bar() -> void:
-	_clear_action_bar()
-	_add_button("出牌", func(): _submit_human_play())
+	action_bar.reset()
+	action_bar.add_button("出牌", func(): _submit_human_play())
 	if engine.current_plays.is_empty():
 		hint_label.text = "由你领出：选 1/2/4 张构成牌型（单张 / 对子 / 拖拉机）"
 	else:
@@ -591,18 +307,18 @@ func _show_play_bar() -> void:
 
 
 func _submit_human_play() -> void:
-	var verdict: Dictionary = engine.submit_play(HUMAN_SEAT, selected.duplicate())
+	var verdict: Dictionary = engine.submit_play(HUMAN_SEAT, hand_area.selected.duplicate())
 	if not verdict.legal:
 		_toast(verdict.text)
 		return
-	# submit_play 同步触发信号：若下一手仍是自己（连庄领出），handler 已重建出牌 UI，
-	# 此处不得清理；仅当下一手为 AI / 局已结束时才清自己的按钮与选择态
-	if engine.phase == GameEngine.Phase.TRICKS and engine.turn_seat == HUMAN_SEAT:
-		return
-	selected.clear()
-	select_mode = ""
-	_clear_action_bar()
-	_refresh()
+	# submit_play 同步触发下一个 *_required：轮到 AI / 局已结束时处理器已 reset 按钮；
+	# 连庄领出仍是自己时 _show_play_bar 已重建按钮——两种情况均无须此处清理
+
+
+## 手牌选择数变化：扣底按钮计数联动
+func _on_selection_changed(count: int) -> void:
+	if _discard_button != null and not _discard_button.is_queued_for_deletion():
+		_discard_button.text = "确认扣底（%d/8）" % count
 
 
 func _toast(message: String) -> void:
@@ -613,7 +329,7 @@ func _toast(message: String) -> void:
 			toast_label.visible = false)
 
 
-## ============================= 呈现刷新 =============================
+## ============================= 呈现刷新（唯一入口 _refresh） =============================
 
 func _refresh() -> void:
 	if engine == null:
@@ -623,14 +339,10 @@ func _refresh() -> void:
 	_refresh_trick_area()
 	_refresh_stats()
 	_render_hand()
-	if select_mode == "discard":
-		_update_discard_button()
 	# 庄家是自己时：皇冠下方「牌堆」按钮显示（扣底完成后才有底牌可看）
 	var show_bottom := engine.banker_seat == HUMAN_SEAT \
 		and (engine.phase == GameEngine.Phase.TRICKS or engine.phase == GameEngine.Phase.SETTLED)
-	_bottom_pile_button.visible = show_bottom
-	if not show_bottom:
-		_bottom_popup.visible = false
+	_piles.set_bottom_button_visible(show_bottom)
 
 
 ## 右下角手牌统计：主牌数量、副牌各花色数量、各点数数量（含王、2）
@@ -718,7 +430,7 @@ func _refresh_top_bar() -> void:
 func _refresh_seats() -> void:
 	for seat in seat_panels:
 		var panel: SeatPanel = seat_panels[seat]
-		# 庄家由皇冠动画标记，面板不再显示「抓牌/庄」文字
+		# 庄家由皇冠动画标记，面板不显示「抓牌/庄」文字
 		var status := ""
 		match engine.phase:
 			GameEngine.Phase.AUCTION:
@@ -741,7 +453,7 @@ func _refresh_trick_area() -> void:
 	# 每家出牌显示在自己座位带内（你=手牌正上方、丙=上带右侧、
 	# 乙/丁=面板朝向桌心一侧），互不遮挡座位信息。
 	# 结算后 current_plays 已清空，改用 get_last_trick() 派生快照停留展示；
-	# 停留结束（1.5s）主动清空，不再显示上一轮
+	# 停留结束（_on_trick_pause_ended）主动清空，不再显示上一轮
 	var shown: Array = engine.current_plays
 	if shown.is_empty() and not _trick_display_cleared:
 		shown = engine.get_last_trick()
@@ -759,7 +471,6 @@ func _refresh_trick_area() -> void:
 		var width: float = play.cards.size() * (card_size.x + 4)
 		var base: Vector2 = TRICK_ANCHORS[seat] * trick_area.size  # 相对锚点 × 层尺寸
 		cards_row.position = base - Vector2(width / 2.0, card_size.y / 2.0)
-	# 赢家标记（✓ 上轮赢）的清除由 _on_play_required 统一负责（停留期结束后复位）
 
 
 func _clear_trick_area() -> void:
@@ -784,7 +495,7 @@ func _show_bottom_cards() -> void:
 		cards_row.add_child(CardWidget.create(c, true, true))
 	box.add_child(cards_row)
 	trick_area.add_child(box)
-	box.position = MAIN_TABLE_CENTER * trick_area.size - Vector2(220, 40)  # 主牌桌十字中心
+	box.position = UiStyle.MAIN_TABLE_CENTER * trick_area.size - Vector2(220, 40)  # 主牌桌十字中心
 
 
 func _clear_bottom_cards() -> void:
@@ -793,199 +504,24 @@ func _clear_bottom_cards() -> void:
 		node.queue_free()
 
 
-func _update_discard_button() -> void:
-	for child in action_bar.get_children():
-		if child is Button:
-			child.text = "确认扣底（%d/8）" % selected.size()
-
-
-## 副牌显示排序：花色按 ♠→♥→♣→♦ 顺序分组，组内点数从大到小（A 前 5 后）
-static func _side_display_cmp(a: Card, b: Card) -> bool:
-	if a.suit != b.suit:
-		return a.suit < b.suit
-	return a.rank > b.rank
-
-
-## 叫主前左区（确定常主：王与所有 2）排序键：大王 > 小王 > 各 2（♠→♥→♣→♦）
-static func _pre_trump_main_key(c: Card) -> Array:
-	if c.is_joker():
-		return [2 if c.rank == Card.RANK_BIG_JOKER else 1, 0]
-	return [0, -c.suit]
-
-
-## 手牌：德州扑克桌面式分区——左框主牌、右框副牌（圆角虚线框），
-## 每个区域内从左至右按从大到小排列。
-## 叫主前同样分两块：王与所有 2（必然常主）进左框；四门花色普通牌进右框。
 func _render_hand() -> void:
-	for child in hand_row.get_children():
-		child.queue_free()
-	_card_widgets.clear()
-	_drag_selecting = false
-	if engine == null or engine.hands.is_empty():
-		return
-	var trump := engine.trump
-	var trump_cards: Array = []
-	var side_cards: Array = []
-	for c in engine.get_hand(HUMAN_SEAT):
-		var is_main: bool
-		if trump != null:
-			is_main = trump.is_trump(c)
-		else:
-			is_main = c.is_joker() or c.rank == Card.RANK_2
-		if is_main:
-			trump_cards.append(c)
-		else:
-			side_cards.append(c)
-	# 主牌区（左框）：从大到小。叫主后按 3.1 牌力（大王→…→主5）；
-	# 叫主前为确定常主：大王 → 小王 → 各 2（♠→♥→♣→♦）
-	if trump != null:
-		trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
-			return trump.card_power(a) > trump.card_power(b))
-	else:
-		trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
-			return _pre_trump_main_key(a) > _pre_trump_main_key(b))
-	# 副牌区（右框）：花色分组、组内从大到小
-	side_cards.sort_custom(_side_display_cmp)
-
-	var groups: Array = []
-	if not trump_cards.is_empty():
-		groups.append(trump_cards)  # 叫主前=确定常主（王/2），叫主后=主牌类
-	if not side_cards.is_empty():
-		groups.append(side_cards)
-	if groups.is_empty():
-		return
-
-	var avail: float = hand_row.size.x
-	if avail < 100:
-		avail = 1100.0  # 首帧布局未就绪时的兜底宽度
-	var card_w := CardWidget.SIZE_NORMAL.x
-	var card_h := CardWidget.SIZE_NORMAL.y
-	var pad := 10.0
-	var gap := 16.0
-	var n := trump_cards.size() + side_cards.size()
-	var spacing := 40.0
-	if n > 2:
-		spacing = (avail - gap - 4 * pad - 2 * card_w) / (n - 2)
-	spacing = clampf(spacing, 8, 40)
-
-	var widths: Array = []
-	for g in groups:
-		widths.append(card_w + spacing * (g.size() - 1) + 2 * pad)
-	var total: float = 0.0
-	for w in widths:
-		total += w
-	if groups.size() == 2:
-		total += gap
-	var x := (avail - total) / 2.0
-	var frame_h := card_h + 2 * pad
-	var frame_y := 6.0  # 固定纵向位置：不随布局高度变化，避免整排手牌上下漂移
-
-	for i in groups.size():
-		var g: Array = groups[i]
-		var frame := DashedRoundedFrame.new()
-		frame.position = Vector2(x, frame_y)
-		frame.size = Vector2(widths[i], frame_h)
-		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hand_row.add_child(frame)
-		var cx: float = x + pad
-		for c in g:
-			var card_widget := CardWidget.create(c, true)
-			var is_selected: bool = selected.has(c)
-			card_widget.set_selected(is_selected)
-			# 选中：金色边框 + 上浮 20% 牌高（交互规范）
-			card_widget.position = Vector2(cx, HAND_BASE_Y - (card_h * SELECT_LIFT_RATIO if is_selected else 0))
-			var card_ref: Card = c
-			card_widget.gui_input.connect(func(event: InputEvent):
-				if event is InputEventMouseButton and event.pressed:
-					if event.button_index == MOUSE_BUTTON_LEFT:
-						_on_hand_card_left_press(card_ref)
-					elif event.button_index == MOUSE_BUTTON_RIGHT:
-						_on_hand_card_right_press())
-			_card_widgets[c] = card_widget
-			hand_row.add_child(card_widget)
-			cx += spacing
-		x += widths[i] + (gap if i == 0 and groups.size() == 2 else 0.0)
+	hand_area.render(engine.get_hand(HUMAN_SEAT), engine.trump)
 
 
-## ============================= 手牌交互 =============================
-## 左键单击切换选中；按住左键滑动批量选择相邻牌（以首张的目标态对齐）；
-## 右键在出牌模式下直接提交出牌（引擎校验，非法则提示原因）。
-
-func _on_hand_card_left_press(card: Card) -> void:
-	if select_mode == "":
-		return
-	_toggle_select(card)
-	_drag_selecting = true
-	_drag_target = selected.has(card)  # 首张牌的新态作为本次拖选目标
-
-
-func _drag_hover(card: Card) -> void:
-	if select_mode == "" or not _drag_selecting:
-		return
-	if selected.has(card) == _drag_target:
-		return
-	if _drag_target:
-		if select_mode == "discard" and selected.size() >= GameEngine.BOTTOM_SIZE:
-			return
-		selected.append(card)
-	else:
-		selected.erase(card)
-	_apply_card_visual(card, selected.has(card))
-	if select_mode == "discard":
-		_update_discard_button()
-
-
-func _on_hand_card_right_press() -> void:
-	if select_mode == "play" and not selected.is_empty():
-		_submit_human_play()
-
-
-func _input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		_drag_selecting = false  # 左键松开（任何位置）结束拖选
-	elif event is InputEventMouseMotion and _drag_selecting:
-		# 按住鼠标期间 Godot 把 motion 路由给按下时的控件（mouse_focus 捕获），
-		# 相邻牌收不到 gui_input——此处对全部手牌做全局命中测试
-		for card in _card_widgets:
-			var w: CardWidget = _card_widgets[card]
-			if w.get_global_rect().has_point(w.get_global_mouse_position()):
-				_drag_hover(card)
-				break
-
-
-func _toggle_select(card: Card) -> void:
-	if select_mode == "":
-		return
-	if selected.has(card):
-		selected.erase(card)
-		_apply_card_visual(card, false)
-	else:
-		if select_mode == "discard" and selected.size() >= GameEngine.BOTTOM_SIZE:
-			_toast("最多选择 8 张")
-			return
-		selected.append(card)
-		_apply_card_visual(card, true)
-	if select_mode == "discard":
-		_update_discard_button()
-
-
-## 精准更新一张牌的选中视觉（金边 + 上浮 20%），不重建整排手牌
-func _apply_card_visual(card: Card, sel: bool) -> void:
-	var widget: CardWidget = _card_widgets.get(card)
-	if widget == null:
-		return
-	widget.set_selected(sel)
-	widget.position.y = HAND_BASE_Y - (CardWidget.SIZE_NORMAL.y * SELECT_LIFT_RATIO if sel else 0)
+func _on_next_game() -> void:
+	result_panel.visible = false
+	_last_trick_winner = -1
+	_trick_display_cleared = false
+	_clear_trick_area()
+	engine.start_next_game()
 
 
 ## ============================= 结算面板 =============================
 
 func _show_result(result: Dictionary) -> void:
-	var title: Label = result_panel.get_node("VBox/ResultTitle")
-	var detail: Label = result_panel.get_node("VBox/ResultDetail")
 	var side := "闲家胜" if not result.banker_won else "庄家胜"
-	title.text = "%s %d 级！" % [side, result.level]
-	title.modulate = Color(1, 0.9, 0.4) if result.banker_won else Color(0.5, 0.95, 0.6)
+	result_title.text = "%s %d 级！" % [side, result.level]
+	result_title.modulate = Color(1, 0.9, 0.4) if result.banker_won else Color(0.5, 0.95, 0.6)
 	var koudi_text := "无"
 	if result.koudi_points > 0:
 		var multiplier: int = 2 if result.koudi_points == result.buried_points * 2 else 1
@@ -998,5 +534,5 @@ func _show_result(result: Dictionary) -> void:
 		"本局收益：甲 %+d ｜ 乙 %+d ｜ 丙 %+d ｜ 丁 %+d（B=1）" % [result.payments[0], result.payments[1], result.payments[2], result.payments[3]],
 		"累计：甲 %+d ｜ 乙 %+d ｜ 丙 %+d ｜ 丁 %+d" % [result.cumulative[0], result.cumulative[1], result.cumulative[2], result.cumulative[3]],
 	]
-	detail.text = "\n".join(lines)
+	result_detail.text = "\n".join(lines)
 	result_panel.visible = true

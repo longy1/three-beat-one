@@ -39,3 +39,18 @@ func set_info(title: String, count: String, status: String) -> void:
 ## 当前行动指示：淡金色边框（不改透明度）
 func set_highlight(on: bool) -> void:
 	add_theme_stylebox_override("panel", _style_highlight if on else _style_normal)
+
+
+## 皇冠落点（中心）：名字文字左缘前方 4px、姓名行垂直居中（庄家标记动画用）。
+## 组件封装：外部无须 get_node 穿透内部结构。名字未就绪时返回 Vector2.INF。
+func crown_anchor(crown_width: float) -> Vector2:
+	var name_label: Label = $VBox/NameLabel
+	var font: Font = name_label.get_theme_font("font")
+	if font == null or name_label.text.is_empty():
+		return Vector2.INF
+	var font_size: int = name_label.get_theme_font_size("font_size")
+	var text_w: float = font.get_string_size(name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var center_x: float = name_label.global_position.x + name_label.size.x / 2.0
+	var row_y: float = name_label.global_position.y + name_label.size.y / 2.0
+	# 名字文字左缘再往前留 4px，皇冠中心再往左半个冠宽
+	return Vector2(center_x - text_w / 2.0 - 4.0 - crown_width / 2.0, row_y)

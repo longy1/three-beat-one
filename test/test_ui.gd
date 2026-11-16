@@ -85,10 +85,10 @@ func test_pile_popup_delayed_hide(test) -> void:
 	eng.submit_bid(0, GameEngine.BID_PASS)
 	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
 	eng.submit_discard(0, AiPolicy.choose_discard(eng.hands[0], eng.trump))
-	table._human_pile_chip.mouse_entered.emit()
-	var popup: PanelContainer = table._pile_popup
+	table._piles.history_chip.mouse_entered.emit()
+	var popup: PanelContainer = table._piles.history_popup
 	test.check(popup.visible, "悬停后弹层显示")
-	table._human_pile_chip.mouse_exited.emit()  # 移出入口 → 启动延迟隐藏
+	table._piles.history_chip.mouse_exited.emit()  # 移出入口 → 启动延迟隐藏
 	await tree_pause()  # ~0.05s < 0.35s：弹层应仍在
 	test.check(popup.visible, "移出后 0.35s 内弹层保持显示（延迟隐藏）")
 	var tree: SceneTree = Engine.get_main_loop()
@@ -108,7 +108,7 @@ func test_bottom_pile_button_for_human_banker(test) -> void:
 	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
 	eng.submit_discard(0, AiPolicy.choose_discard(eng.hands[0], eng.trump))
 	await tree_pause()
-	var btn: Button = table._bottom_pile_button
+	var btn: Button = table._piles.bottom_button
 	test.check(btn.visible, "庄家是自己时牌堆按钮可见")
 	# 非庄家/非出牌阶段不可见
 	eng.start_session(99)  # 新局拍卖阶段
@@ -128,14 +128,14 @@ func test_discard_submit_leads_to_play_ui(test) -> void:
 	eng.submit_bid(0, GameEngine.BID_PASS)
 	table._pending_trump_suit = Card.Suit.SPADE
 	table._submit_human_trump(Card.RANK_9)
-	table.selected.clear()
+	table.hand_area.selected.clear()
 	var hand: Array = eng.hands[0]
 	for i in range(8):
-		table.selected.append(hand[hand.size() - 1 - i])
+		table.hand_area.selected.append(hand[hand.size() - 1 - i])
 	table._submit_human_discard()
 	await tree_pause()
 	test.eq(eng.phase, Phase.TRICKS, "进入出牌阶段")
-	test.eq(table.select_mode, "play", "扣底提交后处于可出牌态（回归：卡死）")
+	test.eq(table.hand_area.select_mode, "play", "扣底提交后处于可出牌态（回归：卡死）")
 	var bar: HBoxContainer = table.get_node("BottomArea/ActionBar")
 	var found := false
 	for c in bar.get_children():
@@ -166,7 +166,7 @@ func test_trump_rank_picker_shows_all_ranks(test) -> void:
 	table._submit_human_trump(Card.RANK_9)
 	await tree_pause()
 	test.eq(eng.phase, Phase.DISCARD, "选择后进入扣底")
-	test.check(table._trump_rank_panel == null, "选择后面板关闭")
+	test.check(table._trump_picker == null, "选择后面板关闭")
 	await _release_table(table)
 
 
@@ -187,6 +187,42 @@ func test_trump_display_in_sidebar(test) -> void:
 		if c is CardWidget and c.card != null and c.card.suit == Card.Suit.SPADE and c.card.rank == Card.RANK_9:
 			has_card = true
 	test.check(has_card, "叫主后信息栏展示 ♠9 牌面")
+	await _release_table(table)
+
+
+## 回归：一轮结算后牌面停留（✓ 赢家标记 + 出牌保留在桌上），停留到期主动清空
+## （曾因控制器拆分丢失 _last_trick_winner 赋值与停留计时器启动）
+func test_trick_settle_display_pauses(test) -> void:
+	var table = await _spawn_table()
+	table._trick_timer.wait_time = 1.5  # 本用例用真实停留时长
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)
+	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	eng.submit_discard(0, AiPolicy.choose_discard(eng.hands[0], eng.trump))
+	for i in 4:
+		var s: int = eng.turn_seat
+		eng.submit_play(s, AiPolicy.choose_play(eng, s))
+	# 停留窗口内：四家出牌保留在桌上；赢家姓名版显示 ✓
+	var shown_cards := 0
+	for c in table.get_node("TrickArea").get_children():
+		if c is HBoxContainer and not c.is_queued_for_deletion():
+			shown_cards += 1
+	test.eq(shown_cards, 4, "停留期内四家出牌保留在桌上")
+	var winner: int = eng.leader_seat
+	if winner != 0:
+		var status: String = table.seat_panels[winner].get_node("VBox/StatusLabel").text
+		test.check("✓" in status, "赢家姓名版显示 ✓ 标记（实际 %s）" % status)
+	# 停留到期：出牌桌主动清空
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.create_timer(2.0).timeout
+	var remaining := 0
+	for c in table.get_node("TrickArea").get_children():
+		if c is HBoxContainer and not c.is_queued_for_deletion():
+			remaining += 1
+	test.eq(remaining, 0, "停留到期后出牌主动清空")
 	await _release_table(table)
 
 

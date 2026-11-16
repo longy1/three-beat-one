@@ -9,9 +9,9 @@ extends UiTestBase
 ## 人类以真实 UI 方法出牌（选牌 → 提交）
 func _human_play(table) -> void:
 	var eng: GameEngine = table.engine
-	table.selected.clear()
+	table.hand_area.selected.clear()
 	for c in AiPolicy.choose_play(eng, 0):
-		table.selected.append(c)
+		table.hand_area.selected.append(c)
 	table._submit_human_play()
 
 
@@ -39,10 +39,10 @@ func test_flow_human_banker(test) -> void:
 			has_confirm = true
 	test.check(has_confirm, "确认扣底按钮出现")
 	# 扣底（选 8 张，真实 UI 提交）
-	table.selected.clear()
+	table.hand_area.selected.clear()
 	var hand: Array = eng.hands[0]
 	for i in range(8):
-		table.selected.append(hand[hand.size() - 1 - i])
+		table.hand_area.selected.append(hand[hand.size() - 1 - i])
 	table._submit_human_discard()
 	test.eq(eng.phase, Phase.TRICKS, "进入出牌阶段")
 	test.eq(eng.hands[0].size(), 19, "扣底后手牌 19 张")
