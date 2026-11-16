@@ -23,32 +23,19 @@ func _initialize() -> void:
 	var total_target := B_LEVELS.size() * STRENGTH_BINS.size() * TRIALS_PER_CELL + TRIALS_PER_CELL
 	var done := 0
 	var attempts := 0
-	# 覆盖 130 底叫档（庄家不主动叫，其它全 pass）
+	# 全部目标格：5 个主动叫分档 × 4 强度桶 + 130 底叫档 × 4 桶（庄家不主动叫，其它全 pass）
 	var all_cells: Array = []
 	for b in B_LEVELS:
 		for bin in STRENGTH_BINS:
 			all_cells.append([b, bin[0], bin[1]])
-	all_cells.append([B130, 0, 999])  # 130 档先跑满再拆桶？130 档也按桶统计：
-	# 为统一处理，130 档拆同四桶
-	all_cells.clear()
-	for b in B_LEVELS:
-		for bin in STRENGTH_BINS:
-			all_cells.append([b, bin[0], bin[1]])
-	all_cells.append([B130, 0, 35])
-	all_cells.append([B130, 35, 50])
-	all_cells.append([B130, 50, 65])
-	all_cells.append([B130, 65, 999])
+	for bin in STRENGTH_BINS:
+		all_cells.append([B130, bin[0], bin[1]])
 
 	while done < total_target and attempts < 20000:
 		attempts += 1
 		eng.start_session(rng.randi_range(1, 999999))
-		# 强制 0 号坐庄：看其手牌强度选目标格
+		# 强制 0 号坐庄：按其手牌强度做拒绝采样，从“尚未跑满的格”里随机挑一个匹配格
 		var s: int = AiPolicy.hand_strength(eng.hands[0])
-		var cell = null
-		for c in all_cells:
-			if c[0] == B130 or (s >= c[1] and s < c[2]):
-				pass
-		# 拒绝采样：从“尚未跑满的格”里挑一个与当前强度匹配的
 		var candidates: Array = []
 		for c in all_cells:
 			var key := "%d_%d_%d" % [c[0], c[1], c[2]]
@@ -57,7 +44,7 @@ func _initialize() -> void:
 				candidates.append(c)
 		if candidates.is_empty():
 			continue
-		cell = candidates[rng.randi_range(0, candidates.size() - 1)]
+		var cell: Array = candidates[rng.randi_range(0, candidates.size() - 1)]
 		var b: int = cell[0]
 		# 拍卖：0 叫 b（130 档 = 不叫），其余强制放弃
 		if b != B130:

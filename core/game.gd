@@ -128,18 +128,13 @@ func current_highest_bid() -> int:
 	return highest
 
 
-func current_highest_seat() -> int:
-	var highest := -1
-	var seat := -1
-	for s in PLAYER_COUNT:
-		if bids[s].value > highest:
-			highest = bids[s].value
-			seat = s
-	return seat
-
-
 func has_passed(seat: int) -> bool:
 	return bids[seat].passed
+
+
+## 某座位当前叫分（0 = 未叫；UI 呈现用，不触内部结构）
+func bid_value(seat: int) -> int:
+	return bids[seat].value
 
 
 ## value = BID_PASS 表示放弃（永久退出）；否则须为高于当前最高、5 的倍数、≤200
@@ -270,7 +265,7 @@ func hand_count(seat: int) -> int:
 	return hands[seat].size()
 
 
-func current_lead_combo() -> Combo:
+func _current_lead_combo() -> Combo:
 	if current_plays.is_empty():
 		return null
 	return Combo.detect(current_plays[0].cards, trump)
@@ -286,7 +281,7 @@ func submit_play(seat: int, cards: Array) -> Dictionary:
 		return _err_play("当前不在出牌阶段")
 	if seat != turn_seat:
 		return _err_play("未轮到座位 %d" % seat)
-	var lead := current_lead_combo()
+	var lead := _current_lead_combo()
 	var verdict: Dictionary = FollowRule.is_legal(hands[seat], cards, lead, trump)
 	if not verdict.legal:
 		return verdict

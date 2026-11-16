@@ -1,6 +1,6 @@
 class_name TestFramework
 extends RefCounted
-## 轻量测试框架：headless（tests/run_tests.gd）与进程内（主菜单「自检」按钮）共用。
+## 轻量测试框架：headless（test/run_tests.gd）与进程内（主菜单「自检」按钮）共用。
 ## 无第三方依赖；用例方法以 test_ 开头、接收一个 Assert 参数。
 
 

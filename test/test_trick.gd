@@ -1,11 +1,6 @@
-extends RefCounted
+extends TestBase
 ## Trick 结算用例（规则 7.1、8.1、附录 B.2 一轮结算流程）。
-
-var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)  # ♠ 主，R=9
-
-
-func C(suit: int, rank: int, copy := 0) -> Card:
-	return Card.new(suit, rank, copy)
+## 前提：♠ 主、R=9 —— 继承自 TestBase.trump。
 
 
 func settle(plays: Array) -> Dictionary:

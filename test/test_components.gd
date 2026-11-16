@@ -33,10 +33,9 @@ func test_card_widget_face(test) -> void:
 	test.check(joker_red, "大王着红色")
 
 
-## CardWidget：牌背与翻面
+## CardWidget：牌背与空牌安全渲染
 func test_card_widget_back(test) -> void:
-	var w := CardWidget.create(Card.new(Card.Suit.SPADE, Card.RANK_A), true)
-	w.set_face_up(false)
+	var w := CardWidget.create(Card.new(Card.Suit.SPADE, Card.RANK_A), false)
 	var texts: Array[String] = []
 	for c in w.get_children():
 		if c is Label:

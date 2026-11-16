@@ -1,12 +1,6 @@
-extends RefCounted
+extends TestBase
 ## AiPolicy 用例：单项策略 sanity + 30 局种子化自动对局不变量。
 ## 自动对局中引擎逐一校验 AI 输出，任何非法决策都会使测试失败。
-
-const Phase := GameEngine.Phase
-
-
-func C(suit: int, rank: int, copy := 0) -> Card:
-	return Card.new(suit, rank, copy)
 
 
 ## ============================= 单项策略 =============================

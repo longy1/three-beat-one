@@ -20,9 +20,7 @@ const TRICK_ANCHORS := {
 
 ## 皇冠动画落点（相对比例 ×窗口尺寸；仅人类 0 号位使用——其余座位动态计算名字位置）。
 ## 0 号位（庄家是自己）：左下固定位置——手牌左侧，不随牌变动
-const CROWN_TARGETS := {
-	0: Vector2(0.075, 0.833),
-}
+const CROWN_HUMAN_TARGET := Vector2(0.075, 0.833)
 
 ## 主牌桌区域十字中心（相对比例）：左右对齐丙面板中轴（x 0.419）、
 ## 上下对齐乙/丁面板中轴（y 0.408）——所有居中展示组件的统一锚点
@@ -350,11 +348,11 @@ func _play_crown_animation(seat: int) -> void:
 ## 皇冠落点（中心）：庄家名字文字左缘前方；人类 0 号位无面板，用常量
 func _crown_target(seat: int) -> Vector2:
 	if seat == 0 or not seat_panels.has(seat):
-		return CROWN_TARGETS[0] * size
+		return CROWN_HUMAN_TARGET * size
 	var name_label: Label = seat_panels[seat].get_node("VBox/NameLabel")
 	var font: Font = name_label.get_theme_font("font")
 	if font == null or name_label.text.is_empty():
-		return CROWN_TARGETS[0] * size
+		return CROWN_HUMAN_TARGET * size
 	var font_size: int = name_label.get_theme_font_size("font_size")
 	var text_w: float = font.get_string_size(name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	var center_x: float = name_label.global_position.x + name_label.size.x / 2.0
@@ -699,7 +697,7 @@ func _refresh_top_bar() -> void:
 	if engine.trump != _last_trump_shown:
 		_last_trump_shown = engine.trump
 		if engine.trump != null:
-			sidebar.set_trump(Card.new(engine.trump.suit, engine.trump.rank, 0))
+			sidebar.set_trump(Card.new(engine.trump.suit, engine.trump.rank))
 		else:
 			sidebar.set_trump(null)
 	# 信息栏「局面」块
@@ -717,11 +715,10 @@ func _refresh_seats() -> void:
 		var status := ""
 		match engine.phase:
 			GameEngine.Phase.AUCTION:
-				if engine.bids.size() > seat:
-					if engine.bids[seat].passed:
-						status = "已放弃"
-					elif engine.bids[seat].value > 0:
-						status = "叫 %d" % engine.bids[seat].value
+				if engine.has_passed(seat):
+					status = "已放弃"
+				elif engine.bid_value(seat) > 0:
+					status = "叫 %d" % engine.bid_value(seat)
 			GameEngine.Phase.TRICKS:
 				if _last_trick_winner == seat:
 					status = "✓ 上轮赢"
@@ -745,7 +742,8 @@ func _refresh_trick_area() -> void:
 		var seat: int = play.seat
 		# 出牌区只渲染牌（归属信息在姓名版）；赢家标记见姓名版「✓ 上轮赢」。
 		# 卡牌尺寸按张数自适应：≤2 张正常、≥3 张中号（拖拉机不遮挡姓名版）
-		var card_size: Vector2 = CardWidget.SIZE_NORMAL if play.cards.size() <= 2 			else CardWidget.SIZE_MEDIUM
+		var card_size: Vector2 = CardWidget.SIZE_NORMAL if play.cards.size() <= 2 \
+				else CardWidget.SIZE_MEDIUM
 		var cards_row := HBoxContainer.new()
 		cards_row.add_theme_constant_override("separation", 4)
 		for c in play.cards:

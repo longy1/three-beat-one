@@ -1,37 +1,9 @@
-extends RefCounted
+extends UiTestBase
 ## 主流程用例：完整一局的端到端驱动。
 ## 人类动作用真实 UI 提交方法（与点击按钮同一信号链），AI 走引擎 + AiPolicy。
 ## 覆盖两条主线：
 ## - 自己叫主：人类竞叫坐庄 → 人类叫主 → 人类扣底 → 混合出牌 → 结算面板
 ## - 其它叫主：人类放弃 → AI 竞叫坐庄 → AI 叫主/扣底 → 人类闲家出牌 → 庄位轮换
-
-
-const Phase := GameEngine.Phase
-
-
-func _spawn_table():
-	var tree: SceneTree = Engine.get_main_loop()
-	var table = load("res://scene/game_table.tscn").instantiate()
-	tree.root.add_child(table)
-	await tree.process_frame
-	await tree.process_frame
-	table._ai_timer.wait_time = 0.01
-	table._trick_timer.wait_time = 0.01
-	return table
-
-
-func _release_table(table) -> void:
-	var tree: SceneTree = Engine.get_main_loop()
-	table.queue_free()
-	await tree.process_frame
-
-
-func _deal(eng: GameEngine, dealer: int) -> void:
-	var deck := Card.full_deck()
-	var hands: Array = []
-	for s in 4:
-		hands.append(deck.slice(s * 19, (s + 1) * 19))
-	eng.start_session_with_deal(dealer, hands, deck.slice(76, 84))
 
 
 ## 人类以真实 UI 方法出牌（选牌 → 提交）

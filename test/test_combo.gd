@@ -1,12 +1,6 @@
-extends RefCounted
+extends TestBase
 ## Combo 用例（规则 6 牌型、6.2 邻接链、6.3 拖拉机与常主组合）。
-
-# A.2.2 推演前提：♠ 为主花色，R = 9
-var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
-
-
-func C(suit: int, rank: int, copy := 0) -> Card:
-	return Card.new(suit, rank, copy)
+## 前提（A.2.2）：♠ 为主花色，R = 9 —— 继承自 TestBase.trump。
 
 
 func detect(cards: Array) -> Combo:

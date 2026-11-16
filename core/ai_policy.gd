@@ -4,7 +4,7 @@ extends RefCounted
 ## 全部输出交由 GameEngine 校验；自动对局测试（test_ai_policy.gd）即其正确性验证。
 ##
 ## 策略概要：
-## - 叫分：手牌强度评分 → 意向叫分；低于当前最高则放弃
+## - 叫分：手牌强度评分 → EV 校准表插值 → 取期望最大档（详情见 choose_bid）
 ## - 叫主：花色按张数/大牌/对子加权；R 选持有最多（成对额外加成）的点数
 ## - 扣底：副牌分牌优先入底（规则 8.2 策略注记），其次最弱副牌，不扣常主
 ## - 领出：手中牌力最大的完整牌型（拖拉机 > 对子 > 单张）
@@ -268,7 +268,7 @@ static func _choose_lead(hand: Array, trump: TrumpInfo) -> Array:
 	return best
 
 
-## ============================= 公共构件（测试与策略共用） =============================
+## ============================= 出牌构造件（策略内部使用） =============================
 
 ## 列出指定类中某牌型的全部选择：[{ cards: Array[Card], power: int }]
 static func list_type_options(cards: Array, suit_class: int, type: int, trump: TrumpInfo) -> Array:

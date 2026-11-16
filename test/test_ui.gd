@@ -1,4 +1,4 @@
-extends RefCounted
+extends UiTestBase
 ## UI 层回归用例：headless 实例化场景 + 方法级驱动 + 节点状态断言。
 ## 纪律（AGENTS.md 第 7 章）：**每个用户报告的 UI bug，修复时必须在本套件补一个回归用例。**
 ##
@@ -7,37 +7,6 @@ extends RefCounted
 ## - 牌堆悬停失效：SeatPanel.setup(seat) 被遗漏，座位号恒 -1
 ## - 叫主前手牌丢王/2：主牌组加入条件误写 trump != null
 ## - 捉分一致性：信息栏显示与引擎 captured_points 逐步一致
-
-
-const Phase := GameEngine.Phase
-
-
-## 实例化一个干净的牌桌场景并等两帧（布局就绪）
-func _spawn_table():
-	var tree: SceneTree = Engine.get_main_loop()
-	var table = load("res://scene/game_table.tscn").instantiate()
-	tree.root.add_child(table)
-	await tree.process_frame
-	await tree.process_frame
-	# 加速 UI 定时器：测试不必等待真实的 AI 节奏与结算停留
-	table._ai_timer.wait_time = 0.01
-	table._trick_timer.wait_time = 0.01
-	return table
-
-
-func _release_table(table) -> void:
-	var tree: SceneTree = Engine.get_main_loop()
-	table.queue_free()
-	await tree.process_frame
-
-
-## 注入标准发牌并指定抓牌庄家
-func _deal(eng: GameEngine, dealer: int) -> void:
-	var deck := Card.full_deck()
-	var hands: Array = []
-	for s in 4:
-		hands.append(deck.slice(s * 19, (s + 1) * 19))
-	eng.start_session_with_deal(dealer, hands, deck.slice(76, 84))
 
 
 ## AI 代打：走完当前阶段的全部引擎交互（不模拟鼠标）
@@ -237,9 +206,3 @@ func test_captured_label_matches_engine(test) -> void:
 			"step %d：捉分显示一致（引擎 %d，显示 %s）" % [steps, eng.captured_points, label.text])
 	test.check(eng.phase == Phase.SETTLED, "整局完整结束（%d 步）" % steps)
 	await _release_table(table)
-
-
-## 等一个物理帧（供 UI 信号处理器中的计时器走完）
-func tree_pause() -> void:
-	var tree: SceneTree = Engine.get_main_loop()
-	await tree.create_timer(0.05).timeout

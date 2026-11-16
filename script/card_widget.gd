@@ -111,8 +111,3 @@ func set_selected(v: bool) -> void:
 		return
 	selected = v
 	_refresh()
-
-
-func set_face_up(v: bool) -> void:
-	face_up = v
-	_refresh()

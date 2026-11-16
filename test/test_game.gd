@@ -1,11 +1,5 @@
-extends RefCounted
+extends TestBase
 ## GameEngine 用例（规则 2、4、5、8.2、9、10）。
-
-const Phase := GameEngine.Phase
-
-
-func C(suit: int, rank: int, copy := 0) -> Card:
-	return Card.new(suit, rank, copy)
 
 
 ## 固定顺序牌堆切分的标准发牌（内容不重要，流程测试用）

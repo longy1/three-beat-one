@@ -1,16 +1,10 @@
-extends RefCounted
+extends TestBase
 ## 附录 A 完整一局推演（M1 验收依据：A.3~A.6 四轮出牌与结算）。
 ## 前提（A.2）：♠ 为主花色，R = 9；出牌庄家 = 丁（座位 甲→乙→丙→丁 循环）。
 ## 说明：推演是规则演示文本，存在跨轮次复用同一张牌的笔误（如 A.3 中甲的 ♣10
 ## 与丁领出的 ♣10♣10、A.6 中甲的四王与 A.4 中甲的大王）；每轮按牌例原样独立构造
 ## 手牌，不影响单轮规则校验。A.2 拍卖与 A.7 分级/抠底结算属 M2 范围，此处仅校验
-## 抠底前提（末轮赢家牌为主牌类）。
-
-var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
-
-
-func C(suit: int, rank: int, copy := 0) -> Card:
-	return Card.new(suit, rank, copy)
+## 抠底前提（末轮赢家牌为主牌类）。前提（A.2）：♠ 主、R=9 —— 继承自 TestBase.trump。
 
 
 ## 校验一手出牌合法且角色符合预期，返回角色

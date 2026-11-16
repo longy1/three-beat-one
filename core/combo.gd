@@ -145,10 +145,7 @@ static func pair_groups(cards: Array) -> Dictionary:
 
 ## 牌型比较用牌力（3.1 全序 + 6.3 拖拉机比较）。
 ## - 单/对：该牌（对子两张同点同力）的 card_power
-## - 拖拉机：主牌类拖拉机(100000+) > 一切副牌拖拉机(50000+)；同类比"较大一组"的位置
-## 牌力比较用牌力（3.1 全序 + 6.3 拖拉机比较）。
-## - 单/对：该牌（对子两张同点同力）的 card_power
-## - 拖拉机：主牌类拖拉机 > 一切副牌拖拉机；同类比"较大一组"在 3.1 全序中的位置
+## - 拖拉机：主牌类拖拉机(100000+) > 一切副牌拖拉机(50000+)；同类比"较大一组"在 3.1 全序中的位置
 ## - 规则修订（2026-11-16）：AA22（A 对+2 对的拖拉机）在其花色的同类拖拉机中排最小
 ##   （如主牌 AA22 < 主牌 7788）；跨花色比较仍按大类（主牌类 > 副牌类）
 static func power(combo: Combo, trump: TrumpInfo) -> int:
@@ -184,11 +181,3 @@ static func compare(a: Combo, b: Combo, trump: TrumpInfo) -> int:
 	if pa < pb:
 		return -1
 	return 0
-
-
-func count() -> int:
-	return cards.size()
-
-
-func label() -> String:
-	return Card.cards_to_string(cards)

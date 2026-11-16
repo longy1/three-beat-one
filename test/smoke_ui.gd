@@ -1,6 +1,6 @@
 extends SceneTree
 ## UI 冒烟测试（独立于单元套件，手动运行）：
-##   Godot --headless --path . -s tests/smoke_ui.gd
+##   Godot --headless --path . -s test/smoke_ui.gd
 ## 实例化牌桌场景，代人类玩家行动，跑完整一局；任何节点路径/脚本错误都会打印。
 ## 退出码 0 = 一局完整结束。
 

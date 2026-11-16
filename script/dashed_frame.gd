@@ -1,12 +1,13 @@
 class_name DashedRoundedFrame
 extends Control
 ## 圆角虚线框（手牌分区底框）：四边虚线 + 四角实线圆弧。
+## 样式固定（未被实例定制），故为常量。
 
 
-var border_color := Color(1, 1, 1, 0.4)
-var corner_radius := 14.0
-var dash_length := 7.0
-var line_width := 1.5
+const border_color := Color(1, 1, 1, 0.4)
+const corner_radius := 14.0
+const dash_length := 7.0
+const line_width := 1.5
 
 
 func _draw() -> void:

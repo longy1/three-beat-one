@@ -1,11 +1,6 @@
-extends RefCounted
+extends TestBase
 ## FollowRule 用例（规则 7.2 跟牌/杀/垫、附录 B.1 决策树）。
-
-var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)  # ♠ 主，R=9
-
-
-func C(suit: int, rank: int, copy := 0) -> Card:
-	return Card.new(suit, rank, copy)
+## 前提：♠ 主、R=9 —— 继承自 TestBase.trump。
 
 
 func verdict(hand: Array, play: Array, lead) -> Dictionary:
