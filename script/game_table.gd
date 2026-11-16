@@ -5,7 +5,7 @@ extends Control
 
 const HUMAN_SEAT := 0
 const AI_DELAY := 0.7
-const TRICK_PAUSE := 1.0
+const TRICK_PAUSE := 1.5  ## 一轮结算后牌面停留时长；到期主动清空出牌桌
 
 const SEAT_NAMES := ["甲（你）", "乙（电脑）", "丙（电脑）", "丁（电脑）"]
 
@@ -38,6 +38,7 @@ var _last_trump_shown = null  ## 上次送入信息栏的主牌（TrumpInfo 引�
 var _card_widgets := {}       ## Card → CardWidget（手牌精准刷新，避免整排重建闪烁）
 var _drag_selecting := false  ## 左键按住滑动批量选择中
 var _drag_target := false     ## 本次拖选的目标态（选中/取消），滑过的牌对齐到该态
+var _trick_display_cleared := false  ## 停留结束后已主动清空上一轮牌面
 
 ## 选中牌上浮高度 = 牌高的 20%（交互规范，AGENTS.md 第 6 章）
 const SELECT_LIFT_RATIO := 0.2
@@ -357,8 +358,9 @@ func _on_play_required(seat: int) -> void:
 		await _trick_timer.timeout
 		if not is_inside_tree():
 			return
-	# 停留窗口结束：✓赢标记与牌面停留同步退场（先于新牌替换，避免多挂）
+	# 停留窗口结束：清✓赢标记，并主动清空上一轮牌面（不再等新牌替换）
 	_last_trick_winner = -1
+	_trick_display_cleared = true
 	_refresh()
 	if seat == HUMAN_SEAT:
 		select_mode = "play"
@@ -375,6 +377,7 @@ func _on_play_required(seat: int) -> void:
 
 func _on_trick_settled(info: Dictionary) -> void:
 	_last_trick_winner = info.winner
+	_trick_display_cleared = false
 	_refresh()
 	_trick_timer.start()
 
@@ -657,9 +660,10 @@ func _refresh_trick_area() -> void:
 	# 本轮各家出牌：TrickArea 为全屏层，锚点即屏幕绝对坐标（TRICK_ANCHORS 常量）。
 	# 每家出牌显示在自己座位带内（你=手牌正上方、丙=上带右侧、
 	# 乙/丁=面板朝向桌心一侧），互不遮挡座位信息。
-	# 结算后 current_plays 已清空，改用 last_trick 快照停留展示（约 1 秒）
+	# 结算后 current_plays 已清空，改用 last_trick 快照停留展示；
+	# 停留结束（1.5s）主动清空，不再显示上一轮
 	var shown: Array = engine.current_plays
-	if shown.is_empty():
+	if shown.is_empty() and not _trick_display_cleared:
 		shown = engine.last_trick
 	for play in shown:
 		var seat: int = play.seat
