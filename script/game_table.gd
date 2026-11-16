@@ -724,33 +724,18 @@ func _refresh_trick_area() -> void:
 		shown = engine.last_trick
 	for play in shown:
 		var seat: int = play.seat
-		var box := VBoxContainer.new()
-		var name_row := HBoxContainer.new()
-		_add_name_label(name_row, SEAT_NAMES[seat])
-		if _last_trick_winner == seat:
-			_add_name_label(name_row, " ✓赢", Color(1, 0.85, 0.3))
-		box.add_child(name_row)
+		# 出牌区只渲染牌（归属信息在姓名版）；赢家标记见姓名版「✓ 上轮赢」
 		var cards_row := HBoxContainer.new()
-		cards_row.add_theme_constant_override("separation", 3)
+		cards_row.add_theme_constant_override("separation", 4)
 		for c in play.cards:
-			cards_row.add_child(CardWidget.create(c, true, true))
-		box.add_child(cards_row)
-		trick_area.add_child(box)
-		var width: int = play.cards.size() * 48 + 8
+			cards_row.add_child(CardWidget.create(c, true))
+		trick_area.add_child(cards_row)
+		var width: float = play.cards.size() * (CardWidget.SIZE_NORMAL.x + 4)
 		var base: Vector2 = TRICK_ANCHORS[seat] * trick_area.size  # 相对锚点 × 层尺寸
-		box.position = base - Vector2(width / 2.0, 12)
+		cards_row.position = base - Vector2(width / 2.0, CardWidget.SIZE_NORMAL.y / 2.0)
 	# 新一轮开始（无快照、至多只有领出）时清除赢家标记
 	if engine.last_trick.is_empty() and engine.current_plays.size() <= 1:
 		_last_trick_winner = -1
-
-
-func _add_name_label(row: HBoxContainer, text: String, color := Color.WHITE) -> void:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", 13)
-	l.modulate = color
-	row.add_child(l)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
 
 
 func _clear_trick_area() -> void:
