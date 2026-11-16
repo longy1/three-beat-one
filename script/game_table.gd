@@ -24,9 +24,9 @@ const CROWN_TARGETS := {
 	0: Vector2(0.075, 0.833),
 }
 
-## 主牌桌区域中心（相对比例）：画面分为左「主牌桌区域」（x 0~82.8%）与
-## 右「侧信息板区域」（82.8%~100%），皇冠在主牌桌区域正中央出现
-const MAIN_TABLE_CENTER := Vector2(0.414, 0.5)
+## 主牌桌区域十字中心（相对比例）：左右对齐丙面板中轴（x 0.419）、
+## 上下对齐乙/丁面板中轴（y 0.408）——所有居中展示组件的统一锚点
+const MAIN_TABLE_CENTER := Vector2(0.419, 0.408)
 
 var engine: GameEngine
 var selected: Array = []   # Array[Card]，选中的手牌引用
@@ -145,11 +145,13 @@ func _setup_pile_ui() -> void:
 	_pile_popup.name = "PilePopup"
 	_pile_popup.visible = false
 	_pile_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_pile_popup.set_anchors_preset(Control.PRESET_CENTER)
-	_pile_popup.offset_left = -340
-	_pile_popup.offset_top = -230
-	_pile_popup.offset_right = 340
-	_pile_popup.offset_bottom = 230
+	# 居中规范：锚点 = 丙中轴 × 乙/丁中轴，grow 向四周自适应（尺寸随内容）
+	_pile_popup.anchor_left = MAIN_TABLE_CENTER.x
+	_pile_popup.anchor_right = MAIN_TABLE_CENTER.x
+	_pile_popup.anchor_top = MAIN_TABLE_CENTER.y
+	_pile_popup.anchor_bottom = MAIN_TABLE_CENTER.y
+	_pile_popup.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_pile_popup.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(_pile_popup)
 	var vbox := VBoxContainer.new()
 	vbox.name = "VBox"
@@ -178,11 +180,12 @@ func _setup_pile_ui() -> void:
 	_bottom_popup.name = "BottomPopup"
 	_bottom_popup.visible = false
 	_bottom_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_bottom_popup.set_anchors_preset(Control.PRESET_CENTER)
-	_bottom_popup.offset_left = -220
-	_bottom_popup.offset_top = -170
-	_bottom_popup.offset_right = 220
-	_bottom_popup.offset_bottom = 170
+	_bottom_popup.anchor_left = MAIN_TABLE_CENTER.x
+	_bottom_popup.anchor_right = MAIN_TABLE_CENTER.x
+	_bottom_popup.anchor_top = MAIN_TABLE_CENTER.y
+	_bottom_popup.anchor_bottom = MAIN_TABLE_CENTER.y
+	_bottom_popup.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_bottom_popup.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(_bottom_popup)
 	var bp_vbox := VBoxContainer.new()
 	bp_vbox.name = "VBox"
@@ -477,11 +480,13 @@ func _show_trump_rank_picker() -> void:
 	_close_trump_rank_panel()
 	_trump_rank_panel = PanelContainer.new()
 	_trump_rank_panel.name = "TrumpRankPicker"
-	_trump_rank_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_trump_rank_panel.offset_left = -330
-	_trump_rank_panel.offset_top = -120
-	_trump_rank_panel.offset_right = 330
-	_trump_rank_panel.offset_bottom = 120
+	# 居中规范：锚点 = 主牌桌十字中心，grow 向四周自适应（尺寸随内容）
+	_trump_rank_panel.anchor_left = MAIN_TABLE_CENTER.x
+	_trump_rank_panel.anchor_right = MAIN_TABLE_CENTER.x
+	_trump_rank_panel.anchor_top = MAIN_TABLE_CENTER.y
+	_trump_rank_panel.anchor_bottom = MAIN_TABLE_CENTER.y
+	_trump_rank_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_trump_rank_panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	add_child(_trump_rank_panel)
 	var vbox := VBoxContainer.new()
 	vbox.name = "VBox"
@@ -770,7 +775,7 @@ func _show_bottom_cards() -> void:
 		cards_row.add_child(CardWidget.create(c, true, true))
 	box.add_child(cards_row)
 	trick_area.add_child(box)
-	box.position = Vector2(0.419, 0.417) * trick_area.size - Vector2(220, 40)  # 牌桌中央
+	box.position = MAIN_TABLE_CENTER * trick_area.size - Vector2(220, 40)  # 主牌桌十字中心
 
 
 func _clear_bottom_cards() -> void:
