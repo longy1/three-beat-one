@@ -57,12 +57,13 @@ script/   表现层脚本
   main_menu.gd     主菜单（自检按钮进程内复用 test/ 用例）
 scene/    main_menu.tscn / game_table.tscn / seat_panel.tscn / info_sidebar.tscn
 test/     test_framework.gd + test_*.gd（8 套件 58 用例）+ run_tests.gd + smoke_ui.gd
-doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、ui-mockup.svg（界面区域图，布局变更须同步更新）
+doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md
+static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新；含 .gdignore 不参与引擎导入）
 ```
 
 `.uid` 文件由 Godot 生成，**必须与对应 `.gd`/`.tscn` 一同提交**；`.godot/`、`.zcode/` 已忽略。
 
-**命名规范：目录名一律用单数**（core / doc / scene / script / test），不用复数；新增目录同样遵守。
+**命名规范：目录名一律用单数**（core / doc / scene / script / static / test），不用复数；新增目录同样遵守。静态设计资产放 static/（含 .gdignore，不参与引擎导入）。
 
 ## 4. 架构规范
 
@@ -94,7 +95,7 @@ doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计�
 - **组件复用**：三家电庄信息框复用 `SeatPanel` 组件（scene/seat_panel.tscn，悬停牌堆信号内置）；右侧信息栏为独立组件 `InfoSidebar`（scene/info_sidebar.tscn，与牌桌场景解耦，菜单/统计/局面走其 API）。**组件应自带统一尺寸**（`custom_minimum_size`，如 SeatPanel 180×100），实例只锚定位置、不各自拉伸——改尺寸只改组件一处。
 - **对称十字出牌位**：四家出牌围绕牌桌中心对称——你=下方（0.419,0.55）、丙=信息板正下方（0.419,0.267）、丁=面板右侧（0.234,0.408）、乙=面板左侧（0.604,0.408）。
 - 设计分辨率 1280×720（stretch canvas_items / keep），统一 12px 边距。
-- 区域划分见 [doc/ui-mockup.svg](./doc/ui-mockup.svg)（布局改动先改视觉稿再施工）：
+- 区域划分见 [static/ui-mockup.svg](./static/ui-mockup.svg)（布局改动先改视觉稿再施工）：
   - 顶栏（局数/出牌庄/叫分）；**抓牌庄家不展示**
   - 叫主点数选择：居中多排面板（2 排 × 6，TrumpRankPicker），10 个点数按钮完整展示（R ∈ 5~2，不可为王）
   - 叫分提示显示在主牌桌正中央（BidCenterLabel，「叫分中（最高 X）」）；**不用「拍卖」一词**（非本土打牌用语）
@@ -153,7 +154,7 @@ UI 层曾因无用例而集中出 bug（信号时序竞态、引用遗漏、渲�
 | 本文档（AGENTS.md） | 目录结构、命令、编码/布局/测试/推送规范、AI 策略描述、UI 区域变化 |
 | doc/三打哈-Godot工程计划.md | 里程碑状态、技术决策、实施记录、规则文档笔误清单 |
 | README.md | 运行方式、玩法说明、目录结构、里程碑状态 |
-| doc/ui-mockup.svg | 任何 UI 布局/区域变更（先改稿后施工） |
+| static/ui-mockup.svg | 任何 UI 布局/区域变更（先改稿后施工） |
 
 ## 10. 已知简化与约束
 

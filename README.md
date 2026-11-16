@@ -23,7 +23,8 @@ test/     轻量测试框架 + 58 项用例（含附录 A 推演、抠底剧本�
 scene/    main_menu 主菜单、game_table 牌桌、seat_panel 座位组件、info_sidebar 信息栏组件
 script/   game_table 控制器、card_widget 程序化卡牌、seat_panel/info_sidebar 组件脚本、
           crown_badge 皇冠、dashed_frame 虚线框、ui_style UI 规范工具
-doc/      三打哈规则、三打哈-Godot工程计划、ui-mockup.svg 界面区域图
+doc/      三打哈规则、三打哈-Godot工程计划
+static/   ui-mockup.svg 界面区域图
 ```
 
 ## 运行
