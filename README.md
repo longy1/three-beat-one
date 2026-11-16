@@ -3,8 +3,8 @@
 湘西扑克游戏**三打哈（三打一）**的 Godot 单机版工程。
 
 - **项目规范**：[AGENTS.md](./AGENTS.md)（架构/编码/UI/测试/推送约定，随实现同步更新）
-- 规则唯一依据：[三打哈规则.md](./三打哈规则.md)（含附录 A 完整推演、附录 B 单轮决策流程）
-- 技术决策与里程碑：[三打哈-Godot工程计划.md](./三打哈-Godot工程计划.md)
+- 规则唯一依据：[doc/三打哈规则.md](./doc/三打哈规则.md)（含附录 A 完整推演、附录 B 单轮决策流程）
+- 技术决策与里程碑：[doc/三打哈-Godot工程计划.md](./doc/三打哈-Godot工程计划.md)
 
 ## 技术栈
 
@@ -19,11 +19,11 @@
 ```
 core/     规则引擎（M1）+ 对局引擎与 AI（M2）：
           card / trump / combo / follow_rule / trick / game（状态机）/ ai_policy（贪心策略）
-tests/    轻量测试框架 + 58 项用例（含附录 A 推演、抠底剧本、30 局自动对局不变量）+ UI 冒烟
-scenes/   main_menu 主菜单、game_table 牌桌、seat_panel 座位组件、info_sidebar 信息栏组件
-scripts/  game_table 控制器、card_widget 程序化卡牌、seat_panel/info_sidebar 组件脚本、
-          crown_badge 皇冠、dashed_frame 虚线框
-docs/     ui-mockup.svg 界面区域图
+test/     轻量测试框架 + 58 项用例（含附录 A 推演、抠底剧本、30 局自动对局不变量）+ UI 冒烟
+scene/    main_menu 主菜单、game_table 牌桌、seat_panel 座位组件、info_sidebar 信息栏组件
+script/   game_table 控制器、card_widget 程序化卡牌、seat_panel/info_sidebar 组件脚本、
+          crown_badge 皇冠、dashed_frame 虚线框、ui_style UI 规范工具
+doc/      三打哈规则、三打哈-Godot工程计划、ui-mockup.svg 界面区域图
 ```
 
 ## 运行
@@ -33,10 +33,10 @@ docs/     ui-mockup.svg 界面区域图
 # 用 Godot 4.7+ 打开本目录即可运行（主场景：主菜单 → 开始对局）
 
 # 规则引擎 + 对局引擎测试（全部通过退出码 0）
-Godot --headless --path . -s tests/run_tests.gd
+Godot --headless --path . -s test/run_tests.gd
 
 # UI 冒烟测试（headless 自动打完一局，约 1 分钟）
-Godot --headless --path . -s tests/smoke_ui.gd
+Godot --headless --path . -s test/smoke_ui.gd
 ```
 
 ## 玩法（M2 单机对局）

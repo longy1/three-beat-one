@@ -1,8 +1,8 @@
 [gd_scene load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scripts/game_table.gd" id="1_table"]
-[ext_resource type="PackedScene" path="res://scenes/seat_panel.tscn" id="2_seat"]
-[ext_resource type="PackedScene" path="res://scenes/info_sidebar.tscn" id="3_sidebar"]
+[ext_resource type="Script" path="res://script/game_table.gd" id="1_table"]
+[ext_resource type="PackedScene" path="res://scene/seat_panel.tscn" id="2_seat"]
+[ext_resource type="PackedScene" path="res://scene/info_sidebar.tscn" id="3_sidebar"]
 
 [sub_resource type="StyleBoxFlat" id="SB_result"]
 content_margin_left = 15.0

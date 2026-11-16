@@ -3,17 +3,17 @@ extends SceneTree
 ##   Godot --headless --path . -s tests/run_tests.gd
 ## 全部通过退出码 0，否则 1（便于 CI）。
 
-const TestFramework := preload("res://tests/test_framework.gd")
+const TestFramework := preload("res://test/test_framework.gd")
 
 const SUITES := [
-	preload("res://tests/test_card.gd"),
-	preload("res://tests/test_trump.gd"),
-	preload("res://tests/test_combo.gd"),
-	preload("res://tests/test_follow.gd"),
-	preload("res://tests/test_trick.gd"),
-	preload("res://tests/test_appendix_a.gd"),
-	preload("res://tests/test_game.gd"),
-	preload("res://tests/test_ai_policy.gd"),
+	preload("res://test/test_card.gd"),
+	preload("res://test/test_trump.gd"),
+	preload("res://test/test_combo.gd"),
+	preload("res://test/test_follow.gd"),
+	preload("res://test/test_trick.gd"),
+	preload("res://test/test_appendix_a.gd"),
+	preload("res://test/test_game.gd"),
+	preload("res://test/test_ai_policy.gd"),
 ]
 
 

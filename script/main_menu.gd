@@ -2,17 +2,17 @@ extends Control
 ## 主菜单：开始对局（M2 占位）、规则引擎自检（进程内复用 tests/ 用例）、退出。
 
 
-const TestFramework := preload("res://tests/test_framework.gd")
+const TestFramework := preload("res://test/test_framework.gd")
 
 const SUITES := [
-	preload("res://tests/test_card.gd"),
-	preload("res://tests/test_trump.gd"),
-	preload("res://tests/test_combo.gd"),
-	preload("res://tests/test_follow.gd"),
-	preload("res://tests/test_trick.gd"),
-	preload("res://tests/test_appendix_a.gd"),
-	preload("res://tests/test_game.gd"),
-	preload("res://tests/test_ai_policy.gd"),
+	preload("res://test/test_card.gd"),
+	preload("res://test/test_trump.gd"),
+	preload("res://test/test_combo.gd"),
+	preload("res://test/test_follow.gd"),
+	preload("res://test/test_trick.gd"),
+	preload("res://test/test_appendix_a.gd"),
+	preload("res://test/test_game.gd"),
+	preload("res://test/test_ai_policy.gd"),
 ]
 
 
@@ -23,7 +23,7 @@ func _ready() -> void:
 
 
 func _on_start() -> void:
-	get_tree().change_scene_to_file("res://scenes/game_table.tscn")
+	get_tree().change_scene_to_file("res://scene/game_table.tscn")
 
 
 func _on_self_test() -> void:

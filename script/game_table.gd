@@ -96,7 +96,7 @@ func _ready() -> void:
 
 
 func _on_menu() -> void:
-	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	get_tree().change_scene_to_file("res://scene/main_menu.tscn")
 
 
 ## ============================= 玩家牌堆（悬停查看出牌历史） =============================
