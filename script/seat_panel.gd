@@ -9,12 +9,21 @@ signal pile_hovered(seat: int)
 signal pile_exited
 
 var seat := -1
+var _style_normal: StyleBox
+var _style_highlight: StyleBox
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_entered.connect(func(): pile_hovered.emit(seat))
 	mouse_exited.connect(func(): pile_exited.emit())
+	# 行动指示：淡金色边框样式（复制常规样式 + 金边），不改变透明度
+	_style_normal = get_theme_stylebox("panel")
+	_style_highlight = _style_normal.duplicate()
+	if _style_highlight is StyleBoxFlat:
+		var flat := _style_highlight as StyleBoxFlat
+		flat.set_border_width_all(2)
+		flat.border_color = Color(1.0, 0.9, 0.55, 0.85)  # 淡金
 
 
 func setup(p_seat: int) -> void:
@@ -27,5 +36,6 @@ func set_info(title: String, count: String, status: String) -> void:
 	($VBox/StatusLabel as Label).text = status
 
 
+## 当前行动指示：淡金色边框（不改透明度）
 func set_highlight(on: bool) -> void:
-	modulate = Color(1.15, 1.12, 0.85) if on else Color.WHITE
+	add_theme_stylebox_override("panel", _style_highlight if on else _style_normal)

@@ -60,10 +60,15 @@ func test_seat_panel_component(test) -> void:
 	test.eq(panel.get_node("VBox/NameLabel").text, "丁（电脑）", "姓名更新")
 	test.eq(panel.get_node("VBox/CountLabel").text, "17 张", "牌数更新")
 	test.eq(panel.get_node("VBox/StatusLabel").text, "叫 135", "状态更新")
+	# 行动指示：淡金色边框（不改透明度）
 	panel.set_highlight(true)
-	test.check(panel.modulate.r > 1.0, "高亮态")
+	var hl: StyleBox = panel.get_theme_stylebox("panel")
+	test.check(hl is StyleBoxFlat and (hl as StyleBoxFlat).border_color.r > 0.9
+		and (hl as StyleBoxFlat).border_width_left >= 2, "高亮 = 淡金边框")
+	test.check(panel.modulate == Color.WHITE, "高亮不改变透明度")
 	panel.set_highlight(false)
-	test.check(panel.modulate == Color.WHITE, "非高亮恢复")
+	var normal: StyleBox = panel.get_theme_stylebox("panel")
+	test.check(normal is StyleBoxFlat and (normal as StyleBoxFlat).border_width_left < 2, "非高亮恢复常规边")
 	# 悬停信号携带注入的座位号
 	var got := [-1]
 	panel.pile_hovered.connect(func(s: int): got[0] = s)
