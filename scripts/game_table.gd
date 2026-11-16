@@ -277,6 +277,8 @@ func _on_play_required(seat: int) -> void:
 		await _trick_timer.timeout
 		if not is_inside_tree():
 			return
+	# 停留窗口结束：✓赢标记与牌面停留同步退场（先于新牌替换，避免多挂）
+	_last_trick_winner = -1
 	_refresh()
 	if seat == HUMAN_SEAT:
 		select_mode = "play"
