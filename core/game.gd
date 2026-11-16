@@ -44,6 +44,7 @@ var faulted := false            ## 内部一致性破坏标记（正常对局永
 var auction := Auction.new()    ## 叫分拍卖子状态机（bids/turn 归其所有）
 var current_plays: Array = []   ## 本轮已出 [{ seat, cards, role }]，plays[0] 为领出
 var trick_history: Array = []   ## 全部已结算轮次 [{ plays, winner }]，按旧→新排列
+var trump_void_seats: Array = [false, false, false, false]  ## 【无主】公示（7.3）：主牌轮未出主牌者；本局内有效
 var leader_seat := -1
 var turn_seat := -1
 var captured_points := 0        ## 闲家捉分（各轮之和，不含抠底）
@@ -95,6 +96,7 @@ func _begin_game(next_dealer: int, test_hands: Array, test_kitty: Array) -> void
 	koudi_points = 0
 	current_plays = []
 	trick_history = []
+	trump_void_seats = [false, false, false, false]
 	leader_seat = -1
 	turn_seat = -1
 	last_game_result = {}
@@ -235,6 +237,9 @@ func is_defender(seat: int) -> bool:
 
 
 ## 出牌（领出或跟牌）。提交按值匹配（Card.key 唯一，UI/联机可传等值副本）。
+## 主牌甩打（规则 7.3，2026-11-17 增补）：领出者之外三家均已无主牌时，
+## 领出者可一次甩出任意张主牌单牌，效果等同连续单张领出；甩打轮其余三家
+## 垫相同张数（完全自由）。甩打判定附 dump = true。
 ## 返回 FollowRule.is_legal 风格判定字典。
 func submit_play(seat: int, cards: Array) -> Dictionary:
 	if phase != Phase.TRICKS:
@@ -242,7 +247,21 @@ func submit_play(seat: int, cards: Array) -> Dictionary:
 	if seat != turn_seat:
 		return _err_play("未轮到座位 %d" % seat)
 	var lead := _current_lead_combo()
-	var verdict: Dictionary = FollowRule.is_legal(hands[seat], cards, lead, trump)
+	var verdict: Dictionary
+	if lead == null and not current_plays.is_empty():
+		# 甩打轮跟牌：垫牌张数匹配即可（领出者必胜，无强制项）
+		verdict = FollowRule.is_legal_dump_follow(hands[seat], cards, current_plays[0].cards.size())
+		if verdict.legal:
+			trump_void_seats[seat] = true  # 甩打前提即三家无主（引擎已核实际手牌）
+	elif lead == null:
+		verdict = FollowRule.is_legal(hands[seat], cards, null, trump)
+		if not verdict.legal and _can_trump_dump(seat, cards, verdict):
+			verdict = {legal = true, reason = FollowRule.Reason.OK, role = FollowRule.Role.LEAD,
+				text = "主牌甩打（等同连续单张）", dump = true}
+	else:
+		verdict = FollowRule.is_legal(hands[seat], cards, lead, trump)
+		if verdict.legal:
+			_mark_trump_void_if_discarded(seat, cards, lead)
 	if not verdict.legal:
 		return verdict
 	if not _remove_cards_by_value(hands[seat], cards):
@@ -254,6 +273,38 @@ func submit_play(seat: int, cards: Array) -> Dictionary:
 		turn_seat = (turn_seat + 1) % PLAYER_COUNT
 		play_required.emit(turn_seat)
 	return verdict
+
+
+## 甩打条件（7.3）：普通领出判非法后复核——组合全为主牌（不成型，成型组合已被
+## 普通路径接住），且领出者之外三家手中均无主牌
+func _can_trump_dump(seat: int, cards: Array, verdict: Dictionary) -> bool:
+	if verdict.reason != FollowRule.Reason.INVALID_COMBO and verdict.reason != FollowRule.Reason.WRONG_COUNT:
+		return false
+	if not FollowRule.is_trump_dump(cards, trump):
+		return false
+	return _others_all_void_trump(seat)
+
+
+## 领出者之外三家是否均已无主牌（甩打条件，按实际手牌判定）
+func _others_all_void_trump(exclude_seat: int) -> bool:
+	for s in PLAYER_COUNT:
+		if s == exclude_seat:
+			continue
+		for c in hands[s]:
+			if trump.is_trump(c):
+				return false
+	return true
+
+
+## 无主公示（7.3）：主牌轮跟牌未打出任何主牌 → 该座位已无主牌
+## （7.2 强制项的逆否：有主牌必须打尽）——公示本局内持续有效
+func _mark_trump_void_if_discarded(seat: int, cards: Array, lead: Combo) -> void:
+	if lead.suit != TrumpInfo.CLASS_TRUMP:
+		return
+	for c in cards:
+		if trump.is_trump(c):
+			return
+	trump_void_seats[seat] = true
 
 
 func _current_lead_combo() -> Combo:

@@ -44,6 +44,7 @@ var _trick_timer: Timer
 @onready var hand_area: HandArea = $BottomArea/HandRow
 @onready var trick_area: Control = $TrickArea
 @onready var result_panel: PanelContainer = $ResultPanel
+@onready var human_void_stamp: VoidStamp = $HumanVoidStamp
 @onready var result_title: Label = $ResultPanel/VBox/ResultTitle
 @onready var result_detail: Label = $ResultPanel/VBox/ResultDetail
 @onready var result_next_button: Button = $ResultPanel/VBox/Buttons/NextButton
@@ -74,6 +75,7 @@ func _ready() -> void:
 	UiStyle.pad_button(result_menu_button)
 	result_next_button.pressed.connect(_on_next_game)
 	result_menu_button.pressed.connect(_on_menu)
+	human_void_stamp.visible = false  # 【无主】印章默认隐藏（公示后显示）
 
 	engine = GameEngine.new()
 	engine.auction_required.connect(_on_auction_required)
@@ -143,6 +145,8 @@ func _on_discard_required(seat: int) -> void:
 		_show_discard_bar()
 		_show_bottom_cards()
 		_render_hand()
+		# 底牌 8 张入手即呈选中（拿起）态：方便观察牌面，可直接确认扣回或调整
+		hand_area.select_cards(engine.kitty)
 	else:
 		action_bar.reset()
 		hint_label.text = "等待 %s 扣底…" % SEAT_NAMES[seat]
@@ -301,16 +305,20 @@ func _show_play_bar() -> void:
 	action_bar.reset()
 	action_bar.add_button("出牌", func(): _submit_human_play())
 	if engine.current_plays.is_empty():
-		hint_label.text = "由你领出：选 1/2/4 张构成牌型（单张 / 对子 / 拖拉机）"
+		hint_label.text = "由你领出：选 1/2/4 张构成牌型（单张 / 对子 / 拖拉机）；" \
+			+ "三家均已无主时可多张主牌单张一起甩出"
 	else:
 		hint_label.text = "轮到你跟牌：选与领出张数相同的牌"
 
 
 func _submit_human_play() -> void:
-	var verdict: Dictionary = engine.submit_play(HUMAN_SEAT, hand_area.selected.duplicate())
+	var picked: Array = hand_area.selected.duplicate()
+	var verdict: Dictionary = engine.submit_play(HUMAN_SEAT, picked)
 	if not verdict.legal:
 		_toast(verdict.text)
 		return
+	# 已打出的牌从选中集合移除，其余选择跨轮保留（出完一轮不重置选牌）
+	hand_area.consume_selected(picked)
 	# submit_play 同步触发下一个 *_required：轮到 AI / 局已结束时处理器已 reset 按钮；
 	# 连庄领出仍是自己时 _show_play_bar 已重建按钮——两种情况均无须此处清理
 
@@ -445,6 +453,9 @@ func _refresh_seats() -> void:
 		var is_turn: bool = (engine.phase == GameEngine.Phase.AUCTION and engine.auction.turn == seat) \
 			or (engine.phase == GameEngine.Phase.TRICKS and engine.turn_seat == seat)
 		panel.set_highlight(is_turn)
+		panel.set_void_trump(engine.trump_void_seats[seat])  # 【无主】公示印章（7.3）
+	# 人类 0 号位无面板：印章盖在手牌区上方左侧（与历史按钮同列）
+	human_void_stamp.visible = engine.trump_void_seats[HUMAN_SEAT]
 
 
 func _refresh_trick_area() -> void:
@@ -479,11 +490,30 @@ func _clear_trick_area() -> void:
 			child.queue_free()
 
 
-## 人类庄家翻底阶段：中央展示 8 张底牌（仅本人可见，规则 2）
+## 人类庄家翻底阶段：中央展示 8 张底牌（仅本人可见，规则 2）。
+## 居中规范：点锚主牌桌十字中心 + grow BOTH（尺寸随内容向四周自适应），
+## 与 PileViewer 弹层/ResultPanel 同口径；StyleBoxFlat 半字号留空（最大字号 14 → 8）。
 func _show_bottom_cards() -> void:
 	_clear_bottom_cards()
+	var panel := PanelContainer.new()
+	panel.name = "BottomCards"
+	panel.anchor_left = UiStyle.MAIN_TABLE_CENTER.x
+	panel.anchor_right = UiStyle.MAIN_TABLE_CENTER.x
+	panel.anchor_top = UiStyle.MAIN_TABLE_CENTER.y
+	panel.anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	panel.z_index = 50
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.13, 0.24, 0.17)
+	style.set_corner_radius_all(10)
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	panel.add_theme_stylebox_override("panel", style)
 	var box := VBoxContainer.new()
-	box.name = "BottomCards"
+	box.add_theme_constant_override("separation", 6)
 	var title := Label.new()
 	title.text = "底牌（仅你可见）"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -494,8 +524,8 @@ func _show_bottom_cards() -> void:
 	for c in engine.peek_bottom(HUMAN_SEAT):
 		cards_row.add_child(CardWidget.create(c, true, true))
 	box.add_child(cards_row)
-	trick_area.add_child(box)
-	box.position = UiStyle.MAIN_TABLE_CENTER * trick_area.size - Vector2(220, 40)  # 主牌桌十字中心
+	panel.add_child(box)
+	trick_area.add_child(panel)
 
 
 func _clear_bottom_cards() -> void:

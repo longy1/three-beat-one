@@ -1,6 +1,7 @@
 class_name SeatPanel
 extends PanelContainer
-## 座位信息面板组件（乙/丙/丁复用）：姓名 / 牌数 / 状态 + 悬停查看出牌历史。
+## 座位信息面板组件（乙/丙/丁复用）：姓名 / 牌数 / 状态 + 悬停查看出牌历史
+## + 【无主】红印章（右下角，规则 7.3 公示）。
 ## 组件自带统一尺寸（tscn 内 custom_minimum_size = 180×100，720p 基准）；
 ## 实例只负责定位（anchor 锚定左上角，不拉伸），改尺寸只需改组件一处。
 
@@ -8,15 +9,21 @@ extends PanelContainer
 signal pile_hovered(seat: int)
 signal pile_exited
 
+const STAMP_MARGIN := 6.0  ## 印章与面板右下角的留空
+
 var seat := -1
 var _style_normal: StyleBox
 var _style_highlight: StyleBox
+var _void_stamp: VoidStamp
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_entered.connect(func(): pile_hovered.emit(seat))
 	mouse_exited.connect(func(): pile_exited.emit())
+	_void_stamp = VoidStamp.new()
+	_void_stamp.name = "VoidStamp"
+	add_child(_void_stamp)
 	# 行动指示：淡金色边框样式（复制常规样式 + 金边），不改变透明度
 	_style_normal = get_theme_stylebox("panel")
 	_style_highlight = _style_normal.duplicate()
@@ -39,6 +46,14 @@ func set_info(title: String, count: String, status: String) -> void:
 ## 当前行动指示：淡金色边框（不改透明度）
 func set_highlight(on: bool) -> void:
 	add_theme_stylebox_override("panel", _style_highlight if on else _style_normal)
+
+
+## 【无主】公示印章（规则 7.3）：主牌轮未出主牌时盖上，盖在面板右下角（压在内容之上）
+func set_void_trump(on: bool) -> void:
+	_void_stamp.visible = on
+	if on:
+		_void_stamp.position = size - VoidStamp.STAMP_SIZE - Vector2(STAMP_MARGIN, STAMP_MARGIN)
+		_void_stamp.z_index = 5
 
 
 ## 皇冠落点（中心）：名字文字左缘前方 4px、姓名行垂直居中（庄家标记动画用）。

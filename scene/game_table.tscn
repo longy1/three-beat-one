@@ -1,10 +1,11 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://script/game_table.gd" id="1_table"]
 [ext_resource type="PackedScene" path="res://scene/seat_panel.tscn" id="2_seat"]
 [ext_resource type="PackedScene" path="res://scene/info_sidebar.tscn" id="3_sidebar"]
 [ext_resource type="Script" path="res://script/action_bar.gd" id="4_action_bar"]
 [ext_resource type="Script" path="res://script/hand_area.gd" id="5_hand_area"]
+[ext_resource type="Script" path="res://script/void_stamp.gd" id="6_void_stamp"]
 
 [sub_resource type="StyleBoxFlat" id="SB_result"]
 content_margin_left = 15.0
@@ -212,3 +213,16 @@ anchor_bottom = 0.985
 offset_right = -12.0
 offset_bottom = -10.0
 mouse_filter = 2
+
+[node name="HumanVoidStamp" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 2
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 0.0
+anchor_bottom = 1.0
+offset_left = 14.0
+offset_top = -262.0
+offset_right = 70.0
+offset_bottom = -206.0
+script = ExtResource("6_void_stamp")

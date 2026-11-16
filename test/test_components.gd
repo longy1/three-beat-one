@@ -172,3 +172,101 @@ func test_table_seat_wiring(test) -> void:
 	test.eq(table.get_node("SeatRight").seat, 1, "乙 = 1")
 	table.queue_free()
 	await tree.process_frame
+
+
+## VoidStamp：【无主】印章默认隐藏，set_void_trump 点亮；SeatPanel 集成在右下角
+func test_void_stamp_component(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var panel: SeatPanel = load("res://scene/seat_panel.tscn").instantiate()
+	tree.root.add_child(panel)
+	await tree.process_frame
+	var stamp: VoidStamp = panel.get_node("VoidStamp")
+	test.check(stamp != null, "面板自带无主印章子节点")
+	test.check(not stamp.visible, "印章默认隐藏")
+	panel.set_info("丁（电脑）", "3 张", "")
+	panel.set_void_trump(true)
+	test.check(stamp.visible, "公示后印章显示")
+	test.check(stamp.position.x > 0 and stamp.position.y > 0, "印章落在面板内右下角")
+	panel.queue_free()
+	# 独立实例绘制不崩（headless 下 _draw 早退/正常均不得报错）
+	var solo := VoidStamp.new()
+	tree.root.add_child(solo)
+	await tree.process_frame
+	solo.visible = true
+	await tree.process_frame
+	test.check(solo.visible, "独立印章可显示")
+	solo.queue_free()
+
+
+## HandArea：同模式连续轮次保留选择、模式切换清空、consume_selected 移除已打出
+func test_hand_area_selection_retention(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var ha := HandArea.new()
+	tree.root.add_child(ha)
+	ha.size = Vector2(1000, 160)
+	await tree.process_frame
+	var hand := [Card.new(Card.Suit.SPADE, Card.RANK_A, 0), Card.new(Card.Suit.HEART, Card.RANK_7, 0), Card.new(Card.Suit.CLUB, Card.RANK_8, 0)]
+	var trump_info := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	ha.render(hand, trump_info)
+	await tree.process_frame
+	ha.begin_select("play")
+	ha._toggle_select(hand[0])
+	ha._toggle_select(hand[1])
+	test.eq(ha.selected.size(), 2, "选中 2 张")
+	ha.begin_select("play")  # 新一轮同模式：不重置（2026-11-17 需求）
+	test.eq(ha.selected.size(), 2, "同模式续轮保留选择")
+	ha.consume_selected([hand[0]])  # 打出 ♠A
+	test.eq(ha.selected.size(), 1, "已打出的牌从选择移除")
+	test.check(ha.selected.has(hand[1]), "未打出的选择保留")
+	ha.begin_select("discard")  # 模式切换：清空
+	test.eq(ha.selected.size(), 0, "切换模式清空选择")
+	ha.queue_free()
+
+
+## HandArea：编程式 select_cards（扣底 8 张封顶）——底牌入手即选中的组件基础
+func test_hand_area_select_cards_cap(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var ha := HandArea.new()
+	tree.root.add_child(ha)
+	ha.size = Vector2(1100, 160)
+	await tree.process_frame
+	var hand: Array = []
+	for r in [Card.RANK_5, Card.RANK_7, Card.RANK_8, Card.RANK_9, Card.RANK_10, Card.RANK_J, Card.RANK_Q, Card.RANK_K, Card.RANK_A]:
+		hand.append(Card.new(Card.Suit.HEART, r, 0))
+	hand.append(Card.new(Card.Suit.CLUB, Card.RANK_5, 0))
+	ha.render(hand, null)
+	await tree.process_frame
+	ha.begin_select("discard")
+	ha.select_cards(hand.slice(0, 9))  # 传 9 张，封顶 8
+	test.eq(ha.selected.size(), 8, "扣底模式选牌封顶 8 张")
+	ha.begin_select("play")
+	ha.select_cards(hand)
+	test.eq(ha.selected.size(), 10, "出牌模式无封顶")
+	ha.queue_free()
+
+
+## HandArea：主牌区牌力并列的副 R 按花色分组相邻（♠→♥→♣→♦）
+func test_hand_area_trump_side_suit_grouping(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var ha := HandArea.new()
+	tree.root.add_child(ha)
+	ha.size = Vector2(1100, 160)
+	await tree.process_frame
+	var trump_info := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [
+		Card.new(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), Card.new(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0),
+		Card.new(Card.Suit.SPADE, Card.RANK_9, 0),
+		Card.new(Card.Suit.DIAMOND, Card.RANK_9, 1), Card.new(Card.Suit.CLUB, Card.RANK_9, 0),
+		Card.new(Card.Suit.HEART, Card.RANK_9, 1), Card.new(Card.Suit.CLUB, Card.RANK_9, 1),
+		Card.new(Card.Suit.HEART, Card.RANK_9, 0), Card.new(Card.Suit.DIAMOND, Card.RANK_9, 0),
+		Card.new(Card.Suit.SPADE, Card.RANK_2, 0),
+	]
+	ha.render(hand, trump_info)
+	await tree.process_frame
+	var labels: Array[String] = []
+	for c in ha.get_children():
+		if c is CardWidget and not c.is_queued_for_deletion():
+			labels.append(c.card.label())
+	test.eq(labels, ["大王", "小王", "♠9", "♥9", "♥9", "♣9", "♣9", "♦9", "♦9", "♠2"],
+		"副R 同花色相邻（♥♥♣♣♦♦），正R/正2 按牌力各归其位")
+	ha.queue_free()

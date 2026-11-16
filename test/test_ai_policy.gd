@@ -148,3 +148,26 @@ func test_multi_game_session(test) -> void:
 	for v in engine.cumulative:
 		total += v
 	test.eq(total, 0, "三局累计收支守恒")
+
+
+## 甩打轮 AI 跟牌（7.3）：领出者必胜 → 纯垫牌，张数与甩打一致；队友领出喂分
+func test_choose_play_dump_follow(test) -> void:
+	var hand := [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_7, 0),
+		C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)]
+	# 领出者 3 = 闲家队友；自己 1 = 闲家；庄家 = 2
+	var plays := [{seat = 3, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)], role = FollowRule.Role.LEAD}]
+	var play := AiPlay.choose_play(hand, trump, plays, 1, 2)
+	test.eq(play.size(), 2, "垫牌张数 = 甩打张数")
+	for c in play:
+		test.check(hand.has(c), "垫牌来自手牌：%s" % c.label())
+	test.check(play.has(hand[0]), "队友甩打时优先垫分喂队友（♥5）")
+
+
+## 甩打轮 AI 跟牌：领出者是庄家（敌对）→ 不喂分，垫最小分
+func test_choose_play_dump_follow_no_feed(test) -> void:
+	var hand := [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_7, 0),
+		C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)]
+	var plays := [{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)], role = FollowRule.Role.LEAD}]
+	var play := AiPlay.choose_play(hand, trump, plays, 1, 2)  # 自己 1 = 闲家，领出者 2 = 庄家
+	test.eq(play.size(), 2, "垫牌张数 = 甩打张数")
+	test.check(not play.has(hand[0]), "庄家甩打时不喂分（♥5 保留）")

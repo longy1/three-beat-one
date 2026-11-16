@@ -23,7 +23,31 @@ static func settle(plays: Array, trump: TrumpInfo) -> Dictionary:
 
 	var lead := Combo.detect(plays[0].cards, trump)
 	if lead == null:
-		return _fail("领出不构成合法牌型：%s" % Card.cards_to_string(plays[0].cards))
+		# 主牌甩打轮（规则 7.3，2026-11-17 增补）：领出为不成型的多张主牌，
+		# 等同连续单张领出——领出者赢下全部，其余三家均为垫牌（不参与比较）
+		var dump_ok := true
+		for c in plays[0].cards:
+			if not trump.is_trump(c):
+				dump_ok = false
+				break
+		if not dump_ok or plays[0].cards.size() < 2:
+			return _fail("领出不构成合法牌型：%s" % Card.cards_to_string(plays[0].cards))
+		for p in plays:
+			if p.cards.size() != plays[0].cards.size():
+				return _fail("甩打轮各家张数须与领出一致")
+		var dump_points := 0
+		for p in plays:
+			for c in p.cards:
+				dump_points += c.points()
+		return {
+			ok = true,
+			error = "",
+			winner = 0,
+			seat = plays[0].get("seat", 0),
+			points = dump_points,
+			win_main_class = true,          # 甩打全为主牌类
+			win_type = Combo.Type.SINGLE,   # 等同连续单张：末轮抠底按 ×1（8.2）
+		}
 
 	# 竞争者判定（B.2）：领出牌 + 跟出的同型（副牌轮的杀压过一切跟牌）
 	var roles: Array = []

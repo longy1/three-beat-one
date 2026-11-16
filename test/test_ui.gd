@@ -242,3 +242,51 @@ func test_captured_label_matches_engine(test) -> void:
 			"step %d：捉分显示一致（引擎 %d，显示 %s）" % [steps, eng.captured_points, label.text])
 	test.check(eng.phase == Phase.SETTLED, "整局完整结束（%d 步）" % steps)
 	await _release_table(table)
+
+
+## 人类庄家翻底后：底牌 8 张入手即呈选中态（2026-11-17 需求，便于观察与直接扣回）
+func test_kitty_preselected_after_flip(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)  # 人类 130 坐庄
+	table._pending_trump_suit = Card.Suit.SPADE
+	table._submit_human_trump(Card.RANK_9)  # 真实 UI 提交路径 → discard_required 处理器
+	await tree_pause()
+	test.eq(eng.phase, Phase.DISCARD, "进入扣底阶段")
+	test.eq(table.hand_area.selected.size(), 8, "底牌 8 张自动选中")
+	var kitty_keys := {}
+	for c in eng.kitty:
+		kitty_keys[c.key()] = true
+	var all_kitty := true
+	for c in table.hand_area.selected:
+		if not kitty_keys.has(c.key()):
+			all_kitty = false
+	test.check(all_kitty, "选中集合恰为底牌 8 张")
+	# 扣底按钮计数联动到 8/8
+	var counter_text := ""
+	for b in table.get_node("BottomArea/ActionBar").get_children():
+		if b is Button and not b.is_queued_for_deletion():
+			counter_text = b.text
+	test.check("8/8" in counter_text, "扣底按钮计数 8/8（实际：%s）" % counter_text)
+	await _release_table(table)
+
+
+## 【无主】公示印章接线：引擎公示状态驱动三家电版与人类位印章显隐
+func test_void_stamp_wiring(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	eng.trump_void_seats = [true, true, false, true]
+	table._refresh()
+	test.check(table.seat_panels[1].get_node("VoidStamp").visible, "乙公示无主 → 印章显示")
+	test.check(not table.seat_panels[2].get_node("VoidStamp").visible, "丙未公示 → 印章隐藏")
+	test.check(table.seat_panels[3].get_node("VoidStamp").visible, "丁公示无主 → 印章显示")
+	test.check(table.human_void_stamp.visible, "人类位公示无主 → 印章显示（手牌区上方）")
+	eng.trump_void_seats = [false, false, false, false]
+	table._refresh()
+	test.check(not table.human_void_stamp.visible, "复位后隐藏")
+	test.check(not table.seat_panels[1].get_node("VoidStamp").visible, "复位后隐藏（乙）")
+	await _release_table(table)

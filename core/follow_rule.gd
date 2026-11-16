@@ -237,3 +237,35 @@ static func _has_value(cards: Array, card: Card) -> bool:
 		if c.key() == k:
 			return true
 	return false
+
+
+## ============================= 主牌甩打（规则 7.3，2026-11-17 增补） =============================
+
+## 甩打领出组合判定：张数 ≥ 2 且全部为主牌类。
+## 成型牌型（对子/拖拉机）会先被普通领出路径接住——三家无主时主牌牌型同样必赢，
+## 效果等价；故此处无须排除同身份两张，它们视作连续单张中的两张单牌。
+static func is_trump_dump(cards: Array, trump: TrumpInfo) -> bool:
+	if cards.size() < 2:
+		return false
+	for c in cards:
+		if not trump.is_trump(c):
+			return false
+	return true
+
+
+## 甩打轮跟牌（垫牌）：张数与甩打张数一致、来自手牌、不重复；牌面完全自由（必输）。
+## 甩打轮无任何强制项（领出者必胜，跟牌无竞争意义）。
+static func is_legal_dump_follow(hand: Array, play: Array, n: int) -> Dictionary:
+	var hand_set := {}
+	for c in hand:
+		hand_set[c.key()] = true
+	var seen := {}
+	for c in play:
+		if not hand_set.has(c.key()):
+			return _verdict(false, Reason.NOT_IN_HAND, Role.DISCARD)
+		if seen.has(c.key()):
+			return _verdict(false, Reason.DUPLICATE_CARD, Role.DISCARD)
+		seen[c.key()] = true
+	if play.size() != n:
+		return _verdict(false, Reason.WRONG_COUNT, Role.DISCARD)
+	return _verdict(true, Reason.OK, Role.DISCARD)

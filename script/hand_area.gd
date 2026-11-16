@@ -83,11 +83,18 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 			trump_cards.append(c)
 		else:
 			side_cards.append(c)
-	# 主牌区（左框）：从大到小。叫主后按 3.1 牌力（大王→…→主5）；
+	# 主牌区（左框）：从大到小。叫主后按 3.1 牌力（大王→…→主5），
+	# 牌力并列的副R/副2 再按花色分组（♠→♥→♣→♦）——同花色相邻便于识读；
 	# 叫主前为确定常主：大王 → 小王 → 各 2（♠→♥→♣→♦）
 	if trump != null:
 		trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
-			return trump.card_power(a) > trump.card_power(b))
+			var pa: int = trump.card_power(a)
+			var pb: int = trump.card_power(b)
+			if pa != pb:
+				return pa > pb
+			if a.suit != b.suit:
+				return a.suit < b.suit
+			return a.copy < b.copy)
 	else:
 		trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
 			return _pre_trump_main_key(a) > _pre_trump_main_key(b))
@@ -154,14 +161,50 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 ## 左键单击切换选中；按住左键滑动批量选择相邻牌（以首张的目标态对齐）；
 ## 右键在出牌模式下直接提交出牌（引擎校验，非法则提示原因）。
 
+## 进入选牌模式：同模式连续轮次（如逐轮出牌）保留已选——出完一轮不重置选牌，
+# 仅在模式切换（扣底→出牌 / 新局）时清空
 func begin_select(mode: String) -> void:
-	select_mode = mode
-	clear_selection()
+	if select_mode != mode:
+		select_mode = mode
+		clear_selection()
+	else:
+		select_mode = mode
 
 
 func end_select() -> void:
 	select_mode = ""
 	clear_selection()
+
+
+## 提交成功后移除已打出的牌（保持其余选择跨轮存续；引用来自 render 时的手牌）
+func consume_selected(cards: Array) -> void:
+	var keep: Array = []
+	for s in selected:
+		var played := false
+		for c in cards:
+			if s.same_card(c):
+				played = true
+				break
+		if not played:
+			keep.append(s)
+	if keep.size() != selected.size():
+		selected = keep
+		selection_changed.emit(selected.size())
+
+
+## 编程式选中一组牌（如庄家翻底后预选底牌 8 张，便于观察与直接扣回）。
+## 走与点选相同的上限规则（扣底模式 8 张封顶）；仅选牌模式下可用。
+func select_cards(cards: Array) -> void:
+	if select_mode == "":
+		return
+	for c in cards:
+		if selected.has(c):
+			continue
+		if select_mode == "discard" and selected.size() >= GameEngine.BOTTOM_SIZE:
+			break
+		selected.append(c)
+		_apply_card_visual(c, true)
+	selection_changed.emit(selected.size())
 
 
 func clear_selection() -> void:

@@ -104,6 +104,12 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 		return _choose_lead(hand, trump)
 
 	var lead := Combo.detect(plays[0].cards, trump)
+	if lead == null:
+		# 主牌甩打轮（7.3）：领出为不成型多张主牌，领出者必胜——纯垫牌；
+		# 领出者是闲家队友时优先垫分喂队友
+		var leader_seat: int = plays[0].seat
+		var feed: bool = seat != banker_seat and leader_seat != banker_seat and leader_seat != seat
+		return build_discard(hand, trump, plays[0].cards.size(), feed)
 	# 部分结算判定"当前最大者"：settle 与 plays 同构（键名 seat），直接传入
 	var cur: Dictionary = Trick.settle(plays, trump)
 	if not cur.ok:

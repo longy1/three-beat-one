@@ -139,3 +139,29 @@ func test_invalid_inputs(test) -> void:
 		{seat = 3, cards = [C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0),
 			C(Card.Suit.DIAMOND, Card.RANK_9, 0), C(Card.Suit.DIAMOND, Card.RANK_10, 0)]}])
 	test.check(not bad_lead.ok, "领出不构成牌型须报错")
+
+
+## 甩打轮结算（7.3）：领出者全胜、分牌合计、末轮抠底按单张口径
+func test_dump_round_settle(test) -> void:
+	var r := settle([
+		{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_J, 0)]},
+		{seat = 3, cards = [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_J, 0)]},
+		{seat = 0, cards = [C(Card.Suit.CLUB, Card.RANK_5, 0), C(Card.Suit.CLUB, Card.RANK_J, 0), C(Card.Suit.HEART, Card.RANK_8, 0)]},
+		{seat = 1, cards = [C(Card.Suit.DIAMOND, Card.RANK_J, 0), C(Card.Suit.DIAMOND, Card.RANK_10, 0), C(Card.Suit.HEART, Card.RANK_K, 0)]}])
+	test.check(r.ok, "甩打轮可结算")
+	test.eq(r.seat, 2, "领出者全胜")
+	test.eq(r.points, 35, "全部 12 张分牌合计（5+5+5+10+10）")
+	test.check(r.win_main_class, "甩打全为主牌类")
+	test.eq(r.win_type, Combo.Type.SINGLE, "等同连续单张（末轮抠底 ×1 口径）")
+	var mismatch := settle([
+		{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)]},
+		{seat = 3, cards = [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0), C(Card.Suit.HEART, Card.RANK_J, 0)]}])
+	test.check(not mismatch.ok, "跟牌张数与甩打不一致须报错")
+
+
+## 非主牌的不成型领出仍按非法报错（甩打仅限主牌，7.3）
+func test_dump_rejects_side_combination(test) -> void:
+	var r := settle([
+		{seat = 0, cards = [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0)]},
+		{seat = 1, cards = [C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)]}])
+	test.check(not r.ok, "副牌不成型组合不能按甩打结算")

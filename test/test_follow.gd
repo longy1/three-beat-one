@@ -228,3 +228,31 @@ func test_four_jokers_optional_on_side_lead(test) -> void:
 		C(Card.Suit.DIAMOND, Card.RANK_J, 0), C(Card.Suit.DIAMOND, Card.RANK_J, 1),
 		C(Card.Suit.DIAMOND, Card.RANK_10, 0), C(Card.Suit.DIAMOND, Card.RANK_10, 1)])
 	test.eq(verdict(hand, hand.duplicate(), lead).role, FollowRule.Role.KILL, "四王杀副牌拖拉机（可选）")
+
+
+## ============================= 主牌甩打判定（规则 7.3，2026-11-17 增补） =============================
+
+func test_trump_dump_shape(test) -> void:
+	test.check(FollowRule.is_trump_dump([C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)], trump), "两张主牌单张可甩")
+	test.check(FollowRule.is_trump_dump([
+		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0),
+		C(Card.Suit.HEART, Card.RANK_9, 0), C(Card.Suit.HEART, Card.RANK_2, 1)], trump), "全常主可甩（含副R/副2）")
+	test.check(not FollowRule.is_trump_dump([C(Card.Suit.SPADE, Card.RANK_5, 0)], trump), "单张走普通领出")
+	test.check(not FollowRule.is_trump_dump([C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_7, 0)], trump), "含副牌不可甩")
+	test.check(not FollowRule.is_trump_dump([], trump), "空组不可甩")
+
+
+func test_dump_follow_validation(test) -> void:
+	var hand := [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0), C(Card.Suit.DIAMOND, Card.RANK_7, 0)]
+	var v: Dictionary = FollowRule.is_legal_dump_follow(hand, [hand[0], hand[1]], 2)
+	test.check(v.legal, "张数一致、来自手牌 → 合法垫牌")
+	test.eq(v.role, FollowRule.Role.DISCARD, "角色 = 垫牌")
+	var wrong: Dictionary = FollowRule.is_legal_dump_follow(hand, [hand[0]], 2)
+	test.check(not wrong.legal, "张数不足被拒")
+	test.eq(wrong.reason, FollowRule.Reason.WRONG_COUNT, "原因 = 张数不符")
+	var foreign: Dictionary = FollowRule.is_legal_dump_follow(hand, [hand[0], C(Card.Suit.CLUB, Card.RANK_7, 0)], 2)
+	test.check(not foreign.legal, "不在手牌被拒")
+	test.eq(foreign.reason, FollowRule.Reason.NOT_IN_HAND, "原因 = 牌不在手中")
+	var dup: Dictionary = FollowRule.is_legal_dump_follow(hand, [hand[0], hand[0]], 2)
+	test.check(not dup.legal, "重复出牌被拒")
+	test.eq(dup.reason, FollowRule.Reason.DUPLICATE_CARD, "原因 = 重复出牌")

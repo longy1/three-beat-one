@@ -269,3 +269,124 @@ func test_dealer_rotation(test) -> void:
 	test.check(engine.start_next_game(), "开始下一局")
 	test.eq(engine.dealer_seat, expected, "庄位轮换正确")
 	test.eq(engine.phase, Phase.AUCTION, "新局进入拍卖")
+
+
+## ============================= 无主公示与主牌甩打（规则 7.3，2026-11-17 增补） =============================
+
+## 甩打剧本：庄家 2 手握 3 张主牌单张，其余三家全无主牌
+func _dump_hands() -> Array:
+	return [
+		[C(Card.Suit.CLUB, Card.RANK_5, 0), C(Card.Suit.CLUB, Card.RANK_J, 0), C(Card.Suit.HEART, Card.RANK_8, 0),
+			C(Card.Suit.HEART, Card.RANK_10, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)],
+		[C(Card.Suit.DIAMOND, Card.RANK_J, 0), C(Card.Suit.DIAMOND, Card.RANK_10, 0), C(Card.Suit.HEART, Card.RANK_K, 0),
+			C(Card.Suit.CLUB, Card.RANK_10, 0), C(Card.Suit.HEART, Card.RANK_Q, 0)],
+		[C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_J, 0),
+			C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)],
+		[C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_J, 0),
+			C(Card.Suit.DIAMOND, Card.RANK_5, 0), C(Card.Suit.DIAMOND, Card.RANK_7, 0)],
+	]
+
+
+## 庄家甩打 3 张主牌单张：等同连续单张，庄家全胜并继续领出；三家公示无主
+func test_trump_dump_lead_and_settle(test) -> void:
+	var engine := GameEngine.new()
+	_setup_mini(test, engine, _dump_hands())
+	var dump: Array = [engine.hands[2][0], engine.hands[2][1], engine.hands[2][2]]  # ♠5 ♠7 ♠J
+	var verdict: Dictionary = engine.submit_play(2, dump)
+	test.check(verdict.legal, "三家无主 → 甩打合法：" + verdict.text)
+	test.check(verdict.get("dump", false), "判定附 dump 标记")
+	ok(test, engine.submit_play(3, [engine.hands[3][0], engine.hands[3][1], engine.hands[3][2]]), "丁垫 3 张")
+	ok(test, engine.submit_play(0, [engine.hands[0][0], engine.hands[0][1], engine.hands[0][2]]), "甲垫 3 张")
+	ok(test, engine.submit_play(1, [engine.hands[1][0], engine.hands[1][1], engine.hands[1][2]]), "乙垫 3 张")
+	test.eq(engine.trick_history.size(), 1, "甩打轮已结算")
+	test.eq(engine.trick_history[0].winner, 2, "领出者全胜")
+	test.eq(engine.leader_seat, 2, "甩打后庄家继续领出")
+	test.eq(engine.turn_seat, 2, "轮到庄家出牌")
+	test.eq(engine.captured_points, 0, "庄家赢轮 → 本轮 35 分作废（8.1）")
+	test.eq(engine.trump_void_seats, [true, true, false, true], "三家公示【无主】，庄家不公示")
+
+
+## 尚有一家持主牌 → 不满足甩打条件，普通判非法且状态不变
+func test_trump_dump_requires_all_others_void(test) -> void:
+	var engine := GameEngine.new()
+	var hands := _dump_hands()
+	hands[3][4] = C(Card.Suit.SPADE, Card.RANK_K, 0)  # 丁补进一张主牌
+	_setup_mini(test, engine, hands)
+	var verdict: Dictionary = engine.submit_play(2, [engine.hands[2][0], engine.hands[2][1], engine.hands[2][2]])
+	test.check(not verdict.legal, "丁仍有主牌 → 甩打非法")
+	test.eq(verdict.reason, FollowRule.Reason.WRONG_COUNT, "按普通领出校验口径拒绝（3 张非合法张数）")
+	test.eq(engine.current_plays.size(), 0, "状态不变：未入出牌记录")
+	test.eq(engine.turn_seat, 2, "轮次不变")
+
+
+## 甩打轮跟牌：张数必须与甩打张数一致（垫牌完全自由）
+func test_trump_dump_follow_count_check(test) -> void:
+	var engine := GameEngine.new()
+	_setup_mini(test, engine, _dump_hands())
+	ok(test, engine.submit_play(2, [engine.hands[2][0], engine.hands[2][1], engine.hands[2][2]]), "庄家甩打 3 张")
+	var bad: Dictionary = engine.submit_play(3, [engine.hands[3][0], engine.hands[3][1]])
+	test.check(not bad.legal, "垫牌张数不足被拒")
+	test.eq(bad.reason, FollowRule.Reason.WRONG_COUNT, "拒绝原因 = 张数不符")
+	ok(test, engine.submit_play(3, [engine.hands[3][0], engine.hands[3][1], engine.hands[3][2]]), "张数一致后合法")
+	test.eq(engine.current_plays.size(), 2, "已收两份出牌")
+
+
+## 末轮闲家甩打 → 抠底按单张 ×1（7.3 与 8.2 衔接）
+func test_trump_dump_last_round_koudi_times_one(test) -> void:
+	var engine := GameEngine.new()
+	_setup_mini(test, engine, [
+		[C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)],
+		[C(Card.Suit.HEART, Card.RANK_8, 0), C(Card.Suit.CLUB, Card.RANK_10, 0), C(Card.Suit.CLUB, Card.RANK_J, 0)],
+		[C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)],
+		[C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)],
+	])
+	ok(test, engine.submit_play(2, [engine.hands[2][0]]), "庄家领 ♥5")
+	ok(test, engine.submit_play(3, [engine.hands[3][0]]), "丁跟 ♥A（必跟 ♥）")
+	ok(test, engine.submit_play(0, [engine.hands[0][0]]), "甲跟 ♥7")
+	ok(test, engine.submit_play(1, [engine.hands[1][0]]), "乙跟 ♥8")
+	test.eq(engine.leader_seat, 3, "R1 丁 ♥A 赢")
+	var verdict: Dictionary = engine.submit_play(3, [engine.hands[3][0], engine.hands[3][1]])
+	test.check(verdict.legal and verdict.get("dump", false), "末轮丁甩打 ♠5♠7：" + verdict.text)
+	ok(test, engine.submit_play(0, engine.hands[0].duplicate()), "甲垫 2 张")
+	ok(test, engine.submit_play(1, engine.hands[1].duplicate()), "乙垫 2 张")
+	ok(test, engine.submit_play(2, engine.hands[2].duplicate()), "庄家垫 2 张")
+	test.eq(engine.phase, Phase.SETTLED, "对局结束")
+	var r: Dictionary = engine.last_game_result
+	test.eq(r.koudi_points, 35, "甩打等同连续单张 → 末轮抠底 ×1（8.2）")
+	test.eq(r.captured_points, 20, "两轮分 5 + 15 计入捉分")
+	test.eq(r.captured_total, 55, "含抠底 55")
+	test.eq(r.total_score, 190, "135 + 55 = 190 < 205")
+	test.check(r.banker_won, "庄家胜")
+	test.eq(r.level, 1, "闲家捉（含抠底）55 ≥ 25 → 庄家 1 级")
+
+
+## 主牌轮垫牌（未出任何主牌）→ 公示【无主】；跟出主牌者不公示
+func test_trump_void_marked_on_discard(test) -> void:
+	var engine := GameEngine.new()
+	_setup_mini(test, engine, [
+		[C(Card.Suit.SPADE, Card.RANK_J, 0), C(Card.Suit.CLUB, Card.RANK_7, 0)],
+		[C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)],
+		[C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)],
+		[C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0)],
+	])
+	ok(test, engine.submit_play(2, [engine.hands[2][0]]), "庄家领主牌 ♠5")
+	ok(test, engine.submit_play(3, [engine.hands[3][0]]), "丁无主垫 ♥7")
+	ok(test, engine.submit_play(0, [engine.hands[0][0]]), "甲跟主牌 ♠J")
+	ok(test, engine.submit_play(1, [engine.hands[1][0]]), "乙无主垫 ♦7")
+	test.eq(engine.trump_void_seats, [false, true, false, true], "垫牌二家公示【无主】，跟主牌者不公示")
+
+
+## 副牌轮垫牌不公示（公示仅由主牌轮触发，7.3）
+func test_trump_void_not_marked_on_side_lead(test) -> void:
+	var engine := GameEngine.new()
+	_setup_mini(test, engine, [
+		[C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0)],
+		[C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)],
+		[C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)],
+		[C(Card.Suit.DIAMOND, Card.RANK_J, 0), C(Card.Suit.DIAMOND, Card.RANK_10, 0)],
+	])
+	ok(test, engine.submit_play(2, [engine.hands[2][0]]), "庄家领副牌 ♣7")
+	ok(test, engine.submit_play(3, [engine.hands[3][0]]), "丁无 ♣ 垫 ♦J")
+	ok(test, engine.submit_play(0, [engine.hands[0][0]]), "甲垫 ♥7")
+	ok(test, engine.submit_play(1, [engine.hands[1][0]]), "乙垫 ♦7")
+	test.eq(engine.trump_void_seats, [false, false, false, false], "副牌轮垫牌不公示【无主】")
