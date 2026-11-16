@@ -28,11 +28,12 @@ var _trick_timer: Timer
 @onready var trick_area: Control = $TrickArea
 @onready var result_panel: PanelContainer = $ResultPanel
 
-## 座位 → 呈现节点（0 号位无座位面板，手牌即呈现）
+## 座位 → 呈现节点（0 号位无座位面板，手牌即呈现）。
+## 布局使出牌顺序 0→1→2→3 在屏幕上呈逆时针：你(下) → 乙(右) → 丙(上) → 丁(左)
 @onready var seat_panels := {
-	1: $SeatTop,
-	2: $SeatLeft,
-	3: $SeatRight,
+	1: $SeatRight,
+	2: $SeatTop,
+	3: $SeatLeft,
 }
 
 
@@ -342,12 +343,12 @@ func _refresh_seats() -> void:
 
 func _refresh_trick_area() -> void:
 	_clear_trick_area()
-	# 本轮各家出牌：0 下、1 上、2 左、3 右
+	# 本轮各家出牌（与座位布局一致，逆时针）：0 下、1 右、2 上、3 左
 	var anchors := {
 		0: Vector2(320, 210),
-		1: Vector2(320, 10),
-		2: Vector2(80, 105),
-		3: Vector2(560, 105),
+		1: Vector2(560, 105),
+		2: Vector2(320, 10),
+		3: Vector2(80, 105),
 	}
 	for play in engine.current_plays:
 		var seat: int = play.seat
