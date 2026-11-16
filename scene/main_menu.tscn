@@ -38,19 +38,14 @@ theme_override_constants/separation = 18
 [node name="Title" type="Label" parent="Center/Panel/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 64
-text = "三打哈"
-
-[node name="Subtitle" type="Label" parent="Center/Panel/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "三打一 · 单机版 · 1 人对 3 电脑"
+text = "三打一单机版"
 horizontal_alignment = 1
 
 [node name="StartButton" type="Button" parent="Center/Panel/VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(320, 52)
+custom_minimum_size = Vector2(420, 52)
 theme_override_font_sizes/font_size = 24
-text = "开始对局"
+text = "开始对局（1 人对 3 电脑）"
 
 [node name="SelfTestButton" type="Button" parent="Center/Panel/VBox"]
 layout_mode = 2
