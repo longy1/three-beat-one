@@ -21,7 +21,7 @@ func test_flow_human_banker(test) -> void:
 	var eng: GameEngine = table.engine
 	var tree: SceneTree = Engine.get_main_loop()
 	_deal(eng, 3)  # 丁抓牌庄 → 人类 0 号先表态
-	test.eq(eng.auction_turn, 0, "人类先表态")
+	test.eq(eng.auction.turn, 0, "人类先表态")
 	# 拍卖：人类封顶 200（真实 UI 方法），AI 只能放弃
 	table._submit_human_bid(200)
 	for s in [1, 2, 3]:
@@ -72,10 +72,10 @@ func test_flow_ai_banker(test) -> void:
 	var guard := 0
 	while eng.phase == Phase.AUCTION and guard < 60:
 		guard += 1
-		if eng.auction_turn == 0:
+		if eng.auction.turn == 0:
 			table._submit_human_bid(GameEngine.BID_PASS)  # 人类放弃（真实 UI 方法）
 		else:
-			var s: int = eng.auction_turn
+			var s: int = eng.auction.turn
 			eng.submit_bid(s, AiPolicy.choose_bid(eng.hands[s], eng.current_highest_bid()))
 	test.eq(eng.phase, Phase.TRUMP, "拍卖结束进入叫主")
 	test.check(eng.banker_seat != 0, "AI 坐庄（座位 %d）" % eng.banker_seat)

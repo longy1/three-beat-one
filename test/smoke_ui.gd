@@ -24,7 +24,7 @@ func _initialize() -> void:
 		waited += 0.4
 		match engine.phase:
 			GameEngine.Phase.AUCTION:
-				if engine.auction_turn == 0:
+				if engine.auction.turn == 0:
 					engine.submit_bid(0, AiPolicy.choose_bid(engine.hands[0], engine.current_highest_bid()))
 			GameEngine.Phase.TRUMP:
 				if engine.banker_seat == 0:

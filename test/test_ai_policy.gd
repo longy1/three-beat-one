@@ -82,7 +82,7 @@ func _run_auto_game(test, engine: GameEngine) -> void:
 			return
 		match engine.phase:
 			Phase.AUCTION:
-				var seat: int = engine.auction_turn
+				var seat: int = engine.auction.turn
 				var verdict := engine.submit_bid(seat, AiPolicy.choose_bid(engine.hands[seat], engine.current_highest_bid()))
 				test.check(verdict.ok, "AI 叫分合法：" + verdict.error)
 			Phase.TRUMP:
@@ -123,7 +123,7 @@ func test_auto_games_invariants(test) -> void:
 			payment_sum += p
 		test.eq(payment_sum, 0, "种子 %d：收支守恒" % seed)
 		# 胜负与级数互检（规则 9）
-		var expect := GameEngine.compute_outcome(r.contract, r.captured_total)
+		var expect := Scoring.compute_outcome(r.contract, r.captured_total)
 		test.eq(r.banker_won, expect.banker_won, "种子 %d：胜负判定" % seed)
 		test.eq(r.level, expect.level, "种子 %d：级数判定" % seed)
 	# 说明：贪心 AI 庄家扣底常留主牌，末轮多由庄家赢下，抠底路径由

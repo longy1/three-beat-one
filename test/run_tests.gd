@@ -5,19 +5,7 @@ extends SceneTree
 
 const TestFramework := preload("res://test/test_framework.gd")
 
-const SUITES := [
-	preload("res://test/test_card.gd"),
-	preload("res://test/test_trump.gd"),
-	preload("res://test/test_combo.gd"),
-	preload("res://test/test_follow.gd"),
-	preload("res://test/test_trick.gd"),
-	preload("res://test/test_appendix_a.gd"),
-	preload("res://test/test_game.gd"),
-	preload("res://test/test_ai_policy.gd"),
-	preload("res://test/test_components.gd"),
-	preload("res://test/test_flow.gd"),
-	preload("res://test/test_ui.gd"),
-]
+const SUITES := SuiteRegistry.SUITES
 
 
 func _initialize() -> void:

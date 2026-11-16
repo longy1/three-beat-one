@@ -730,7 +730,7 @@ func _refresh_seats() -> void:
 				if _last_trick_winner == seat:
 					status = "✓ 上轮赢"
 		panel.set_info(SEAT_NAMES[seat], "%d 张" % engine.hand_count(seat), status)
-		var is_turn: bool = (engine.phase == GameEngine.Phase.AUCTION and engine.auction_turn == seat) \
+		var is_turn: bool = (engine.phase == GameEngine.Phase.AUCTION and engine.auction.turn == seat) \
 			or (engine.phase == GameEngine.Phase.TRICKS and engine.turn_seat == seat)
 		panel.set_highlight(is_turn)
 

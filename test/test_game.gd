@@ -19,18 +19,18 @@ func ok(test, verdict: Dictionary, note := "") -> void:
 
 func test_compute_outcome_branches(test) -> void:
 	# 闲家胜：205~244→1 级；245~284→2 级；≥285→3 级
-	test.eq(GameEngine.compute_outcome(130, 75), {banker_won = false, level = 1, total = 205}, "205 恰好闲家胜 1 级")
-	test.eq(GameEngine.compute_outcome(130, 114), {banker_won = false, level = 1, total = 244}, "244 仍 1 级")
-	test.eq(GameEngine.compute_outcome(130, 115), {banker_won = false, level = 2, total = 245}, "245 → 2 级")
-	test.eq(GameEngine.compute_outcome(200, 84), {banker_won = false, level = 2, total = 284}, "284 仍 2 级")
-	test.eq(GameEngine.compute_outcome(200, 85), {banker_won = false, level = 3, total = 285}, "285 → 3 级")
-	test.eq(GameEngine.compute_outcome(130, 155), {banker_won = false, level = 3, total = 285}, "3 级封顶")
+	test.eq(Scoring.compute_outcome(130, 75), {banker_won = false, level = 1, total = 205}, "205 恰好闲家胜 1 级")
+	test.eq(Scoring.compute_outcome(130, 114), {banker_won = false, level = 1, total = 244}, "244 仍 1 级")
+	test.eq(Scoring.compute_outcome(130, 115), {banker_won = false, level = 2, total = 245}, "245 → 2 级")
+	test.eq(Scoring.compute_outcome(200, 84), {banker_won = false, level = 2, total = 284}, "284 仍 2 级")
+	test.eq(Scoring.compute_outcome(200, 85), {banker_won = false, level = 3, total = 285}, "285 → 3 级")
+	test.eq(Scoring.compute_outcome(130, 155), {banker_won = false, level = 3, total = 285}, "3 级封顶")
 	# 庄家胜：捉 0 分 → 3 级；5~20 → 2 级；≥25 → 1 级
-	test.eq(GameEngine.compute_outcome(130, 0), {banker_won = true, level = 3, total = 130}, "捉 0 分庄胜 3 级")
-	test.eq(GameEngine.compute_outcome(130, 5), {banker_won = true, level = 2, total = 135}, "捉 5 分庄胜 2 级")
-	test.eq(GameEngine.compute_outcome(130, 20), {banker_won = true, level = 2, total = 150}, "捉 20 分庄胜 2 级")
-	test.eq(GameEngine.compute_outcome(130, 25), {banker_won = true, level = 1, total = 155}, "捉 25 分庄胜 1 级")
-	test.eq(GameEngine.compute_outcome(200, 0), {banker_won = true, level = 3, total = 200}, "叫 200 捉 0 分仍庄胜")
+	test.eq(Scoring.compute_outcome(130, 0), {banker_won = true, level = 3, total = 130}, "捉 0 分庄胜 3 级")
+	test.eq(Scoring.compute_outcome(130, 5), {banker_won = true, level = 2, total = 135}, "捉 5 分庄胜 2 级")
+	test.eq(Scoring.compute_outcome(130, 20), {banker_won = true, level = 2, total = 150}, "捉 20 分庄胜 2 级")
+	test.eq(Scoring.compute_outcome(130, 25), {banker_won = true, level = 1, total = 155}, "捉 25 分庄胜 1 级")
+	test.eq(Scoring.compute_outcome(200, 0), {banker_won = true, level = 3, total = 200}, "叫 200 捉 0 分仍庄胜")
 
 
 ## ============================= 拍卖（规则 5） =============================

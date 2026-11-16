@@ -1,8 +1,12 @@
 class_name GameEngine
 extends RefCounted
-## 完整对局状态机（规则 2 总览、4 庄位、5 叫分拍卖、8.2 抠底、9 分级、10 收益）。
+## 完整对局状态机（规则 2 总览、4 庄位、8.2 抠底）：状态编排 + 输入校验 + 信号发布。
+## 领域规则委托：Auction（规则 5 叫分拍卖）、Scoring（规则 9/10 分级收益）、
+## FollowRule/Trick/Combo（规则 6/7/8 出牌与结算）。
 ## 纯逻辑：不依赖场景节点；单机 UI 与未来联机服务端共用。
 ## 所有 submit_* 方法均校验输入并返回判定字典，非法操作不改变状态。
+## 联机预留（M4）：submit_* 是唯一状态变更入口（按值匹配契约 = 网络消息可直接映射），
+## 信号是唯一 UI 复制通道；本类无时间依赖，服务端可确定性重放。
 
 
 signal phase_changed(phase: int)
@@ -16,14 +20,15 @@ signal engine_fault(message: String)  ## 内部一致性破坏（正常对局不
 
 enum Phase { IDLE, AUCTION, TRUMP, DISCARD, TRICKS, SETTLED }
 
-const BID_PASS := -1
+# 域内常量由领域模块持有；此处按旧引用面转发（UI/测试沿用 GameEngine.XXX）
+const BID_PASS := Auction.BID_PASS
+const DEALER_BASE_BID := Auction.DEALER_BASE_BID
+const BID_CAP := Auction.BID_CAP
+const WIN_LINE := Scoring.WIN_LINE
 const PLAYER_COUNT := 4
 const HAND_SIZE := 19
 const BOTTOM_SIZE := 8
-const BASE_STAKE := 1         ## 基底分 B（规则 10；房间可约定，此处固定 1）
-const DEALER_BASE_BID := 130  ## 抓牌庄家底叫（规则 5.1）
-const BID_CAP := 200          ## 封顶（规则 5.2）
-const WIN_LINE := 205         ## 闲家胜线（规则 9）
+const BASE_STAKE := 1  ## 基底分 B（规则 10；房间可约定，此处固定 1）
 
 var phase: int = Phase.IDLE
 var round_index := 0            ## 第几局（1 起）
@@ -36,8 +41,7 @@ var kitty: Array = []           ## 本局翻出的 8 张底牌（翻底后并入
 var buried: Array = []          ## 庄家扣回的底牌（8 张，对其他玩家不可见；末轮抠底分值来源）
 var buried_points := 0          ## 庄家所扣底牌分值（8.2 抠底基数）
 var faulted := false            ## 内部一致性破坏标记（正常对局永远为 false）
-var bids: Array = []            ## 每座位 { value: int, passed: bool }
-var auction_turn := -1
+var auction := Auction.new()    ## 叫分拍卖子状态机（bids/turn 归其所有）
 var current_plays: Array = []   ## 本轮已出 [{ seat, cards, role }]，plays[0] 为领出
 var trick_history: Array = []   ## 全部已结算轮次 [{ plays, winner }]，按旧→新排列
 var leader_seat := -1
@@ -73,15 +77,15 @@ func start_next_game() -> bool:
 	return true
 
 
-## 测试钩子：注入固定牌型（hands 每人 19 张 + bottom 8 张，牌对象引用须互不相同）
-func start_session_with_deal(dealer: int, test_hands: Array, test_bottom: Array) -> void:
+## 测试钩子：注入固定牌型（hands 每人 19 张 + kitty 8 张；引擎按值匹配，副本亦可）
+func start_session_with_deal(dealer: int, test_hands: Array, test_kitty: Array) -> void:
 	round_index = 0
 	cumulative = [0, 0, 0, 0]
 	rng.randomize()
-	_begin_game(dealer, test_hands, test_bottom)
+	_begin_game(dealer, test_hands, test_kitty)
 
 
-func _begin_game(next_dealer: int, test_hands: Array, test_bottom: Array) -> void:
+func _begin_game(next_dealer: int, test_hands: Array, test_kitty: Array) -> void:
 	round_index += 1
 	dealer_seat = next_dealer
 	banker_seat = -1
@@ -109,82 +113,50 @@ func _begin_game(next_dealer: int, test_hands: Array, test_bottom: Array) -> voi
 		kitty = deck.slice(PLAYER_COUNT * HAND_SIZE, PLAYER_COUNT * HAND_SIZE + BOTTOM_SIZE)
 	else:
 		hands = test_hands
-		kitty = test_bottom
+		kitty = test_kitty
 	buried = []
 	buried_points = 0
-	# 拍卖初始化：抓牌庄家固定 130 底叫（规则 5.1），从其下一位开始表态
-	bids = []
-	for s in PLAYER_COUNT:
-		bids.append({value = 0, passed = false})
-	bids[dealer_seat].value = DEALER_BASE_BID
+	# 不变式：发任何信号（phase_changed 先于 auction_required 同步到达 UI）之前，
+	# 状态必须完全就绪——故先 begin 再切阶段
+	var first_turn := auction.begin(dealer_seat, PLAYER_COUNT)
 	_set_phase(Phase.AUCTION)
-	auction_turn = (dealer_seat + 1) % PLAYER_COUNT
-	auction_required.emit(auction_turn)
+	auction_required.emit(first_turn)
 
 
-## ============================= 叫分拍卖（规则 5） =============================
+## ============================= 叫分拍卖（委托 Auction，规则 5） =============================
 
 func current_highest_bid() -> int:
-	var highest := 0
-	for b in bids:
-		highest = maxi(highest, b.value)
-	return highest
+	return auction.highest_bid()
 
 
 func has_passed(seat: int) -> bool:
-	return bids[seat].passed
+	return auction.has_passed(seat)
 
 
-## 某座位当前叫分（0 = 未叫；UI 呈现用，不触内部结构）
 func bid_value(seat: int) -> int:
-	return bids[seat].value
+	return auction.bid_value(seat)
 
 
 ## value = BID_PASS 表示放弃（永久退出）；否则须为高于当前最高、5 的倍数、≤200
 func submit_bid(seat: int, value: int) -> Dictionary:
 	if phase != Phase.AUCTION:
 		return _err("当前不在拍卖阶段")
-	if seat != auction_turn:
-		return _err("未轮到座位 %d" % seat)
-	if value == BID_PASS:
-		bids[seat].passed = true
-	else:
-		var highest := current_highest_bid()
-		if bids[seat].passed:
-			return _err("已放弃，不能再叫")
-		if highest >= BID_CAP:
-			return _err("当前叫分已封顶，只能放弃")
-		if value <= highest:
-			return _err("叫分须高于当前最高 %d" % highest)
-		if value % 5 != 0:
-			return _err("叫分须为 5 的倍数")
-		if value > BID_CAP:
-			return _err("叫分封顶 %d" % BID_CAP)
-		bids[seat].value = value
+	var verdict := auction.submit(seat, value)
+	if not verdict.ok:
+		return verdict
 	_advance_auction()
-	return {ok = true, error = ""}
+	return verdict
 
 
 func _advance_auction() -> void:
-	var active := 0
-	var active_seat := -1
-	for s in PLAYER_COUNT:
-		if not bids[s].passed:
-			active += 1
-			active_seat = s
-	if active <= 1:
+	if auction.is_complete():
 		# 拍卖结束：唯一未放弃者为出牌庄家，以其最高叫分为本局叫分（规则 5.4/5.5）
-		banker_seat = active_seat
-		contract = bids[banker_seat].value
+		banker_seat = auction.winner_seat()
+		contract = auction.bid_value(banker_seat)
 		_set_phase(Phase.TRUMP)
 		trump_required.emit(banker_seat)
 		return
-	# 轮转到下一位未放弃者
-	for i in PLAYER_COUNT:
-		auction_turn = (auction_turn + 1) % PLAYER_COUNT
-		if not bids[auction_turn].passed:
-			break
-	auction_required.emit(auction_turn)
+	auction_required.emit(auction.advance(PLAYER_COUNT))
 
 
 ## ============================= 叫主与扣底（规则 2、3.2） =============================
@@ -258,12 +230,6 @@ func hand_count(seat: int) -> int:
 	return hands[seat].size()
 
 
-func _current_lead_combo() -> Combo:
-	if current_plays.is_empty():
-		return null
-	return Combo.detect(current_plays[0].cards, trump)
-
-
 func is_defender(seat: int) -> bool:
 	return seat != banker_seat
 
@@ -288,6 +254,12 @@ func submit_play(seat: int, cards: Array) -> Dictionary:
 		turn_seat = (turn_seat + 1) % PLAYER_COUNT
 		play_required.emit(turn_seat)
 	return verdict
+
+
+func _current_lead_combo() -> Combo:
+	if current_plays.is_empty():
+		return null
+	return Combo.detect(current_plays[0].cards, trump)
 
 
 ## 最近一轮已结算的出牌快照（供结算后 UI 停留展示）；无历史返回 []。
@@ -337,33 +309,12 @@ func _settle_trick() -> void:
 		play_required.emit(turn_seat)
 
 
-## ============================= 结算（规则 9、10） =============================
-
-## 胜负与级数（规则 9）：总分 = 叫分 + 闲家捉分（含抠底）
-static func compute_outcome(contract_value: int, captured_total: int) -> Dictionary:
-	var total := contract_value + captured_total
-	if total >= WIN_LINE:
-		# 闲家胜：1 + ⌊(总分−205)/40⌋，封顶 3 级
-		return {banker_won = false, level = mini(3, 1 + (total - WIN_LINE) / 40), total = total}
-	if captured_total == 0:
-		return {banker_won = true, level = 3, total = total}
-	if captured_total <= 20:
-		return {banker_won = true, level = 2, total = total}
-	return {banker_won = true, level = 1, total = total}
-
+## ============================= 结算（委托 Scoring，规则 9、10） =============================
 
 func _settle_game() -> void:
 	var captured_total := captured_points + koudi_points
-	var outcome := compute_outcome(contract, captured_total)
-	var payments: Array = [0, 0, 0, 0]
-	var delta: int = BASE_STAKE * outcome.level
-	if outcome.banker_won:
-		# 每位闲家支付庄家 B×级数（规则 10）：庄家净收 3 份
-		for s in PLAYER_COUNT:
-			payments[s] = 3 * delta if s == banker_seat else -delta
-	else:
-		for s in PLAYER_COUNT:
-			payments[s] = -3 * delta if s == banker_seat else delta
+	var outcome := Scoring.compute_outcome(contract, captured_total)
+	var payments := Scoring.compute_payments(outcome, banker_seat, BASE_STAKE, PLAYER_COUNT)
 	for s in PLAYER_COUNT:
 		cumulative[s] += payments[s]
 	last_game_result = {

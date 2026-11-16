@@ -13,7 +13,7 @@ extends UiTestBase
 func _drive_step(eng: GameEngine) -> void:
 	match eng.phase:
 		Phase.AUCTION:
-			var s: int = eng.auction_turn
+			var s: int = eng.auction.turn
 			eng.submit_bid(s, AiPolicy.choose_bid(eng.hands[s], eng.current_highest_bid()))
 		Phase.TRUMP:
 			var ch: Dictionary = AiPolicy.choose_trump(eng.hands[eng.banker_seat])
