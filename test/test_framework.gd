@@ -45,7 +45,8 @@ class Result:
 		return "\n".join(lines)
 
 
-## 运行一组测试套件（每个套件为包含 test_ 方法的实例）
+## 运行一组测试套件（每个套件为包含 test_ 方法的实例）。
+## 支持 async 用例（含 await 的 UI 测试）：框架整体可被 await。
 static func run_suites(suites: Array) -> Result:
 	var result := Result.new()
 	for suite in suites:
@@ -60,7 +61,7 @@ static func run_suites(suites: Array) -> Result:
 		for method_name in method_names:
 			result.total += 1
 			var a := Assert.new()
-			suite.call(method_name, a)
+			await suite.call(method_name, a)
 			if a.failures.is_empty():
 				result.passed += 1
 			else:

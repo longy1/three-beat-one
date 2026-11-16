@@ -1,5 +1,5 @@
 extends Control
-## 主菜单：开始对局（M2 占位）、规则引擎自检（进程内复用 tests/ 用例）、退出。
+## 主菜单：开始对局、自检按钮（进程内复用 test/ 全部用例，含 UI 回归）、退出。
 
 
 const TestFramework := preload("res://test/test_framework.gd")
@@ -13,6 +13,7 @@ const SUITES := [
 	preload("res://test/test_appendix_a.gd"),
 	preload("res://test/test_game.gd"),
 	preload("res://test/test_ai_policy.gd"),
+	preload("res://test/test_ui.gd"),
 ]
 
 
@@ -32,7 +33,7 @@ func _on_self_test() -> void:
 	var suites: Array = []
 	for suite_script in SUITES:
 		suites.append(suite_script.new())
-	var result: TestFramework.Result = TestFramework.run_suites(suites)
+	var result: TestFramework.Result = await TestFramework.run_suites(suites)
 	label.text = result.summary()
 
 
