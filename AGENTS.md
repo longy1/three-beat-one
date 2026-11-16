@@ -113,6 +113,16 @@ doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计�
 - 特定规则路径优先用**注入迷你局剧本**（`start_session_with_deal`，如抠底 ×1/×2/庄赢不抠三剧本），不要写脆弱的整局剧本。
 - 叫分等概率策略的断言用分布断言（400 次采样、固定 `AiPolicy.rng.seed`），断言相对关系而非精确值。
 
+### UI 用例维护（test/test_ui.gd）
+
+UI 层曾因无用例而集中出 bug（信号时序竞态、引用遗漏、渲染丢弃）。UI 用例模式已固化：
+
+1. **headless 实例化场景**：`_spawn_table()` 加载 game_table 场景、等两帧布局、把 `_ai_timer/_trick_timer` 调快（免等待真实节奏）。
+2. **方法级驱动**：不模拟鼠标——直接调用控制器方法（如 `_submit_human_trump()`）或引擎 API，触发与真实点击相同的信号链。
+3. **节点状态断言**：断言按钮存在/可见、Label 文本、popup 标题等真实 UI 状态；计数类断言须跳过 `is_queued_for_deletion()` 节点（queue_free 帧末才删）。
+4. **一致性不变量**：自动对局每步断言「UI 显示 == 引擎数据」（如捉分 label vs `captured_points`），步间 `await 0.05s` 让信号处理器走完。
+5. **纪律：每个用户报告的 UI bug，修复提交必须同时在本套件补一个回归用例**（命名体现回归来源）。框架支持 async 用例（`run_suites` 可 await）。
+
 ## 8. Git 与推送规范
 
 - 提交信息：`类型: 中文摘要`，类型 ∈ feat/fix/ui/ai/docs/test/chore；一个主题一个提交。
