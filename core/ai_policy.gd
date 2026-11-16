@@ -15,6 +15,13 @@ extends RefCounted
 
 const BID_PASS := GameEngine.BID_PASS
 
+## AI 共享随机源（叫分咋呼等）；_static_init 中随机化
+static var rng := RandomNumberGenerator.new()
+
+
+static func _static_init() -> void:
+	rng.randomize()
+
 
 ## ============================= 叫分 =============================
 
@@ -51,25 +58,62 @@ static func hand_strength(hand: Array) -> int:
 	return score
 
 
-## 返回意向叫分或 BID_PASS（低于当前最高时放弃；抓牌庄家 130 底叫由引擎托管）
+## 返回意向叫分或 BID_PASS。
+## 策略：大概率只做最小加叫（+5）；叫更高分的概率随分差指数衰减
+## （从 +5 到封顶，分越大概率越小）；手牌强度仅调节衰减速度（强牌更敢叫）
+## 与意愿上限。超过意愿上限时大概率放弃，仅小概率小幅咋呼跟一手。
 static func choose_bid(hand: Array, highest_bid: int) -> int:
 	var strength := hand_strength(hand)
-	var want := 0
+	if strength < 30 or highest_bid >= GameEngine.BID_CAP:
+		return BID_PASS
+	# 意愿上限：强度越高越高
+	var want_cap := 130
 	if strength >= 75:
-		want = 200
+		want_cap = 200
 	elif strength >= 62:
-		want = 180
+		want_cap = 185
 	elif strength >= 52:
-		want = 160
+		want_cap = 165
 	elif strength >= 44:
-		want = 145
+		want_cap = 150
 	elif strength >= 36:
-		want = 130
-	else:
+		want_cap = 135
+	# 已超过意愿上限：大概率放弃，小概率小幅咋呼
+	if highest_bid >= want_cap:
+		if highest_bid + 5 <= GameEngine.BID_CAP \
+				and highest_bid - want_cap <= 15 \
+				and rng.randf() < 0.06:
+			return highest_bid + 5
 		return BID_PASS
-	if want <= highest_bid:
-		return BID_PASS
-	return want
+	# 候选从 +5 到封顶：权重 = decay^分差格数；越过意愿上限的咋呼候选再压低 10 倍
+	var decay := 0.30 + 0.005 * minf(strength, 80.0)  # strength 30→0.45，80→0.70
+	var candidates: Array = []
+	var weights: Array = []
+	var v: int = highest_bid + 5
+	var k := 0
+	while v <= GameEngine.BID_CAP:
+		var w: float = pow(decay, k)
+		if v > want_cap:
+			w *= 0.10
+		candidates.append(v)
+		weights.append(w)
+		v += 5
+		k += 1
+	return _weighted_pick(candidates, weights)
+
+
+## 按权重随机抽取候选
+static func _weighted_pick(candidates: Array, weights: Array) -> int:
+	var total := 0.0
+	for w in weights:
+		total += w
+	var roll := rng.randf() * total
+	var acc := 0.0
+	for i in candidates.size():
+		acc += weights[i]
+		if roll <= acc:
+			return candidates[i]
+	return candidates[candidates.size() - 1]
 
 
 ## ============================= 叫主 =============================

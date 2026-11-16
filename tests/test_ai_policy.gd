@@ -12,29 +12,50 @@ func C(suit: int, rank: int, copy := 0) -> Card:
 ## ============================= 单项策略 =============================
 
 func test_choose_bid_levels(test) -> void:
-	# 强牌（四王 + 多 2 + A 对）→ 叫满 200
+	AiPolicy.rng.seed = 2026
+	# 强牌（四王 + 多 2 + A 对）
 	var strong: Array = [
 		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
 		C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1),
 		C(Card.Suit.SPADE, Card.RANK_2, 0), C(Card.Suit.SPADE, Card.RANK_2, 1),
 		C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_A, 1),
 		C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1)]
-	test.eq(AiPolicy.choose_bid(strong, 130), 200, "强牌叫 200")
-	# 弱牌 → 放弃
+	# 弱牌（无大牌无对子）→ 完全不参与
 	var weak: Array = [
 		C(Card.Suit.CLUB, Card.RANK_5, 0), C(Card.Suit.CLUB, Card.RANK_7, 0),
 		C(Card.Suit.DIAMOND, Card.RANK_8, 0), C(Card.Suit.DIAMOND, Card.RANK_9, 0),
 		C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0),
 		C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)]
 	test.eq(AiPolicy.choose_bid(weak, 130), GameEngine.BID_PASS, "弱牌放弃")
-	# 中等牌意向 145，但当前最高 160 → 放弃
+	# 中等牌（大王 + A 对 + K 对）
 	var medium: Array = [
 		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.SPADE, Card.RANK_A, 0),
 		C(Card.Suit.SPADE, Card.RANK_A, 1), C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
 		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.DIAMOND, Card.RANK_2, 0),
 		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)]
-	test.eq(AiPolicy.choose_bid(medium, 160), GameEngine.BID_PASS, "低于当前最高放弃")
-	test.check(AiPolicy.choose_bid(medium, 130) > 130, "可加叫则加叫")
+
+	# 强牌 ×400 次：从不放弃、值域合法、大概率只 +5、概率随分差单调递减
+	var counts := {}
+	var pass_count := 0
+	var runs := 400
+	for i in runs:
+		var v: int = AiPolicy.choose_bid(strong, 130)
+		if v == GameEngine.BID_PASS:
+			pass_count += 1
+			continue
+		counts[v] = int(counts.get(v, 0)) + 1
+		test.check(v > 130 and v <= 200 and v % 5 == 0, "强牌叫分合法 %d" % v)
+	test.eq(pass_count, 0, "强牌（最高 130 低于意愿上限）从不放弃")
+	test.check(int(counts.get(135, 0)) > int(counts.get(140, 0)), "+5 概率大于 +10（大概率只加 5）")
+	test.check(int(counts.get(140, 0)) > int(counts.get(160, 0)), "分差越大概率越小")
+	test.check(int(counts.get(200, 0)) < int(counts.get(135, 0)), "顶格 200 概率最小")
+	# 中等牌：恰好只差一档（160→165）时加一档；已超意愿上限时大概率放弃
+	test.eq(AiPolicy.choose_bid(medium, 160), 165, "只差一档时加一档")
+	var medium_pass := 0
+	for i in runs:
+		if AiPolicy.choose_bid(medium, 170) == GameEngine.BID_PASS:
+			medium_pass += 1
+	test.check(medium_pass > runs * 85 / 100, "超意愿上限时大概率放弃（%d/%d）" % [medium_pass, runs])
 
 
 func test_choose_trump_prefers_long_suit(test) -> void:
