@@ -37,6 +37,13 @@ var _last_trick_winner := -1
 var _pending_trump_suit := -1
 var _crown: CrownBadge = null
 var _last_trump_shown = null  ## 上次送入信息栏的主牌（TrumpInfo 引用），避免重复重建
+var _card_widgets := {}       ## Card → CardWidget（手牌精准刷新，避免整排重建闪烁）
+var _drag_selecting := false  ## 左键按住滑动批量选择中
+var _drag_target := false     ## 本次拖选的目标态（选中/取消），滑过的牌对齐到该态
+
+## 选中牌上浮高度 = 牌高的 20%（交互规范，AGENTS.md 第 6 章）
+const SELECT_LIFT_RATIO := 0.2
+const HAND_BASE_Y := 16.0  ## 手牌基准 y（虚线框 frame_y 6 + 内边距 10）
 
 var _ai_timer: Timer
 var _trick_timer: Timer
@@ -649,6 +656,8 @@ static func _pre_trump_main_key(c: Card) -> Array:
 func _render_hand() -> void:
 	for child in hand_row.get_children():
 		child.queue_free()
+	_card_widgets.clear()
+	_drag_selecting = false
 	if engine == null or engine.hands.is_empty():
 		return
 	var trump := engine.trump
@@ -720,15 +729,60 @@ func _render_hand() -> void:
 			var card_widget := CardWidget.create(c, true)
 			var is_selected: bool = selected.has(c)
 			card_widget.set_selected(is_selected)
-			# 选中只用金色边框表示，不位移——避免整排牌上下跳动
-			card_widget.position = Vector2(cx, frame_y + pad)
+			# 选中：金色边框 + 上浮 20% 牌高（交互规范）
+			card_widget.position = Vector2(cx, HAND_BASE_Y - (card_h * SELECT_LIFT_RATIO if is_selected else 0))
 			var card_ref: Card = c
 			card_widget.gui_input.connect(func(event: InputEvent):
-				if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-					_toggle_select(card_ref))
+				if event is InputEventMouseButton and event.pressed:
+					if event.button_index == MOUSE_BUTTON_LEFT:
+						_on_hand_card_left_press(card_ref)
+					elif event.button_index == MOUSE_BUTTON_RIGHT:
+						_on_hand_card_right_press()
+				elif event is InputEventMouseMotion and _drag_selecting:
+					_drag_hover(card_ref))
+			_card_widgets[c] = card_widget
 			hand_row.add_child(card_widget)
 			cx += spacing
 		x += widths[i] + (gap if i == 0 and groups.size() == 2 else 0.0)
+
+
+## ============================= 手牌交互 =============================
+## 左键单击切换选中；按住左键滑动批量选择相邻牌（以首张的目标态对齐）；
+## 右键在出牌模式下直接提交出牌（引擎校验，非法则提示原因）。
+
+func _on_hand_card_left_press(card: Card) -> void:
+	if select_mode == "":
+		return
+	_toggle_select(card)
+	_drag_selecting = true
+	_drag_target = selected.has(card)  # 首张牌的新态作为本次拖选目标
+
+
+func _drag_hover(card: Card) -> void:
+	if select_mode == "" or not _drag_selecting:
+		return
+	if selected.has(card) == _drag_target:
+		return
+	if _drag_target:
+		if select_mode == "discard" and selected.size() >= GameEngine.BOTTOM_SIZE:
+			return
+		selected.append(card)
+	else:
+		selected.erase(card)
+	_apply_card_visual(card, selected.has(card))
+	if select_mode == "discard":
+		_update_discard_button()
+
+
+func _on_hand_card_right_press() -> void:
+	if select_mode == "play" and not selected.is_empty():
+		_submit_human_play()
+
+
+func _input(event: InputEvent) -> void:
+	# 左键松开（任何位置）结束拖选
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_drag_selecting = false
 
 
 func _toggle_select(card: Card) -> void:
@@ -736,14 +790,24 @@ func _toggle_select(card: Card) -> void:
 		return
 	if selected.has(card):
 		selected.erase(card)
+		_apply_card_visual(card, false)
 	else:
 		if select_mode == "discard" and selected.size() >= GameEngine.BOTTOM_SIZE:
 			_toast("最多选择 8 张")
 			return
 		selected.append(card)
-	_render_hand()
+		_apply_card_visual(card, true)
 	if select_mode == "discard":
 		_update_discard_button()
+
+
+## 精准更新一张牌的选中视觉（金边 + 上浮 20%），不重建整排手牌
+func _apply_card_visual(card: Card, sel: bool) -> void:
+	var widget: CardWidget = _card_widgets.get(card)
+	if widget == null:
+		return
+	widget.set_selected(sel)
+	widget.position.y = HAND_BASE_Y - (CardWidget.SIZE_NORMAL.y * SELECT_LIFT_RATIO if sel else 0)
 
 
 ## ============================= 结算面板 =============================
