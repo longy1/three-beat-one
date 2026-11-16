@@ -17,6 +17,8 @@ var _pending_trump_suit := -1
 
 var _ai_timer: Timer
 var _trick_timer: Timer
+var _pile_popup: PanelContainer   ## 悬停查看某玩家出牌历史的弹出层
+var _human_pile_chip: Button      ## 人类玩家（0 号位）的牌堆悬停入口
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var trump_label: Label = $TopBar/TrumpLabel
@@ -59,12 +61,112 @@ func _ready() -> void:
 	engine.trick_settled.connect(_on_trick_settled)
 	engine.game_over.connect(_on_game_over)
 	engine.phase_changed.connect(func(_p): _refresh())
+	_setup_pile_ui()
 	engine.start_session()
 	_refresh()
 
 
 func _on_menu() -> void:
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+
+## ============================= 玩家牌堆（悬停查看出牌历史） =============================
+
+func _setup_pile_ui() -> void:
+	# 人类玩家（0 号位）入口：左下角小按钮（手牌居中，不遮挡）
+	_human_pile_chip = Button.new()
+	_human_pile_chip.text = "牌堆"
+	_human_pile_chip.add_theme_font_size_override("font_size", 14)
+	_human_pile_chip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_human_pile_chip.offset_left = 12
+	_human_pile_chip.offset_right = 58
+	_human_pile_chip.offset_top = -180
+	_human_pile_chip.offset_bottom = -150
+	_human_pile_chip.mouse_entered.connect(func(): _show_pile(HUMAN_SEAT))
+	_human_pile_chip.mouse_exited.connect(_hide_pile)
+	add_child(_human_pile_chip)
+	# 电脑玩家入口：各自座位面板悬停
+	for seat in seat_panels:
+		var panel: PanelContainer = seat_panels[seat]
+		panel.mouse_filter = Control.MOUSE_FILTER_STOP
+		panel.mouse_entered.connect(func(): _show_pile(seat))
+		panel.mouse_exited.connect(_hide_pile)
+	# 弹出层（居中，不拦截鼠标）
+	_pile_popup = PanelContainer.new()
+	_pile_popup.name = "PilePopup"
+	_pile_popup.visible = false
+	_pile_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pile_popup.set_anchors_preset(Control.PRESET_CENTER)
+	_pile_popup.offset_left = -340
+	_pile_popup.offset_top = -230
+	_pile_popup.offset_right = 340
+	_pile_popup.offset_bottom = 230
+	add_child(_pile_popup)
+	var vbox := VBoxContainer.new()
+	vbox.name = "VBox"
+	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_theme_constant_override("separation", 6)
+	_pile_popup.add_child(vbox)
+	var title := Label.new()
+	title.name = "Title"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 17)
+	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vbox.add_child(title)
+	var scroll := ScrollContainer.new()
+	scroll.name = "Scroll"
+	scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vbox.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.name = "List"
+	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	list.add_theme_constant_override("separation", 4)
+	scroll.add_child(list)
+
+
+## 悬停某座位：按旧→新列出该玩家每轮的出牌（赢轮标 ✓ 高亮）
+func _show_pile(seat: int) -> void:
+	if engine == null:
+		return
+	var title: Label = _pile_popup.get_node("VBox/Title")
+	title.text = "%s 的出牌（旧 → 新）" % SEAT_NAMES[seat]
+	var list: VBoxContainer = _pile_popup.get_node("VBox/Scroll/List")
+	for child in list.get_children():
+		child.queue_free()
+	var history: Array = engine.trick_history
+	if history.is_empty():
+		var empty := Label.new()
+		empty.text = "暂无出牌记录"
+		empty.add_theme_font_size_override("font_size", 14)
+		empty.modulate = Color(0.8, 0.85, 0.9)
+		list.add_child(empty)
+	var round_no := 0
+	for th in history:
+		round_no += 1
+		for play in th.plays:
+			if play.seat != seat:
+				continue
+			var row := HBoxContainer.new()
+			row.add_theme_constant_override("separation", 4)
+			row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var is_winner: bool = th.winner == seat
+			var tag := Label.new()
+			tag.text = ("✓ " if is_winner else "") + "第%d轮" % round_no
+			tag.add_theme_font_size_override("font_size", 13)
+			tag.custom_minimum_size = Vector2(70, 0)
+			tag.modulate = Color(1, 0.85, 0.3) if is_winner else Color(0.8, 0.85, 0.9)
+			row.add_child(tag)
+			for c in play.cards:
+				row.add_child(CardWidget.create(c, true, true))
+			list.add_child(row)
+	_pile_popup.visible = true
+
+
+func _hide_pile() -> void:
+	if _pile_popup != null:
+		_pile_popup.visible = false
 
 
 func _on_next_game() -> void:
@@ -141,6 +243,11 @@ func _on_game_over(result: Dictionary) -> void:
 	_refresh()
 	select_mode = ""
 	hint_label.text = ""
+	# 末轮牌面停留 1 秒再弹结算面板
+	if _trick_timer.time_left > 0:
+		await _trick_timer.timeout
+	if not is_inside_tree():
+		return
 	_show_result(result)
 
 
@@ -399,14 +506,18 @@ func _refresh_seats() -> void:
 
 func _refresh_trick_area() -> void:
 	_clear_trick_area()
-	# 本轮各家出牌（与座位布局一致，逆时针）：0 下、1 右、2 上、3 左
+	# 本轮各家出牌（与座位布局一致，逆时针）：0 下、1 右、2 上、3 左。
+	# 结算后 current_plays 已清空，改用 last_trick 快照停留展示（约 1 秒）
+	var shown: Array = engine.current_plays
+	if shown.is_empty():
+		shown = engine.last_trick
 	var anchors := {
 		0: Vector2(320, 210),
 		1: Vector2(560, 105),
 		2: Vector2(320, 10),
 		3: Vector2(80, 105),
 	}
-	for play in engine.current_plays:
+	for play in shown:
 		var seat: int = play.seat
 		var box := VBoxContainer.new()
 		var name_row := HBoxContainer.new()
@@ -422,7 +533,8 @@ func _refresh_trick_area() -> void:
 		trick_area.add_child(box)
 		var width: int = play.cards.size() * 48 + 8
 		box.position = anchors[seat] - Vector2(width / 2.0, 12)
-	if engine.current_plays.is_empty():
+	# 新一轮开始（无快照、至多只有领出）时清除赢家标记
+	if engine.last_trick.is_empty() and engine.current_plays.size() <= 1:
 		_last_trick_winner = -1
 
 

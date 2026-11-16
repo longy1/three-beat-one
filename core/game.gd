@@ -36,6 +36,8 @@ var bottom_points := 0
 var bids: Array = []            ## 每座位 { value: int, passed: bool }
 var auction_turn := -1
 var current_plays: Array = []   ## 本轮已出 [{ seat, cards, role }]，plays[0] 为领出
+var last_trick: Array = []      ## 上一轮出牌快照（结算后停留展示，新一轮领出时清除）
+var trick_history: Array = []   ## 全部已结算轮次 [{ plays, winner }]，按旧→新排列
 var leader_seat := -1
 var turn_seat := -1
 var captured_points := 0        ## 闲家捉分（各轮之和，不含抠底）
@@ -86,6 +88,8 @@ func _begin_game(next_dealer: int, test_hands: Array, test_bottom: Array) -> voi
 	captured_points = 0
 	koudi_points = 0
 	current_plays = []
+	last_trick = []
+	trick_history = []
 	leader_seat = -1
 	turn_seat = -1
 	last_game_result = {}
@@ -288,6 +292,8 @@ func submit_play(seat: int, cards: Array) -> Dictionary:
 		return verdict
 	for c in cards:
 		hands[seat].erase(c)
+	if current_plays.is_empty():
+		last_trick = []  # 新一轮领出，清除上一轮停留快照
 	current_plays.append({seat = seat, cards = cards.duplicate(), role = verdict.role})
 	if current_plays.size() >= PLAYER_COUNT:
 		_settle_trick()
@@ -302,6 +308,7 @@ func _settle_trick() -> void:
 	for p in current_plays:
 		settle_plays.append({player = p.seat, cards = p.cards, role = p.role})
 	var r := Trick.settle(settle_plays, trump)
+	last_trick = current_plays.duplicate()  # 供 UI 在停顿期继续展示牌面
 	var is_last := _all_hands_empty()
 	var koudi := 0
 	if is_last and r.ok and is_defender(r.player) and r.win_main_class:
@@ -320,6 +327,8 @@ func _settle_trick() -> void:
 		koudi = koudi,
 		captured = captured_points,
 	}
+	if r.ok:
+		trick_history.append({plays = last_trick.duplicate(), winner = r.player})
 	current_plays = []
 	trick_settled.emit(info)
 	if is_last:
