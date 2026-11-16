@@ -18,12 +18,9 @@ const TRICK_ANCHORS := {
 	3: Vector2(0.234, 0.408),
 }
 
-## 皇冠动画落点（相对比例 ×窗口尺寸；出牌庄家名字旁）
+## 皇冠动画落点（相对比例 ×窗口尺寸；仅人类 0 号位使用——其余座位动态计算名字位置）
 const CROWN_TARGETS := {
 	0: Vector2(0.258, 0.672),
-	1: Vector2(0.727, 0.35),
-	2: Vector2(0.369, 0.106),
-	3: Vector2(0.031, 0.35),
 }
 
 ## 主牌桌区域中心（相对比例）：画面分为左「主牌桌区域」（x 0~82.8%）与
@@ -238,18 +235,22 @@ func _on_trump_required(seat: int) -> void:
 			engine.submit_trump(seat, choice.suit, choice.rank))
 
 
-## 皇冠：从牌桌正中央放大出现，一边缩小一边减速移动到出牌庄家名字旁（停驻标记庄家）
+## 皇冠：从主牌桌正中央放大出现，一边缩小一边减速移动，
+## 停驻在出牌庄家名字首字之前，高度与名字字号一致。
 func _play_crown_animation(seat: int) -> void:
 	if _crown != null:
 		_crown.queue_free()
 	_crown = CrownBadge.new()
-	_crown.size = Vector2(30, 22)
+	_crown.size = Vector2(24, 18)  # 高度 = NameLabel 字号（18）
 	_crown.pivot_offset = _crown.size / 2.0
 	_crown.position = MAIN_TABLE_CENTER * size - _crown.size / 2.0  # 主牌桌区域正中央
 	_crown.scale = Vector2(4, 4)
 	_crown.z_index = 60
 	add_child(_crown)
-	var target: Vector2 = CROWN_TARGETS[seat] * size  # 相对落点 × 窗口尺寸
+	await get_tree().process_frame  # 等待名字标签完成本帧布局
+	if not is_inside_tree() or _crown == null:
+		return
+	var target: Vector2 = _crown_target(seat)
 	var tw := create_tween()
 	tw.set_parallel(true)
 	# TRANS_CUBIC + EASE_OUT：起步快、逐渐减速（加速度减小）
@@ -257,6 +258,22 @@ func _play_crown_animation(seat: int) -> void:
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tw.tween_property(_crown, "scale", Vector2.ONE, 1.0) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+## 皇冠落点（中心）：庄家名字文字左缘前方；人类 0 号位无面板，用常量
+func _crown_target(seat: int) -> Vector2:
+	if seat == 0 or not seat_panels.has(seat):
+		return CROWN_TARGETS[0] * size
+	var name_label: Label = seat_panels[seat].get_node("VBox/NameLabel")
+	var font: Font = name_label.get_theme_font("font")
+	if font == null or name_label.text.is_empty():
+		return CROWN_TARGETS[0] * size
+	var font_size: int = name_label.get_theme_font_size("font_size")
+	var text_w: float = font.get_string_size(name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var center_x: float = name_label.global_position.x + name_label.size.x / 2.0
+	var row_y: float = name_label.global_position.y + name_label.size.y / 2.0
+	# 名字文字左缘再往前留 4px，皇冠中心再往左半个冠宽
+	return Vector2(center_x - text_w / 2.0 - 4.0 - _crown.size.x / 2.0, row_y)
 
 
 func _on_discard_required(seat: int) -> void:
