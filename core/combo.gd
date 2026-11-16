@@ -80,8 +80,14 @@ static func _detect_tractor(cards: Array, trump: TrumpInfo) -> Combo:
 					and hi[0].rank == Card.RANK_BIG_JOKER and lo[0].rank == Card.RANK_SMALL_JOKER:
 				return _make(Type.TRACTOR, cards, trump)
 			return null  # 王对与花色对、或三张同王，均不构成拖拉机
-		# 主花色两对（正R/正2 属主牌类同链）；不同花色的常主对组合不是拖拉机（6.3）
-		if hi[0].suit != trump.suit or lo[0].suit != trump.suit:
+		# R=A 特例（规则修订 2026-11-16）：A 为常主，同花色的 A 对与 2 对相邻——
+		# 副花色的 AA22（如 ♣AA♣22 且喊 ♠A）与主花色 AA22 同判合法
+		var a2_override: bool = trump.rank == Card.RANK_A \
+			and hi[0].suit == lo[0].suit \
+			and ((hi[0].rank == Card.RANK_2 and lo[0].rank == Card.RANK_A) \
+				or (hi[0].rank == Card.RANK_A and lo[0].rank == Card.RANK_2))
+		# 非 R=A 特例时，仍要求主花色两对（正R/正2 属主牌类同链）；不同花色的常主对组合不是拖拉机（6.3）
+		if not a2_override and (hi[0].suit != trump.suit or lo[0].suit != trump.suit):
 			return null
 	else:
 		# 副花色两对：不得含常主（2、副R 跨类不可用，3.3/6.2）
@@ -107,6 +113,10 @@ static func pairs_adjacent(hi: Array, lo: Array, trump: TrumpInfo) -> bool:
 
 	var hi_rank: int = hi[0].rank
 	var lo_rank: int = lo[0].rank
+	# R=A 特例（规则修订 2026-11-16）：同花色的 A 对与 2 对相邻（A~2 连，含副花色）
+	if trump.rank == Card.RANK_A and hi_rank == Card.RANK_2 and lo_rank == Card.RANK_A \
+			and hi[0].suit == lo[0].suit:
+		return true
 	if hi[0].suit == trump.suit and lo[0].suit == trump.suit:
 		# A~2 独立段（仅主花色；K~A 禁连）
 		if hi_rank == Card.RANK_2 and lo_rank == Card.RANK_A:

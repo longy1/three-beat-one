@@ -90,11 +90,11 @@ func test_tractor_side_suit(test) -> void:
 		C(Card.Suit.CLUB, Card.RANK_9, 0), C(Card.Suit.CLUB, Card.RANK_9, 1),
 		C(Card.Suit.CLUB, Card.RANK_8, 0), C(Card.Suit.CLUB, Card.RANK_8, 1),
 	]), "♣99♣88 非法（副9 是常主，跨类）")
-	# 副花色 A、2 不参与拖拉机（A 不可、2 跨类）
+	# 副花色 A、2 不参与拖拉机（A 不可、2 跨类）——R=9（R≠A）时维持非法
 	test.is_null(detect([
 		C(Card.Suit.CLUB, Card.RANK_A, 0), C(Card.Suit.CLUB, Card.RANK_A, 1),
 		C(Card.Suit.CLUB, Card.RANK_2, 0), C(Card.Suit.CLUB, Card.RANK_2, 1),
-	]), "♣AA♣22 非法（跨类不可用）")
+	]), "♣AA♣22 非法（R≠A）")
 	test.is_null(detect([
 		C(Card.Suit.CLUB, Card.RANK_A, 0), C(Card.Suit.CLUB, Card.RANK_A, 1),
 		C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1),
@@ -104,6 +104,50 @@ func test_tractor_side_suit(test) -> void:
 		C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1),
 		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.CLUB, Card.RANK_Q, 1),
 	]) != null, "♣KK♣QQ 合法")
+
+
+## 规则修订（2026-11-16）：R=A 时 A 为常主，同花色的 A 对与 2 对相邻（A~2 连）
+func test_tractor_rank_equals_a(test) -> void:
+	var t_spade_a := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_A)
+	# 副花色 AA22（喊 ♠A）→ 合法（用户裁定的新解释）
+	var club_a22 := Combo.detect([
+		C(Card.Suit.CLUB, Card.RANK_A, 0), C(Card.Suit.CLUB, Card.RANK_A, 1),
+		C(Card.Suit.CLUB, Card.RANK_2, 0), C(Card.Suit.CLUB, Card.RANK_2, 1),
+	], t_spade_a)
+	test.check(club_a22 != null, "喊 ♠A：♣AA♣22 为合法拖拉机")
+	if club_a22 != null:
+		test.eq(club_a22.type, Combo.Type.TRACTOR, "类型为拖拉机")
+	# 主花色本尊仍合法
+	var spade_a22 := Combo.detect([
+		C(Card.Suit.SPADE, Card.RANK_A, 0), C(Card.Suit.SPADE, Card.RANK_A, 1),
+		C(Card.Suit.SPADE, Card.RANK_2, 0), C(Card.Suit.SPADE, Card.RANK_2, 1),
+	], t_spade_a)
+	test.check(spade_a22 != null, "♠AA♠22 仍合法")
+	# 不同花色的常主组合仍非法（6.3）
+	var cross := Combo.detect([
+		C(Card.Suit.CLUB, Card.RANK_A, 0), C(Card.Suit.CLUB, Card.RANK_A, 1),
+		C(Card.Suit.HEART, Card.RANK_2, 0), C(Card.Suit.HEART, Card.RANK_2, 1),
+	], t_spade_a)
+	test.is_null(cross, "♣AA♥22 不同花色仍非法")
+	# K~A 禁连不变
+	var ka := Combo.detect([
+		C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1),
+		C(Card.Suit.CLUB, Card.RANK_A, 0), C(Card.Suit.CLUB, Card.RANK_A, 1),
+	], t_spade_a)
+	test.is_null(ka, "♣KK♣AA 禁连不变")
+	# 非 R=A（R=9）时 ♣AA♣22 维持非法
+	var t_nine := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	test.is_null(Combo.detect([
+		C(Card.Suit.CLUB, Card.RANK_A, 0), C(Card.Suit.CLUB, Card.RANK_A, 1),
+		C(Card.Suit.CLUB, Card.RANK_2, 0), C(Card.Suit.CLUB, Card.RANK_2, 1),
+	], t_nine), "R≠A 时 ♣AA♣22 仍非法")
+	# 牌力：R=A 常主拖 > 副花色拖
+	var heart_tr := Combo.detect([
+		C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
+		C(Card.Suit.HEART, Card.RANK_Q, 0), C(Card.Suit.HEART, Card.RANK_Q, 1),
+	], t_spade_a)
+	if club_a22 != null and heart_tr != null:
+		test.check(Combo.compare(club_a22, heart_tr, t_spade_a) > 0, "♣AA♣22（R=A 常主拖）> ♥KK♥QQ")
 
 
 func test_tractor_rank_variants(test) -> void:
