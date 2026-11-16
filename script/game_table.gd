@@ -756,9 +756,7 @@ func _render_hand() -> void:
 					if event.button_index == MOUSE_BUTTON_LEFT:
 						_on_hand_card_left_press(card_ref)
 					elif event.button_index == MOUSE_BUTTON_RIGHT:
-						_on_hand_card_right_press()
-				elif event is InputEventMouseMotion and _drag_selecting:
-					_drag_hover(card_ref))
+						_on_hand_card_right_press())
 			_card_widgets[c] = card_widget
 			hand_row.add_child(card_widget)
 			cx += spacing
@@ -799,9 +797,16 @@ func _on_hand_card_right_press() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# 左键松开（任何位置）结束拖选
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		_drag_selecting = false
+		_drag_selecting = false  # 左键松开（任何位置）结束拖选
+	elif event is InputEventMouseMotion and _drag_selecting:
+		# 按住鼠标期间 Godot 把 motion 路由给按下时的控件（mouse_focus 捕获），
+		# 相邻牌收不到 gui_input——此处对全部手牌做全局命中测试
+		for card in _card_widgets:
+			var w: CardWidget = _card_widgets[card]
+			if w.get_global_rect().has_point(w.get_global_mouse_position()):
+				_drag_hover(card)
+				break
 
 
 func _toggle_select(card: Card) -> void:
