@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="'Segoe UI','Microsoft YaHei',sans-serif">
+  <!-- ═══ 底图：牌桌背景 ═══ -->
+  <rect width="1280" height="720" fill="#0b2218"/>
+  <text x="16" y="24" font-size="13" fill="#5a7a68">1280 × 720 ｜ 区域图（视觉稿）｜ 全部留白 12px</text>
+
+  <!-- ═══ 顶栏（x12~1060，避开信息栏） ═══ -->
+  <rect x="12" y="8" width="1048" height="32" rx="6" fill="#12291d" stroke="#2c4a38"/>
+  <text x="28" y="29" font-size="15" fill="#d8e5dd">第 1 局 ｜ 出牌庄 丙 · 叫分 135（抓牌庄家不展示）</text>
+  <text x="420" y="29" font-size="15" fill="#7fd4a0">主：♠ ｜ R = 9</text>
+
+  <!-- ═══ 丙（上带 y48~120，居中于牌桌区 x536） ═══ -->
+  <rect x="426" y="48" width="220" height="72" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="536" y="76" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丙（电脑）</text>
+  <text x="536" y="96" font-size="13" fill="#9ab5a5" text-anchor="middle">17 张 ｜ 叫 135</text>
+  <!-- 皇冠动画：叫分结束 → 中央大皇冠减速飞向庄家名字旁 -->
+  <path d="M 536 240 Q 500 160 476 88" fill="none" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <g transform="translate(460,64)">
+    <path d="M 0 17 L 0 7 L 7 12 L 15 0 L 23 12 L 30 7 L 30 17 Z" fill="#ffd140" stroke="#d9a10e"/>
+    <rect x="0" y="17" width="30" height="5" fill="#d9a10e"/>
+  </g>
+  <circle cx="536" cy="240" r="26" fill="none" stroke="#e8b84a" stroke-width="1" stroke-dasharray="4 4"/>
+  <text x="536" y="245" font-size="13" fill="#e8b84a" text-anchor="middle">👑</text>
+  <text x="560" y="270" font-size="12" fill="#e8b84a">皇冠：中央×4 → 减速缩小飞至庄家名旁</text>
+  <!-- 丙出牌（带内右侧 666~866） -->
+  <rect x="666" y="52" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="690" y="88" font-size="18" fill="#1a1a24" text-anchor="middle">♠</text>
+  <rect x="718" y="52" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="742" y="88" font-size="18" fill="#b32c2c" text-anchor="middle">♥</text>
+  <text x="780" y="130" font-size="12" fill="#5a7a68">丙·出牌（666~866）</text>
+
+  <!-- Toast（y132~160） -->
+  <text x="536" y="152" font-size="15" fill="#e8b84a" text-anchor="middle">Toast 提示（非法出牌原因等）</text>
+
+  <!-- ═══ 丁（左带 面板 12~192） ═══ -->
+  <rect x="12" y="222" width="180" height="144" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="102" y="252" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丁（电脑）</text>
+  <text x="102" y="274" font-size="13" fill="#9ab5a5" text-anchor="middle">16 张 ｜ 已放弃</text>
+  <text x="102" y="294" font-size="13" fill="#9ab5a5" text-anchor="middle">（悬停=牌堆）</text>
+  <!-- 丁出牌（200~400） -->
+  <rect x="200" y="262" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="224" y="298" font-size="18" fill="#1a1a24" text-anchor="middle">♣</text>
+  <rect x="252" y="262" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="276" y="298" font-size="18" fill="#1a1a24" text-anchor="middle">♠</text>
+  <text x="226" y="360" font-size="12" fill="#5a7a68">丁·出牌（200~400）</text>
+
+  <!-- ═══ 乙（右带 面板 880~1060） ═══ -->
+  <rect x="880" y="222" width="180" height="144" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="970" y="252" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">乙（电脑）</text>
+  <text x="970" y="274" font-size="13" fill="#9ab5a5" text-anchor="middle">19 张</text>
+  <!-- 乙出牌（680~880） -->
+  <rect x="680" y="262" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="704" y="298" font-size="18" fill="#1a1a24" text-anchor="middle">♦</text>
+  <rect x="732" y="262" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="756" y="298" font-size="18" fill="#b32c2c" text-anchor="middle">♥</text>
+  <text x="700" y="360" font-size="12" fill="#5a7a68">乙·出牌（680~880）</text>
+
+  <!-- 中央空旷区标注 -->
+  <text x="536" y="230" font-size="12" fill="#5a7a68" text-anchor="middle">中央空旷区（y136~432）</text>
+
+  <!-- ═══ 你的出牌（手牌正上方 y384~461） ═══ -->
+  <rect x="460" y="388" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="484" y="424" font-size="18" fill="#1a1a24" text-anchor="middle">♠</text>
+  <rect x="512" y="388" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="536" y="424" font-size="18" fill="#b32c2c" text-anchor="middle">♥</text>
+  <text x="564" y="434" font-size="12" fill="#5a7a68"> ✓赢</text>
+  <text x="380" y="380" font-size="12" fill="#5a7a68">你·出牌（460~612 居中）</text>
+
+  <!-- ═══ 底部区（y462~708） ═══ -->
+  <!-- 操作按钮行 -->
+  <rect x="416" y="466" width="120" height="44" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="476" y="493" font-size="17" fill="#d8e5dd" text-anchor="middle">出 牌</text>
+  <rect x="548" y="466" width="120" height="44" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="608" y="493" font-size="17" fill="#d8e5dd" text-anchor="middle">放弃</text>
+  <text x="380" y="494" font-size="12" fill="#5a7a68" text-anchor="end">提示行 →</text>
+  <!-- 牌堆按钮 -->
+  <rect x="12" y="514" width="46" height="30" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="35" y="534" font-size="13" fill="#d8e5dd" text-anchor="middle">牌堆</text>
+
+  <!-- 手牌双虚线框（居中于牌桌区 536） -->
+  <rect x="150" y="552" width="170" height="106" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="235" y="610" font-size="15" fill="#e8f0ea" text-anchor="middle">主牌框</text>
+  <rect x="336" y="552" width="620" height="106" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="646" y="610" font-size="15" fill="#e8f0ea" text-anchor="middle">副牌框</text>
+  <text x="340" y="690" font-size="12" fill="#5a7a68">手牌区（150~956，居中于牌桌区，不再被统计遮挡）</text>
+
+  <!-- ═══ ★ 右侧竖直信息栏（新增 x1072~1268, y48~708） ═══ -->
+  <rect x="1072" y="48" width="196" height="660" rx="10" fill="#132b1f" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="1170" y="76" font-size="16" fill="#e8b84a" text-anchor="middle" font-weight="bold">信息栏（新增）</text>
+  <line x1="1084" y1="88" x2="1256" y2="88" stroke="#2c4a38"/>
+
+  <!-- 统计块 -->
+  <text x="1084" y="112" font-size="13" fill="#9ab5a5">手牌统计</text>
+  <text x="1084" y="136" font-size="14" fill="#e8f0ea">主 13 ｜ 副 ♥6 ♣4 ♦4</text>
+  <text x="1084" y="162" font-size="14" fill="#e8f0ea">5×2   7×3   8×1</text>
+  <text x="1084" y="186" font-size="14" fill="#e8f0ea">9×3   10×2  J×1</text>
+  <text x="1084" y="210" font-size="14" fill="#e8f0ea">Q×1   K×2   A×2</text>
+  <text x="1084" y="234" font-size="14" fill="#e8f0ea">2×2   小王×1</text>
+  <text x="1084" y="258" font-size="14" fill="#e8f0ea">大王×1</text>
+
+  <line x1="1084" y1="280" x2="1256" y2="280" stroke="#2c4a38"/>
+  <!-- 局面块（原顶栏拆出） -->
+  <text x="1084" y="304" font-size="13" fill="#9ab5a5">局面</text>
+  <text x="1084" y="328" font-size="14" fill="#e8f0ea">闲家捉分 45</text>
+  <text x="1084" y="352" font-size="13" fill="#c8d8cd">累计 甲+3 乙-3</text>
+  <text x="1084" y="374" font-size="13" fill="#c8d8cd">      丙+3 丁-3</text>
+
+  <line x1="1084" y1="396" x2="1256" y2="396" stroke="#2c4a38"/>
+  <!-- 主菜单按钮挪入栏底 -->
+  <rect x="1090" y="668" width="160" height="32" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1170" y="689" font-size="14" fill="#d8e5dd" text-anchor="middle">返回主菜单</text>
+
+  <!-- 尺寸标注 -->
+  <text x="1170" y="420" font-size="12" fill="#e8b84a" text-anchor="middle">宽 196（1072~1268）</text>
+  <text x="1170" y="440" font-size="12" fill="#e8b84a" text-anchor="middle">高 660（48~708）</text>
+  <text x="1170" y="460" font-size="12" fill="#e8b84a" text-anchor="middle">牌桌区让位：0~1060</text>
+</svg>

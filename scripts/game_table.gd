@@ -9,11 +9,28 @@ const TRICK_PAUSE := 1.0
 
 const SEAT_NAMES := ["甲（你）", "乙（电脑）", "丙（电脑）", "丁（电脑）"]
 
+## 出牌显示锚点（屏幕绝对坐标）：你=手牌正上方、丙=上带右侧、乙/丁=面板朝桌心一侧
+const TRICK_ANCHORS := {
+	0: Vector2(536, 396),
+	1: Vector2(780, 294),
+	2: Vector2(766, 84),
+	3: Vector2(300, 294),
+}
+
+## 皇冠动画落点（出牌庄家名字旁）
+const CROWN_TARGETS := {
+	0: Vector2(330, 484),
+	1: Vector2(930, 252),
+	2: Vector2(472, 76),
+	3: Vector2(40, 252),
+}
+
 var engine: GameEngine
 var selected: Array = []   # Array[Card]，选中的手牌引用
 var select_mode := ""      # "" | "discard" | "play"
 var _last_trick_winner := -1
 var _pending_trump_suit := -1
+var _crown: CrownBadge = null
 
 var _ai_timer: Timer
 var _trick_timer: Timer
@@ -22,7 +39,8 @@ var _human_pile_chip: Button      ## 人类玩家（0 号位）的牌堆悬停�
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var trump_label: Label = $TopBar/TrumpLabel
-@onready var score_label: Label = $TopBar/ScoreLabel
+@onready var captured_label: Label = $Sidebar/VBox/CapturedLabel
+@onready var cumulative_label: Label = $Sidebar/VBox/CumulativeLabel
 @onready var toast_label: Label = $ToastLabel
 @onready var hint_label: Label = $BottomArea/HintLabel
 @onready var action_bar: HBoxContainer = $BottomArea/ActionBar
@@ -49,7 +67,7 @@ func _ready() -> void:
 	_trick_timer.wait_time = TRICK_PAUSE
 	add_child(_trick_timer)
 
-	$TopBar/MenuButton.pressed.connect(_on_menu)
+	$Sidebar/VBox/MenuButton.pressed.connect(_on_menu)
 	$ResultPanel/VBox/Buttons/NextButton.pressed.connect(_on_next_game)
 	$ResultPanel/VBox/Buttons/MenuButton2.pressed.connect(_on_menu)
 
@@ -182,6 +200,10 @@ func _on_next_game() -> void:
 ## ============================= 信号处理 =============================
 
 func _on_auction_required(seat: int) -> void:
+	# 新局拍卖开始：清除上一局的庄家皇冠
+	if _crown != null:
+		_crown.queue_free()
+		_crown = null
 	_refresh()
 	if seat == HUMAN_SEAT:
 		_show_auction_bar()
@@ -192,6 +214,7 @@ func _on_auction_required(seat: int) -> void:
 
 func _on_trump_required(seat: int) -> void:
 	_refresh()
+	_play_crown_animation(seat)  # 拍卖结束：皇冠飞向出牌庄家
 	if seat == HUMAN_SEAT:
 		_show_trump_picker()
 	else:
@@ -199,6 +222,27 @@ func _on_trump_required(seat: int) -> void:
 		_run_ai(func():
 			var choice: Dictionary = AiPolicy.choose_trump(engine.hands[seat])
 			engine.submit_trump(seat, choice.suit, choice.rank))
+
+
+## 皇冠：从牌桌正中央放大出现，一边缩小一边减速移动到出牌庄家名字旁（停驻标记庄家）
+func _play_crown_animation(seat: int) -> void:
+	if _crown != null:
+		_crown.queue_free()
+	_crown = CrownBadge.new()
+	_crown.size = Vector2(30, 22)
+	_crown.pivot_offset = _crown.size / 2.0
+	_crown.position = Vector2(536, 294) - _crown.size / 2.0  # 牌桌正中央
+	_crown.scale = Vector2(4, 4)
+	_crown.z_index = 60
+	add_child(_crown)
+	var target: Vector2 = CROWN_TARGETS[seat]
+	var tw := create_tween()
+	tw.set_parallel(true)
+	# TRANS_CUBIC + EASE_OUT：起步快、逐渐减速（加速度减小）
+	tw.tween_property(_crown, "position", target - _crown.size / 2.0, 1.0) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_crown, "scale", Vector2.ONE, 1.0) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _on_discard_required(seat: int) -> void:
@@ -416,7 +460,7 @@ func _refresh_stats() -> void:
 				suit_counts[c.suit] += 1
 		elif not c.is_joker():
 			suit_counts[c.suit] += 1
-	var main_label: Label = $StatsPanel/VBox/MainLabel
+	var main_label: Label = $Sidebar/VBox/MainLabel
 	var bits: Array[String] = []
 	if trump == null:
 		for s in Card.NORMAL_SUITS:
@@ -429,7 +473,7 @@ func _refresh_stats() -> void:
 		main_label.text = "主 %d ｜ 副 %s" % [trump_count, " ".join(bits)]
 
 	# 各点数数量（含王、2）
-	var grid: GridContainer = $StatsPanel/VBox/RankGrid
+	var grid: GridContainer = $Sidebar/VBox/RankGrid
 	for child in grid.get_children():
 		child.queue_free()
 	var rank_counts := {}
@@ -457,7 +501,7 @@ func _refresh_top_bar() -> void:
 	if engine.phase == GameEngine.Phase.AUCTION:
 		info += " ｜ 叫分拍卖中（最高 %d）" % engine.current_highest_bid()
 	elif engine.banker_seat >= 0:
-		info += " ｜ 抓牌庄 %s ｜ 出牌庄 %s" % [SEAT_NAMES[engine.dealer_seat], SEAT_NAMES[engine.banker_seat]]
+		info += " ｜ 出牌庄 %s" % SEAT_NAMES[engine.banker_seat]
 		if engine.contract > 0:
 			info += " ｜ 叫分 %d" % engine.contract
 	game_info.text = info
@@ -467,11 +511,13 @@ func _refresh_top_bar() -> void:
 		trump_label.text = "主：%s ｜ R = %s" % [suit_char, rank_name]
 	else:
 		trump_label.text = "未叫主"
-	var score := "闲家捉分 %d" % engine.captured_points
+	# 信息栏「局面」块
+	var captured := "闲家捉分 %d" % engine.captured_points
 	if engine.koudi_points > 0:
-		score += "（含抠底 %d）" % engine.koudi_points
-	score += " ｜ 累计 甲%+d 乙%+d 丙%+d 丁%+d" % [engine.cumulative[0], engine.cumulative[1], engine.cumulative[2], engine.cumulative[3]]
-	score_label.text = score
+		captured += "（含抠底 %d）" % engine.koudi_points
+	captured_label.text = captured
+	cumulative_label.text = "累计：甲 %+d ｜ 乙 %+d\n　　　丙 %+d ｜ 丁 %+d" \
+		% [engine.cumulative[0], engine.cumulative[1], engine.cumulative[2], engine.cumulative[3]]
 
 
 func _refresh_seats() -> void:
@@ -480,12 +526,8 @@ func _refresh_seats() -> void:
 		var name_label: Label = panel.get_node("VBox/NameLabel")
 		var count_label: Label = panel.get_node("VBox/CountLabel")
 		var status_label: Label = panel.get_node("VBox/StatusLabel")
-		var title: String = SEAT_NAMES[seat]
-		if engine.dealer_seat == seat:
-			title += " ·抓牌"
-		if engine.banker_seat == seat:
-			title += " ·庄"
-		name_label.text = title
+		# 庄家由皇冠动画标记，面板不再显示「抓牌/庄」文字
+		name_label.text = SEAT_NAMES[seat]
 		count_label.text = "%d 张" % engine.hand_count(seat)
 		var status := ""
 		match engine.phase:
@@ -506,19 +548,14 @@ func _refresh_seats() -> void:
 
 func _refresh_trick_area() -> void:
 	_clear_trick_area()
-	# 本轮各家出牌：TrickArea 为全屏层，锚点即屏幕绝对坐标。
+	# 本轮各家出牌：TrickArea 为全屏层，锚点即屏幕绝对坐标（TRICK_ANCHORS 常量）。
 	# 每家出牌显示在自己座位带内（你=手牌正上方、丙=上带右侧、
 	# 乙/丁=面板朝向桌心一侧），互不遮挡座位信息。
 	# 结算后 current_plays 已清空，改用 last_trick 快照停留展示（约 1 秒）
 	var shown: Array = engine.current_plays
 	if shown.is_empty():
 		shown = engine.last_trick
-	var anchors := {
-		0: Vector2(640, 396),
-		1: Vector2(980, 294),
-		2: Vector2(870, 84),
-		3: Vector2(300, 294),
-	}
+	var anchors: Dictionary = TRICK_ANCHORS
 	for play in shown:
 		var seat: int = play.seat
 		var box := VBoxContainer.new()
