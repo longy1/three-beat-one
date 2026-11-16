@@ -18,9 +18,10 @@ const TRICK_ANCHORS := {
 	3: Vector2(0.234, 0.408),
 }
 
-## 皇冠动画落点（相对比例 ×窗口尺寸；仅人类 0 号位使用——其余座位动态计算名字位置）
+## 皇冠动画落点（相对比例 ×窗口尺寸；仅人类 0 号位使用——其余座位动态计算名字位置）。
+## 0 号位（庄家是自己）：左下固定位置——手牌左侧，不随牌变动
 const CROWN_TARGETS := {
-	0: Vector2(0.258, 0.672),
+	0: Vector2(0.075, 0.833),
 }
 
 ## 主牌桌区域中心（相对比例）：画面分为左「主牌桌区域」（x 0~82.8%）与
@@ -45,7 +46,9 @@ const HAND_BASE_Y := 16.0  ## 手牌基准 y（虚线框 frame_y 6 + 内边距 1
 var _ai_timer: Timer
 var _trick_timer: Timer
 var _pile_popup: PanelContainer   ## 悬停查看某玩家出牌历史的弹出层
-var _human_pile_chip: Button      ## 人类玩家（0 号位）的牌堆悬停入口
+var _human_pile_chip: Button      ## 人类玩家出牌历史入口（左下，始终显示）
+var _bottom_pile_button: Button   ## 庄家是自己时的「牌堆」入口（皇冠下方，悬停看底牌）
+var _bottom_popup: PanelContainer ## 底牌堆弹层（2 行 × 4 张，仅庄家自己可见）
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var bid_center_label: Label = $BidCenterLabel
@@ -102,9 +105,9 @@ func _on_menu() -> void:
 ## ============================= 玩家牌堆（悬停查看出牌历史） =============================
 
 func _setup_pile_ui() -> void:
-	# 人类玩家（0 号位）入口：左下角小按钮（手牌居中，不遮挡）
+	# 人类玩家出牌历史入口：左下角小按钮（文字「历史」，悬停查看自己的出牌记录）
 	_human_pile_chip = Button.new()
-	_human_pile_chip.text = "牌堆"
+	_human_pile_chip.text = "历史"
 	_human_pile_chip.add_theme_font_size_override("font_size", 14)
 	UiStyle.pad_button(_human_pile_chip)
 	_human_pile_chip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -115,6 +118,20 @@ func _setup_pile_ui() -> void:
 	_human_pile_chip.mouse_entered.connect(func(): _show_pile(HUMAN_SEAT))
 	_human_pile_chip.mouse_exited.connect(_hide_pile)
 	add_child(_human_pile_chip)
+	# 庄家是自己时的「牌堆」入口：皇冠下方（左下固定），悬停查看底牌堆
+	_bottom_pile_button = Button.new()
+	_bottom_pile_button.text = "牌堆"
+	_bottom_pile_button.add_theme_font_size_override("font_size", 14)
+	UiStyle.pad_button(_bottom_pile_button)
+	_bottom_pile_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_bottom_pile_button.offset_left = 70
+	_bottom_pile_button.offset_right = 122
+	_bottom_pile_button.offset_top = -100
+	_bottom_pile_button.offset_bottom = -70
+	_bottom_pile_button.visible = false
+	_bottom_pile_button.mouse_entered.connect(_show_bottom_pile)
+	_bottom_pile_button.mouse_exited.connect(_hide_pile)
+	add_child(_bottom_pile_button)
 	# 电脑玩家入口：各自座位面板悬停（SeatPanel 组件信号）
 	for seat in seat_panels:
 		var panel: SeatPanel = seat_panels[seat]
@@ -154,6 +171,35 @@ func _setup_pile_ui() -> void:
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 4)
 	scroll.add_child(list)
+	# 底牌堆弹层（庄家是自己时）：标题 + 2 行 × 4 张网格
+	_bottom_popup = PanelContainer.new()
+	_bottom_popup.name = "BottomPopup"
+	_bottom_popup.visible = false
+	_bottom_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bottom_popup.set_anchors_preset(Control.PRESET_CENTER)
+	_bottom_popup.offset_left = -220
+	_bottom_popup.offset_top = -170
+	_bottom_popup.offset_right = 220
+	_bottom_popup.offset_bottom = 170
+	add_child(_bottom_popup)
+	var bp_vbox := VBoxContainer.new()
+	bp_vbox.name = "VBox"
+	bp_vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bp_vbox.add_theme_constant_override("separation", 6)
+	_bottom_popup.add_child(bp_vbox)
+	var bp_title := Label.new()
+	bp_title.name = "Title"
+	bp_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bp_title.add_theme_font_size_override("font_size", 17)
+	bp_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bp_vbox.add_child(bp_title)
+	var grid := GridContainer.new()
+	grid.name = "Grid"
+	grid.columns = 4
+	grid.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	bp_vbox.add_child(grid)
 
 
 ## 悬停某座位：按旧→新列出该玩家每轮的出牌（赢轮标 ✓ 高亮）
@@ -197,6 +243,22 @@ func _show_pile(seat: int) -> void:
 func _hide_pile() -> void:
 	if _pile_popup != null:
 		_pile_popup.visible = false
+	if _bottom_popup != null:
+		_bottom_popup.visible = false
+
+
+## 庄家是自己时：悬停「牌堆」按钮查看底牌堆（2 行 × 4 张，仅自己可见）
+func _show_bottom_pile() -> void:
+	if engine == null or engine.banker_seat != HUMAN_SEAT:
+		return
+	var title: Label = _bottom_popup.get_node("VBox/Title")
+	title.text = "你的底牌（仅你可见）"
+	var grid: GridContainer = _bottom_popup.get_node("VBox/Grid")
+	for child in grid.get_children():
+		child.queue_free()
+	for c in engine.bottom:
+		grid.add_child(CardWidget.create(c, true, true))
+	_bottom_popup.visible = true
 
 
 func _on_next_game() -> void:
@@ -477,6 +539,12 @@ func _refresh() -> void:
 	_render_hand()
 	if select_mode == "discard":
 		_update_discard_button()
+	# 庄家是自己时：皇冠下方「牌堆」按钮显示（扣底完成后才有底牌可看）
+	var show_bottom := engine.banker_seat == HUMAN_SEAT \
+		and (engine.phase == GameEngine.Phase.TRICKS or engine.phase == GameEngine.Phase.SETTLED)
+	_bottom_pile_button.visible = show_bottom
+	if not show_bottom:
+		_bottom_popup.visible = false
 
 
 ## 右下角手牌统计：主牌数量、副牌各花色数量、各点数数量（含王、2）

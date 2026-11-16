@@ -106,6 +106,26 @@ func test_pile_popup_uses_seat_name(test) -> void:
 	await _release_table(table)
 
 
+## 回归：庄家是自己时，扣底完成后皇冠下方「牌堆」按钮可见，悬停显示底牌 8 张（2×4）
+func test_bottom_pile_button_for_human_banker(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)
+	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	eng.submit_discard(0, AiPolicy.choose_discard(eng.hands[0], eng.trump))
+	await tree_pause()
+	var btn: Button = table._bottom_pile_button
+	test.check(btn.visible, "庄家是自己时牌堆按钮可见")
+	# 非庄家/非出牌阶段不可见
+	eng.start_session(99)  # 新局拍卖阶段
+	await tree_pause()
+	test.check(not btn.visible, "非出牌阶段按钮隐藏")
+	await _release_table(table)
+
+
 ## 叫主后信息栏展示「正 R」牌面；未叫主时注明「未叫主」
 func test_trump_display_in_sidebar(test) -> void:
 	var table = await _spawn_table()
