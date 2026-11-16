@@ -48,19 +48,20 @@ static func _verdict(legal: bool, reason: int, role: int) -> Dictionary:
 
 
 ## 判定出牌合法性。lead 为 null 表示领出（牌型任选，7.1.3）。
+## 牌的归属按值匹配（Card.key），调用方可传等值副本。
 ## 返回 { legal: bool, reason: int, role: int, text: String }。
 static func is_legal(hand: Array, play: Array, lead: Combo, trump: TrumpInfo) -> Dictionary:
-	# 1) 牌须来自手牌且不重复（真实对局中 Card 引用唯一）
+	# 1) 牌须来自手牌且不重复（值身份在两副牌内唯一）
 	var hand_set := {}
 	for c in hand:
-		hand_set[c] = true
+		hand_set[c.key()] = true
 	var seen := {}
 	for c in play:
-		if not hand_set.has(c):
+		if not hand_set.has(c.key()):
 			return _verdict(false, Reason.NOT_IN_HAND, Role.DISCARD)
-		if seen.has(c):
+		if seen.has(c.key()):
 			return _verdict(false, Reason.DUPLICATE_CARD, Role.DISCARD)
-		seen[c] = true
+		seen[c.key()] = true
 
 	if lead == null:
 		# 领出：任意合法牌型，1/2/4 张（7.1.1、7.1.3）
@@ -101,7 +102,7 @@ static func _check_main_lead(hand: Array, play: Array, play_combo: Combo, lead: 
 			return _verdict(true, Reason.OK, Role.EXHAUST_FILL)
 		# 主牌不足领出张数：全部主牌打出 + 副牌补足
 		for c in trumps:
-			if not play.has(c):
+			if not _has_value(play, c):
 				return _verdict(false, Reason.MUST_EXHAUST_TRUMP, Role.EXHAUST_FILL)
 		return _verdict(true, Reason.OK, Role.EXHAUST_FILL)
 
@@ -131,7 +132,7 @@ static func _check_side_lead(hand: Array, play: Array, play_combo: Combo, lead: 
 			return _verdict(true, Reason.OK, Role.EXHAUST_FILL)
 		# S 牌不足领出张数：全部 S 打出 + 其他花色或主牌补足
 		for c in s_cards:
-			if not play.has(c):
+			if not _has_value(play, c):
 				return _verdict(false, Reason.MUST_EXHAUST_S, Role.EXHAUST_FILL)
 		return _verdict(true, Reason.OK, Role.EXHAUST_FILL)
 
@@ -197,7 +198,7 @@ static func filter_class(cards: Array, suit_class: int, trump: TrumpInfo) -> Arr
 ## 打尽且池多于领出张数时的对子优先校验（7.2 两处强制项）。
 ## permanent_only = true：主牌轮，仅常主对子（大小王对、2 对、正R/副R 对）必须优先；
 ## permanent_only = false：副牌轮，S 对子必须优先选出。
-## 判定标准：play 中完整对子数 ≥ min(⌊张数/2⌋, 池中对子数)。
+## 判定标准：play 中完整对子数 ≥ required_pair_count（见下）。
 static func _pair_priority_ok(pool: Array, play: Array, permanent_only: bool, trump: TrumpInfo) -> bool:
 	var pool_pairs := 0
 	if permanent_only:
@@ -205,19 +206,34 @@ static func _pair_priority_ok(pool: Array, play: Array, permanent_only: bool, tr
 		for c in pool:
 			if trump.is_permanent_trump(c):
 				permanents.append(c)
-		pool_pairs = _count_identity_pairs(permanents)
+		pool_pairs = count_identity_pairs(permanents)
 	else:
-		pool_pairs = _count_identity_pairs(pool)
-	var play_pairs := _count_identity_pairs(play)
-	var required := mini(play.size() / 2, pool_pairs)
-	return play_pairs >= required
+		pool_pairs = count_identity_pairs(pool)
+	var play_pairs := count_identity_pairs(play)
+	return play_pairs >= required_pair_count(play.size(), pool_pairs)
 
 
-## 同身份两张 = 一个对子；返回最大可组成的完整对子数
-static func _count_identity_pairs(cards: Array) -> int:
+## 同身份两张 = 一个对子；返回最大可组成的完整对子数。
+## 校验器与 AI 生成器的公共口径（此前两份手写实现逐行等价，已合并）。
+static func count_identity_pairs(cards: Array) -> int:
 	var groups := Combo.pair_groups(cards)
 	var count := 0
 	for key in groups:
 		if groups[key].size() >= 2:
 			count += 1
 	return count
+
+
+## 打尽时须优先选出的完整对子数：min(⌊张数/2⌋, 池中对子数)（7.2）。
+## 校验器（_pair_priority_ok）与 AI 构造器（build_exhaust_play）共用，防两份口径漂移。
+static func required_pair_count(play_size: int, pool_pairs: int) -> int:
+	return mini(play_size / 2, pool_pairs)
+
+
+## 牌组中是否含有指定值的牌（值匹配，Card.key 唯一）
+static func _has_value(cards: Array, card: Card) -> bool:
+	var k := card.key()
+	for c in cards:
+		if c.key() == k:
+			return true
+	return false

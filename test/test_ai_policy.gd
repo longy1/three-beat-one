@@ -112,11 +112,11 @@ func test_auto_games_invariants(test) -> void:
 			continue
 		test.check(r.level >= 1 and r.level <= 3, "种子 %d：级数 1~3" % seed)
 		test.check(r.total_score == r.contract + r.captured_total, "种子 %d：总分 = 叫分 + 捉分" % seed)
-		test.check(r.captured_total <= 200 + r.bottom_points, "种子 %d：捉分不超过 200+底牌分" % seed)
+		test.check(r.captured_total <= 200 + r.buried_points, "种子 %d：捉分不超过 200+底牌分" % seed)
 		test.check(r.captured_points % 5 == 0, "种子 %d：捉分为 5 的倍数" % seed)
 		if r.koudi_points > 0:
 			koudi_games += 1
-			test.check(r.koudi_points == r.bottom_points or r.koudi_points == r.bottom_points * 2,
+			test.check(r.koudi_points == r.buried_points or r.koudi_points == r.buried_points * 2,
 				"种子 %d：抠底为底牌分 ×1/×2" % seed)
 		var payment_sum := 0
 		for p in r.payments:

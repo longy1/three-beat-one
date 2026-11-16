@@ -12,6 +12,7 @@ signal discard_required(seat: int)
 signal play_required(seat: int)
 signal trick_settled(info: Dictionary)
 signal game_over(result: Dictionary)
+signal engine_fault(message: String)  ## 内部一致性破坏（正常对局不会发出；诊断用）
 
 enum Phase { IDLE, AUCTION, TRUMP, DISCARD, TRICKS, SETTLED }
 
@@ -31,12 +32,13 @@ var banker_seat := -1           ## 出牌庄家（拍卖胜出者）
 var contract := 0               ## 本局叫分（目标分与结算参数）
 var trump: TrumpInfo = null
 var hands: Array = []           ## Array[Array[Card]] × 4
-var bottom: Array = []          ## 8 张底牌（扣底后为庄家所扣之牌，对其余玩家不可见）
-var bottom_points := 0
+var kitty: Array = []           ## 本局翻出的 8 张底牌（翻底后并入庄家手牌；DISCARD 阶段 peek_bottom 供其查看）
+var buried: Array = []          ## 庄家扣回的底牌（8 张，对其他玩家不可见；末轮抠底分值来源）
+var buried_points := 0          ## 庄家所扣底牌分值（8.2 抠底基数）
+var faulted := false            ## 内部一致性破坏标记（正常对局永远为 false）
 var bids: Array = []            ## 每座位 { value: int, passed: bool }
 var auction_turn := -1
 var current_plays: Array = []   ## 本轮已出 [{ seat, cards, role }]，plays[0] 为领出
-var last_trick: Array = []      ## 上一轮出牌快照（结算后停留展示，新一轮领出时清除）
 var trick_history: Array = []   ## 全部已结算轮次 [{ plays, winner }]，按旧→新排列
 var leader_seat := -1
 var turn_seat := -1
@@ -88,11 +90,11 @@ func _begin_game(next_dealer: int, test_hands: Array, test_bottom: Array) -> voi
 	captured_points = 0
 	koudi_points = 0
 	current_plays = []
-	last_trick = []
 	trick_history = []
 	leader_seat = -1
 	turn_seat = -1
 	last_game_result = {}
+	faulted = false
 	if test_hands.is_empty():
 		var deck := Card.full_deck()
 		# Fisher-Yates 洗牌（种子化，可复现）
@@ -104,11 +106,12 @@ func _begin_game(next_dealer: int, test_hands: Array, test_bottom: Array) -> voi
 		hands = []
 		for s in PLAYER_COUNT:
 			hands.append(deck.slice(s * HAND_SIZE, (s + 1) * HAND_SIZE))
-		bottom = deck.slice(PLAYER_COUNT * HAND_SIZE, PLAYER_COUNT * HAND_SIZE + BOTTOM_SIZE)
+		kitty = deck.slice(PLAYER_COUNT * HAND_SIZE, PLAYER_COUNT * HAND_SIZE + BOTTOM_SIZE)
 	else:
 		hands = test_hands
-		bottom = test_bottom
-	bottom_points = _points_of(bottom)
+		kitty = test_bottom
+	buried = []
+	buried_points = 0
 	# 拍卖初始化：抓牌庄家固定 130 底叫（规则 5.1），从其下一位开始表态
 	bids = []
 	for s in PLAYER_COUNT:
@@ -197,14 +200,14 @@ func submit_trump(seat: int, suit: int, rank: int) -> Dictionary:
 	if not Card.RANKS.has(rank):
 		return _err("非法点数")
 	trump = TrumpInfo.new(suit, rank)
-	# 翻底：8 张底牌入手（27 张），仅庄家可见（规则 2）
-	hands[banker_seat].append_array(bottom)
+	# 翻底：8 张底牌入手（27 张），仅庄家可见（规则 2）；kitty 保留供 DISCARD 阶段查看
+	hands[banker_seat].append_array(kitty)
 	_set_phase(Phase.DISCARD)
 	discard_required.emit(banker_seat)
 	return {ok = true, error = ""}
 
 
-## 扣底：庄家从 27 张中任选 8 张扣回（规则 2）
+## 扣底：庄家从 27 张中任选 8 张扣回（规则 2）。提交按值匹配（Card.key 唯一）。
 func submit_discard(seat: int, cards: Array) -> Dictionary:
 	if phase != Phase.DISCARD:
 		return _err("当前不在扣底阶段")
@@ -222,25 +225,15 @@ func submit_discard(seat: int, cards: Array) -> Dictionary:
 				break
 		if not found:
 			return _err("所扣之牌不在庄家手中")
-		var key := "%d_%d_%d" % [c.suit, c.rank, c.copy]
-		if seen.has(key):
+		var k: String = c.key()
+		if seen.has(k):
 			return _err("所扣之牌重复")
-		seen[key] = true
-	# 执行：从手牌移除并成为新底牌
-	var remaining: Array = []
-	var to_remove := cards.duplicate()
-	for h in hand:
-		var drop := false
-		for i in to_remove.size():
-			if to_remove[i].same_card(h):
-				drop = true
-				to_remove.remove_at(i)
-				break
-		if not drop:
-			remaining.append(h)
-	hands[banker_seat] = remaining
-	bottom = cards.duplicate()
-	bottom_points = _points_of(bottom)
+		seen[k] = true
+	# 执行：从手牌按值移除并成为所扣底牌
+	if not _remove_cards_by_value(hand, cards):
+		return _err("所扣之牌不在庄家手中")  # 理论不可达：上方已按值校验归属
+	buried = cards.duplicate()
+	buried_points = _points_of(buried)
 	_set_phase(Phase.TRICKS)
 	leader_seat = banker_seat   # 首轮由出牌庄家领出（规则 7.1.1）
 	turn_seat = banker_seat
@@ -251,7 +244,7 @@ func submit_discard(seat: int, cards: Array) -> Dictionary:
 ## 翻底阶段：仅出牌庄家可见（规则 2 底牌保密）
 func peek_bottom(seat: int) -> Array:
 	if phase == Phase.DISCARD and seat == banker_seat:
-		return bottom.duplicate()
+		return kitty.duplicate()
 	return []
 
 
@@ -275,7 +268,8 @@ func is_defender(seat: int) -> bool:
 	return seat != banker_seat
 
 
-## 出牌（领出或跟牌）。返回 FollowRule.is_legal 风格判定字典。
+## 出牌（领出或跟牌）。提交按值匹配（Card.key 唯一，UI/联机可传等值副本）。
+## 返回 FollowRule.is_legal 风格判定字典。
 func submit_play(seat: int, cards: Array) -> Dictionary:
 	if phase != Phase.TRICKS:
 		return _err_play("当前不在出牌阶段")
@@ -285,10 +279,8 @@ func submit_play(seat: int, cards: Array) -> Dictionary:
 	var verdict: Dictionary = FollowRule.is_legal(hands[seat], cards, lead, trump)
 	if not verdict.legal:
 		return verdict
-	for c in cards:
-		hands[seat].erase(c)
-	if current_plays.is_empty():
-		last_trick = []  # 新一轮领出，清除上一轮停留快照
+	if not _remove_cards_by_value(hands[seat], cards):
+		return _err_play("所出之牌不在手牌中")  # 理论不可达：is_legal 已按值校验归属
 	current_plays.append({seat = seat, cards = cards.duplicate(), role = verdict.role})
 	if current_plays.size() >= PLAYER_COUNT:
 		_settle_trick()
@@ -298,32 +290,44 @@ func submit_play(seat: int, cards: Array) -> Dictionary:
 	return verdict
 
 
+## 最近一轮已结算的出牌快照（供结算后 UI 停留展示）；无历史返回 []。
+## 由 trick_history 末元素派生，不再单独维护镜像字段。
+func get_last_trick() -> Array:
+	if trick_history.is_empty():
+		return []
+	return trick_history.back().plays
+
+
 func _settle_trick() -> void:
-	var settle_plays: Array = []
-	for p in current_plays:
-		settle_plays.append({player = p.seat, cards = p.cards, role = p.role})
-	var r := Trick.settle(settle_plays, trump)
-	last_trick = current_plays.duplicate()  # 供 UI 在停顿期继续展示牌面
+	var r := Trick.settle(current_plays, trump)
+	if not r.ok:
+		# 正常对局不可达（每手出牌都经 is_legal 校验，领出必为合法牌型）。
+		# 根治旧版「静默 seat=-1 死锁」：显性报障并冻结，等待诊断。
+		faulted = true
+		var message := "settle 失败（内部一致性破坏）：%s" % r.error
+		push_error("GameEngine: " + message)
+		engine_fault.emit(message)
+		return
+	var snapshot: Array = current_plays.duplicate()
 	var is_last := _all_hands_empty()
 	var koudi := 0
-	if is_last and r.ok and is_defender(r.player) and r.win_main_class:
+	if is_last and is_defender(r.seat) and r.win_main_class:
 		# 末轮抠底（8.2）：单牌 ×1，对子/拖拉机 ×2
 		var multiplier: int = 1 if r.win_type == Combo.Type.SINGLE else 2
-		koudi = bottom_points * multiplier
+		koudi = buried_points * multiplier
 		koudi_points = koudi
-	if r.ok and is_defender(r.player):
+	if is_defender(r.seat):
 		captured_points += r.points  # 闲家赢轮，本轮分牌计入捉分（8.1）
-	leader_seat = r.player
+	leader_seat = r.seat
 	var info := {
 		result = r,
-		winner = r.player,
+		winner = r.seat,
 		points = r.points,
 		is_last = is_last,
 		koudi = koudi,
 		captured = captured_points,
 	}
-	if r.ok:
-		trick_history.append({plays = last_trick.duplicate(), winner = r.player})
+	trick_history.append({plays = snapshot, winner = r.seat})
 	current_plays = []
 	trick_settled.emit(info)
 	if is_last:
@@ -370,7 +374,7 @@ func _settle_game() -> void:
 		trump = trump,
 		captured_points = captured_points,
 		koudi_points = koudi_points,
-		bottom_points = bottom_points,
+		buried_points = buried_points,
 		captured_total = captured_total,
 		total_score = outcome.total,
 		banker_won = outcome.banker_won,
@@ -401,6 +405,20 @@ func _points_of(cards: Array) -> int:
 	for c in cards:
 		total += c.points()
 	return total
+
+
+## 从手牌按值移除一组牌（Card 值身份在两副牌内唯一）。未找到返回 false。
+func _remove_cards_by_value(hand: Array, cards: Array) -> bool:
+	for c in cards:
+		var removed := false
+		for i in hand.size():
+			if hand[i].same_card(c):
+				hand.remove_at(i)
+				removed = true
+				break
+		if not removed:
+			return false
+	return true
 
 
 func _err(message: String) -> Dictionary:

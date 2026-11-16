@@ -95,6 +95,7 @@ func _ready() -> void:
 	engine.trick_settled.connect(_on_trick_settled)
 	engine.game_over.connect(_on_game_over)
 	engine.phase_changed.connect(func(_p): _refresh())
+	engine.engine_fault.connect(_on_engine_fault)
 	_setup_pile_ui()
 	engine.start_session()
 	_refresh()
@@ -277,7 +278,7 @@ func _show_bottom_pile() -> void:
 	var grid: GridContainer = _bottom_popup.get_node("VBox/Grid")
 	for child in grid.get_children():
 		child.queue_free()
-	for c in engine.bottom:
+	for c in engine.buried:
 		grid.add_child(CardWidget.create(c, true, true))
 	_bottom_popup.visible = true
 	_pile_hide_timer.stop()
@@ -413,6 +414,12 @@ func _on_game_over(result: Dictionary) -> void:
 	if not is_inside_tree():
 		return
 	_show_result(result)
+
+
+## 引擎内部一致性破坏（正常对局不会发生）：显性提示，冻结等待诊断
+func _on_engine_fault(message: String) -> void:
+	hint_label.text = "引擎异常：%s" % message
+	_toast("引擎异常，对局已冻结（详见日志）")
 
 
 func _run_ai(action: Callable) -> void:
@@ -733,11 +740,11 @@ func _refresh_trick_area() -> void:
 	# 本轮各家出牌：TrickArea 为全屏层，锚点即屏幕绝对坐标（TRICK_ANCHORS 常量）。
 	# 每家出牌显示在自己座位带内（你=手牌正上方、丙=上带右侧、
 	# 乙/丁=面板朝向桌心一侧），互不遮挡座位信息。
-	# 结算后 current_plays 已清空，改用 last_trick 快照停留展示；
+	# 结算后 current_plays 已清空，改用 get_last_trick() 派生快照停留展示；
 	# 停留结束（1.5s）主动清空，不再显示上一轮
 	var shown: Array = engine.current_plays
 	if shown.is_empty() and not _trick_display_cleared:
-		shown = engine.last_trick
+		shown = engine.get_last_trick()
 	for play in shown:
 		var seat: int = play.seat
 		# 出牌区只渲染牌（归属信息在姓名版）；赢家标记见姓名版「✓ 上轮赢」。
@@ -752,9 +759,7 @@ func _refresh_trick_area() -> void:
 		var width: float = play.cards.size() * (card_size.x + 4)
 		var base: Vector2 = TRICK_ANCHORS[seat] * trick_area.size  # 相对锚点 × 层尺寸
 		cards_row.position = base - Vector2(width / 2.0, card_size.y / 2.0)
-	# 新一轮开始（无快照、至多只有领出）时清除赢家标记
-	if engine.last_trick.is_empty() and engine.current_plays.size() <= 1:
-		_last_trick_winner = -1
+	# 赢家标记（✓ 上轮赢）的清除由 _on_play_required 统一负责（停留期结束后复位）
 
 
 func _clear_trick_area() -> void:
@@ -983,8 +988,8 @@ func _show_result(result: Dictionary) -> void:
 	title.modulate = Color(1, 0.9, 0.4) if result.banker_won else Color(0.5, 0.95, 0.6)
 	var koudi_text := "无"
 	if result.koudi_points > 0:
-		var multiplier: int = 2 if result.koudi_points == result.bottom_points * 2 else 1
-		koudi_text = "底牌 %d 分 × %d = %d" % [result.bottom_points, multiplier, result.koudi_points]
+		var multiplier: int = 2 if result.koudi_points == result.buried_points * 2 else 1
+		koudi_text = "底牌 %d 分 × %d = %d" % [result.buried_points, multiplier, result.koudi_points]
 	var lines := [
 		"出牌庄家：%s ｜ 叫分 %d" % [SEAT_NAMES[result.banker_seat], result.contract],
 		"闲家捉分 %d ＋ 抠底 %d ＝ %d" % [result.captured_points, result.koudi_points, result.captured_total],

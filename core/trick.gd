@@ -5,12 +5,13 @@ extends RefCounted
 
 
 ## 结算一轮。plays 按座位顺序、plays[0] 为领出，元素形如：
-##   { player: int, cards: Array[Card], role: int(可选，跟随者由 is_legal 得出) }
+##   { seat: int, cards: Array[Card], role: int(可选，跟随者由 is_legal 得出) }
+## 与 GameEngine.current_plays 同构（键名 seat），调用方可直接传入。
 ## 支持 1~4 份出牌的部分结算（AI 与 UI 用于判定"当前最大者"）。
 ## 返回：
-##   { ok, error, winner: int(plays 下标), player: int,
+##   { ok, error, winner: int(plays 下标), seat: int,
 ##     points: int, win_main_class: bool, win_type: int }
-## - winner/player：本轮（当前）最大者（并列先出者大，3.1）
+## - winner/seat：本轮（当前）最大者（并列先出者大，3.1）
 ## - points：本轮所有已出分牌分值合计（8.1）；是否计入闲家捉分由对局层按赢家阵营决定
 ## - win_main_class / win_type：末轮抠底判定所需（8.2）
 static func settle(plays: Array, trump: TrumpInfo) -> Dictionary:
@@ -63,7 +64,7 @@ static func settle(plays: Array, trump: TrumpInfo) -> Dictionary:
 		ok = true,
 		error = "",
 		winner = winner,
-		player = plays[winner].get("player", winner),
+		seat = plays[winner].get("seat", winner),
 		points = points,
 		win_main_class = win_combo.suit == TrumpInfo.CLASS_TRUMP,
 		win_type = win_combo.type,
@@ -90,4 +91,4 @@ static func _derive_role(index: int, play: Dictionary, lead: Combo, trump: Trump
 
 
 static func _fail(message: String) -> Dictionary:
-	return {ok = false, error = message, winner = -1, player = -1, points = 0, win_main_class = false, win_type = -1}
+	return {ok = false, error = message, winner = -1, seat = -1, points = 0, win_main_class = false, win_type = -1}

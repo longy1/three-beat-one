@@ -41,14 +41,14 @@ func round1(test) -> Dictionary:
 	var role_bing := must_play(test, bing, bing.duplicate(), lead, FollowRule.Role.KILL, "丙杀")
 
 	var r := Trick.settle([
-		{player = 3, cards = lead_cards, role = FollowRule.Role.LEAD},
-		{player = 0, cards = jia, role = role_jia},
-		{player = 1, cards = yi, role = role_yi},
-		{player = 2, cards = bing, role = role_bing},
+		{seat = 3, cards = lead_cards, role = FollowRule.Role.LEAD},
+		{seat = 0, cards = jia, role = role_jia},
+		{seat = 1, cards = yi, role = role_yi},
+		{seat = 2, cards = bing, role = role_bing},
 	], trump)
 	test.check(r.ok, r.error)
 	test.eq(r.winner, 3, "第 1 轮丙杀赢")
-	test.eq(r.player, 2, "赢家玩家号 = 丙")
+	test.eq(r.seat, 2, "赢家玩家号 = 丙")
 	test.eq(r.points, 35, "捉分 35（领出 20 + 甲垫 15）")
 	return r
 
@@ -69,10 +69,10 @@ func round2(test) -> Dictionary:
 	var role_yi := must_play(test, yi, yi.duplicate(), lead, FollowRule.Role.FOLLOW_TYPE, "乙跟 ♥2")
 
 	var r := Trick.settle([
-		{player = 2, cards = lead_cards, role = FollowRule.Role.LEAD},
-		{player = 3, cards = ding, role = role_ding},
-		{player = 0, cards = jia, role = role_jia},
-		{player = 1, cards = yi, role = role_yi},
+		{seat = 2, cards = lead_cards, role = FollowRule.Role.LEAD},
+		{seat = 3, cards = ding, role = role_ding},
+		{seat = 0, cards = jia, role = role_jia},
+		{seat = 1, cards = yi, role = role_yi},
 	], trump)
 	test.check(r.ok, r.error)
 	test.eq(r.winner, 2, "第 2 轮甲以大王赢")
@@ -100,10 +100,10 @@ func round3(test) -> Dictionary:
 	var role_ding := must_play(test, ding, ding.duplicate(), lead, FollowRule.Role.DISCARD, "丁垫 ♦Q♦J")
 
 	var r := Trick.settle([
-		{player = 0, cards = lead_cards, role = FollowRule.Role.LEAD},
-		{player = 1, cards = yi, role = role_yi},
-		{player = 2, cards = bing, role = role_bing},
-		{player = 3, cards = ding, role = role_ding},
+		{seat = 0, cards = lead_cards, role = FollowRule.Role.LEAD},
+		{seat = 1, cards = yi, role = role_yi},
+		{seat = 2, cards = bing, role = role_bing},
+		{seat = 3, cards = ding, role = role_ding},
 	], trump)
 	test.check(r.ok, r.error)
 	test.eq(r.winner, 2, "第 3 轮丙杀赢")
@@ -133,10 +133,10 @@ func round4(test) -> Dictionary:
 	var role_jia := must_play(test, jia, jia.duplicate(), lead, FollowRule.Role.KILL, "甲四王杀")
 
 	var r := Trick.settle([
-		{player = 1, cards = lead_cards, role = FollowRule.Role.LEAD},
-		{player = 2, cards = bing, role = role_bing},
-		{player = 3, cards = ding, role = role_ding},
-		{player = 0, cards = jia, role = role_jia},
+		{seat = 1, cards = lead_cards, role = FollowRule.Role.LEAD},
+		{seat = 2, cards = bing, role = role_bing},
+		{seat = 3, cards = ding, role = role_ding},
+		{seat = 0, cards = jia, role = role_jia},
 	], trump)
 	test.check(r.ok, r.error)
 	test.eq(r.winner, 3, "末轮甲四王赢")
@@ -159,10 +159,10 @@ func test_full_round_sequence(test) -> void:
 	var cumulative: int = r1.points + r2.points + r3.points + r4.points
 	test.eq(cumulative, 110, "四轮累计 35+10+30+35 = 110")
 	# 每轮赢家均为闲家（甲/丙），捉分全部计入
-	test.eq(r1.player, 2, "R1 丙")
-	test.eq(r2.player, 0, "R2 甲")
-	test.eq(r3.player, 2, "R3 丙")
-	test.eq(r4.player, 0, "R4 甲")
+	test.eq(r1.seat, 2, "R1 丙")
+	test.eq(r2.seat, 0, "R2 甲")
+	test.eq(r3.seat, 2, "R3 丙")
+	test.eq(r4.seat, 0, "R4 甲")
 
 
 ## 抠底倍数前提（8.2）：末轮主牌类单牌 ×1 / 对子与拖拉机 ×2 —— M2 实现倍数结算，
@@ -173,10 +173,10 @@ func test_koudi_precondition_material(test) -> void:
 	test.check(r4.win_main_class and r4.win_type == Combo.Type.TRACTOR, "主牌类拖拉机赢末轮 → ×2 材料")
 	# 对照：闲家用副牌赢末轮 → 底牌分作废（不抠底）
 	var true_side_win := Trick.settle([
-		{player = 1, cards = [C(Card.Suit.DIAMOND, Card.RANK_K, 0)]},
-		{player = 2, cards = [C(Card.Suit.CLUB, Card.RANK_A, 0)]},
-		{player = 3, cards = [C(Card.Suit.HEART, Card.RANK_7, 0)]},
-		{player = 0, cards = [C(Card.Suit.DIAMOND, Card.RANK_A, 1)]},  # 跟 ♦A 更大，副牌赢
+		{seat = 1, cards = [C(Card.Suit.DIAMOND, Card.RANK_K, 0)]},
+		{seat = 2, cards = [C(Card.Suit.CLUB, Card.RANK_A, 0)]},
+		{seat = 3, cards = [C(Card.Suit.HEART, Card.RANK_7, 0)]},
+		{seat = 0, cards = [C(Card.Suit.DIAMOND, Card.RANK_A, 1)]},  # 跟 ♦A 更大，副牌赢
 	], trump)
 	test.eq(true_side_win.winner, 3, "副牌更大者赢末轮")
 	test.check(not true_side_win.win_main_class, "副牌赢末轮 → 底牌分作废（不抠底）")

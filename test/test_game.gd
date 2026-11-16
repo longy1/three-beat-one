@@ -93,7 +93,7 @@ func test_trump_and_discard_flow(test) -> void:
 	var discard := AiPolicy.choose_discard(engine.hands[0], engine.trump)
 	ok(test, engine.submit_discard(0, discard), "庄家扣底")
 	test.eq(engine.hands[0].size(), 19, "扣底后 19 张")
-	test.eq(engine.bottom_points, _points_of(discard), "新底牌分值")
+	test.eq(engine.buried_points, _points_of(discard), "新底牌分值")
 	test.eq(engine.phase, Phase.TRICKS, "进入出牌")
 	test.eq(engine.leader_seat, 0, "首轮庄家领出")
 
@@ -125,7 +125,7 @@ func _setup_mini(test, engine: GameEngine, hands: Array) -> void:
 	test.eq(engine.banker_seat, 2, "出牌庄家 = 丙")
 	ok(test, engine.submit_trump(2, Card.Suit.SPADE, Card.RANK_9), "叫主 ♠9")
 	ok(test, engine.submit_discard(2, KOUDI_BOTTOM_35.duplicate()), "扣回底牌")
-	test.eq(engine.bottom_points, 35, "底牌 35 分")
+	test.eq(engine.buried_points, 35, "底牌 35 分")
 
 
 func _payment_sum(payments: Array) -> int:
@@ -133,6 +133,28 @@ func _payment_sum(payments: Array) -> int:
 	for p in payments:
 		total += p
 	return total
+
+
+## 回归：settle 失败不得静默死锁（旧版 seat=-1 无诊断）——须显性报障并冻结
+func test_settle_failure_is_loud(test) -> void:
+	var engine := GameEngine.new()
+	_setup_mini(test, engine, [
+		[C(Card.Suit.SPADE, Card.RANK_A, 0), C(Card.Suit.SPADE, Card.RANK_A, 1)],
+		[C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0)],
+		[C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)],
+		[C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)],
+	])
+	test.check(not engine.faulted, "前置：正常推进未报障")
+	# 注入破坏内部一致性的出牌记录（领出不成牌型），触发 settle 失败分支
+	var fault_messages: Array[String] = []
+	engine.engine_fault.connect(func(msg: String): fault_messages.append(msg))
+	engine.current_plays = [{seat = 2, cards = [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0)], role = FollowRule.Role.LEAD}]
+	engine._settle_trick()
+	test.check(engine.faulted, "settle 失败置 faulted 标记")
+	test.eq(fault_messages.size(), 1, "engine_fault 信号发出一次")
+	test.check(fault_messages.size() > 0 and fault_messages[0].begins_with("settle 失败"), "报障信息含原因前缀")
+	test.eq(engine.turn_seat, 2, "轮次保持原值（不进入座位 -1 死锁）")
+	test.eq(engine.phase, Phase.TRICKS, "阶段冻结不变")
 
 
 ## 末轮闲家以主牌【单牌】赢 → 底牌分 ×1

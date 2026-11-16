@@ -59,6 +59,12 @@ func same_card(other: Card) -> bool:
 	return suit == other.suit and rank == other.rank and copy == other.copy
 
 
+## 值身份键（花色+点数+副号）：两副牌内唯一。
+## 引擎提交契约按值匹配（UI/联机消息可传等值副本，无须持有原引用）。
+func key() -> String:
+	return "%d_%d_%d" % [suit, rank, copy]
+
+
 ## 分牌分值：5=5 分、10=10 分、K=10 分，其余 0（规则 8.1）。
 ## 分牌身份与分值不随常主化改变（如 R=5 时正5/副5 仍是 5 分牌）。
 func points() -> int:

@@ -199,16 +199,14 @@ static func choose_play(engine: GameEngine, seat: int) -> Array:
 		return _choose_lead(hand, trump)
 
 	var lead := Combo.detect(plays[0].cards, trump)
-	var settle_plays: Array = []
-	for p in plays:
-		settle_plays.append({player = p.seat, cards = p.cards, role = p.role})
-	var cur: Dictionary = Trick.settle(settle_plays, trump)
+	# 部分结算判定"当前最大者"：settle 与 current_plays 同构（键名 seat），直接传入
+	var cur: Dictionary = Trick.settle(plays, trump)
 	if not cur.ok:
 		return [hand[0]]
 	var winner_combo := Combo.detect(plays[cur.winner].cards, trump)
 	var beat_power := Combo.power(winner_combo, trump)
 	var i_am_defender := seat != engine.banker_seat
-	var winner_is_teammate: bool = i_am_defender and engine.is_defender(cur.player) and cur.player != seat
+	var winner_is_teammate: bool = i_am_defender and (cur.seat != engine.banker_seat) and cur.seat != seat
 	var trick_points := 0
 	for p in plays:
 		for c in p.cards:
@@ -309,8 +307,8 @@ static func build_exhaust_play(class_cards: Array, hand: Array, n: int, suit_cla
 				mandatory.append(c)
 	else:
 		mandatory = class_cards
-	var mandatory_pairs := _identity_pair_count(mandatory)
-	var required_pairs := mini(n / 2, mandatory_pairs)
+	var mandatory_pairs := FollowRule.count_identity_pairs(mandatory)
+	var required_pairs := FollowRule.required_pair_count(n, mandatory_pairs)
 	var chosen: Array = []
 	if required_pairs > 0:
 		var pairs := FollowRule.list_pairs(mandatory, suit_class, trump)
@@ -337,15 +335,6 @@ static func build_discard(hand: Array, trump: TrumpInfo, n: int, feed_teammate :
 	var dump: Array = hand.duplicate()
 	dump.sort_custom(_dump_key_asc(trump, feed_teammate))
 	return dump.slice(0, n)
-
-
-static func _identity_pair_count(cards: Array) -> int:
-	var groups := Combo.pair_groups(cards)
-	var count := 0
-	for key in groups:
-		if groups[key].size() >= 2:
-			count += 1
-	return count
 
 
 static func _option_power_asc(a, b) -> bool:
