@@ -708,8 +708,8 @@ func _render_hand() -> void:
 	side_cards.sort_custom(_side_display_cmp)
 
 	var groups: Array = []
-	if trump != null and not trump_cards.is_empty():
-		groups.append(trump_cards)
+	if not trump_cards.is_empty():
+		groups.append(trump_cards)  # 叫主前=确定常主（王/2），叫主后=主牌类
 	if not side_cards.is_empty():
 		groups.append(side_cards)
 	if groups.is_empty():
