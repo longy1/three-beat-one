@@ -1,0 +1,73 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_menu"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.078, 0.106, 0.18, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Title" type="Label" parent="Center/Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 64
+text = "三打哈"
+
+[node name="Subtitle" type="Label" parent="Center/Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "三打一 · 单机版 · M1 规则引擎"
+horizontal_alignment = 1
+
+[node name="StartButton" type="Button" parent="Center/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(320, 52)
+theme_override_font_sizes/font_size = 24
+text = "开始对局（M2 开发中）"
+
+[node name="SelfTestButton" type="Button" parent="Center/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(320, 52)
+theme_override_font_sizes/font_size = 24
+text = "规则引擎自检"
+
+[node name="QuitButton" type="Button" parent="Center/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(320, 52)
+theme_override_font_sizes/font_size = 24
+text = "退出"
+
+[node name="ResultLabel" type="Label" parent="Center/Panel/VBox"]
+custom_minimum_size = Vector2(520, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 3
