@@ -380,7 +380,9 @@ func _submit_human_bid(value: int) -> void:
 	if not verdict.ok:
 		_toast(verdict.error)
 		return
-	_clear_action_bar()
+	# 仅当拍卖仍在继续时清自己的旧按钮；拍卖结束则下一阶段 UI 已同步接管
+	if engine.phase == GameEngine.Phase.AUCTION:
+		_clear_action_bar()
 
 
 func _show_trump_picker() -> void:
@@ -410,7 +412,8 @@ func _submit_human_trump(rank: int) -> void:
 	if not verdict.ok:
 		_toast(verdict.error)
 		return
-	_clear_action_bar()
+	# submit_trump 会同步进入扣底阶段：discard bar 已清旧按钮并创建「确认扣底」，
+	# 此处不再清理（否则会把新按钮一并删掉）
 
 
 func _show_discard_bar() -> void:
