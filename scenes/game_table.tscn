@@ -47,26 +47,26 @@ text = ""
 [node name="SeatTop" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0
-anchor_left = 0.333
-anchor_top = 0.067
-anchor_right = 0.505
-anchor_bottom = 0.167
+anchor_left = 0.3484
+anchor_top = 0.0667
+anchor_right = 0.4891
+anchor_bottom = 0.2056
 
 [node name="SeatLeft" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0
-anchor_left = 0.009
-anchor_top = 0.308
+anchor_left = 0.0094
+anchor_top = 0.3389
 anchor_right = 0.15
-anchor_bottom = 0.508
+anchor_bottom = 0.4778
 
 [node name="SeatRight" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0
-anchor_left = 0.688
-anchor_top = 0.308
-anchor_right = 0.828
-anchor_bottom = 0.508
+anchor_left = 0.6875
+anchor_top = 0.3389
+anchor_right = 0.8281
+anchor_bottom = 0.4778
 
 [node name="TrickArea" type="Control" parent="."]
 layout_mode = 1

@@ -14,10 +14,10 @@
   <text x="28" y="29" font-size="15" fill="#d8e5dd">第 1 局 ｜ 出牌庄 丙 · 叫分 135（抓牌庄家不展示）</text>
   <text x="420" y="29" font-size="15" fill="#7fd4a0">主：♠ ｜ R = 9</text>
 
-  <!-- ═══ 丙（上带 y48~120，居中于牌桌区 x536） ═══ -->
-  <rect x="426" y="48" width="220" height="72" rx="8" fill="#162e22" stroke="#3a5c48"/>
-  <text x="536" y="76" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丙（电脑）</text>
-  <text x="536" y="96" font-size="13" fill="#9ab5a5" text-anchor="middle">17 张 ｜ 叫 135</text>
+  <!-- ═══ 丙（上带，SeatPanel 统一 180×100，居中牌桌区 x536） ═══ -->
+  <rect x="446" y="48" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="536" y="86" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丙（电脑）</text>
+  <text x="536" y="110" font-size="13" fill="#9ab5a5" text-anchor="middle">17 张 ｜ 叫 135</text>
   <!-- 皇冠动画：叫分结束 → 中央大皇冠减速飞向庄家名字旁 -->
   <path d="M 530 360 Q 480 220 476 88" fill="none" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="5 4"/>
   <g transform="translate(460,64)">
@@ -38,10 +38,10 @@
   <text x="536" y="152" font-size="15" fill="#e8b84a" text-anchor="middle">Toast 提示（非法出牌原因等）</text>
 
   <!-- ═══ 丁（左带 面板 12~192） ═══ -->
-  <rect x="12" y="222" width="180" height="144" rx="8" fill="#162e22" stroke="#3a5c48"/>
-  <text x="102" y="252" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丁（电脑）</text>
-  <text x="102" y="274" font-size="13" fill="#9ab5a5" text-anchor="middle">16 张 ｜ 已放弃</text>
-  <text x="102" y="294" font-size="13" fill="#9ab5a5" text-anchor="middle">（悬停=牌堆）</text>
+  <rect x="12" y="244" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="102" y="278" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丁（电脑）</text>
+  <text x="102" y="300" font-size="13" fill="#9ab5a5" text-anchor="middle">16 张 ｜ 已放弃</text>
+  <text x="102" y="320" font-size="13" fill="#9ab5a5" text-anchor="middle">（悬停=牌堆）</text>
   <!-- 丁出牌（200~400） -->
   <rect x="200" y="262" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
   <text x="224" y="298" font-size="18" fill="#1a1a24" text-anchor="middle">♣</text>
@@ -50,9 +50,9 @@
   <text x="226" y="360" font-size="12" fill="#5a7a68">丁·出牌（200~400）</text>
 
   <!-- ═══ 乙（右带 面板 880~1060） ═══ -->
-  <rect x="880" y="222" width="180" height="144" rx="8" fill="#162e22" stroke="#3a5c48"/>
-  <text x="970" y="252" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">乙（电脑）</text>
-  <text x="970" y="274" font-size="13" fill="#9ab5a5" text-anchor="middle">19 张</text>
+  <rect x="880" y="244" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="970" y="278" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">乙（电脑）</text>
+  <text x="970" y="300" font-size="13" fill="#9ab5a5" text-anchor="middle">19 张</text>
   <!-- 乙出牌（680~880） -->
   <rect x="680" y="262" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
   <text x="704" y="298" font-size="18" fill="#1a1a24" text-anchor="middle">♦</text>
