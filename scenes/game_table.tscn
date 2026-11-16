@@ -1,6 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/game_table.gd" id="1_table"]
+[ext_resource type="PackedScene" path="res://scenes/seat_panel.tscn" id="2_seat"]
+[ext_resource type="PackedScene" path="res://scenes/info_sidebar.tscn" id="3_sidebar"]
 
 [node name="GameTable" type="Control"]
 layout_mode = 3
@@ -42,98 +44,29 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 17
 text = ""
 
-[node name="SeatTop" type="PanelContainer" parent="."]
+[node name="SeatTop" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0
-offset_left = 426.0
-offset_top = 48.0
-offset_right = 646.0
-offset_bottom = 120.0
+anchor_left = 0.333
+anchor_top = 0.067
+anchor_right = 0.505
+anchor_bottom = 0.167
 
-[node name="VBox" type="VBoxContainer" parent="SeatTop"]
-layout_mode = 2
-theme_override_constants/separation = 2.0
-
-[node name="NameLabel" type="Label" parent="SeatTop/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "丙（电脑）"
-horizontal_alignment = 1
-
-[node name="CountLabel" type="Label" parent="SeatTop/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 13
-text = "19 张"
-horizontal_alignment = 1
-
-[node name="StatusLabel" type="Label" parent="SeatTop/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = ""
-horizontal_alignment = 1
-
-[node name="SeatLeft" type="PanelContainer" parent="."]
+[node name="SeatLeft" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0
-offset_left = 12.0
-offset_top = 222.0
-offset_right = 192.0
-offset_bottom = 366.0
+anchor_left = 0.009
+anchor_top = 0.308
+anchor_right = 0.15
+anchor_bottom = 0.508
 
-[node name="VBox" type="VBoxContainer" parent="SeatLeft"]
-layout_mode = 2
-theme_override_constants/separation = 2.0
-
-[node name="NameLabel" type="Label" parent="SeatLeft/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "丁（电脑）"
-horizontal_alignment = 1
-
-[node name="CountLabel" type="Label" parent="SeatLeft/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 13
-text = "19 张"
-horizontal_alignment = 1
-
-[node name="StatusLabel" type="Label" parent="SeatLeft/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = ""
-horizontal_alignment = 1
-
-[node name="SeatRight" type="PanelContainer" parent="."]
+[node name="SeatRight" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -400.0
-offset_top = 222.0
-offset_right = -220.0
-offset_bottom = 366.0
-grow_horizontal = 0
-
-[node name="VBox" type="VBoxContainer" parent="SeatRight"]
-layout_mode = 2
-theme_override_constants/separation = 2.0
-
-[node name="NameLabel" type="Label" parent="SeatRight/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 18
-text = "乙（电脑）"
-horizontal_alignment = 1
-
-[node name="CountLabel" type="Label" parent="SeatRight/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 13
-text = "19 张"
-horizontal_alignment = 1
-
-[node name="StatusLabel" type="Label" parent="SeatRight/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = ""
-horizontal_alignment = 1
+anchor_left = 0.688
+anchor_top = 0.308
+anchor_right = 0.828
+anchor_bottom = 0.508
 
 [node name="TrickArea" type="Control" parent="."]
 layout_mode = 1
@@ -147,10 +80,10 @@ mouse_filter = 2
 [node name="ToastLabel" type="Label" parent="."]
 layout_mode = 1
 anchors_preset = 0
-offset_left = 336.0
-offset_top = 132.0
-offset_right = 736.0
-offset_bottom = 160.0
+anchor_left = 0.2625
+anchor_top = 0.183
+anchor_right = 0.575
+anchor_bottom = 0.222
 theme_override_font_sizes/font_size = 16
 modulate = Color(1, 0.8, 0.3, 1)
 text = ""
@@ -160,10 +93,10 @@ horizontal_alignment = 1
 visible = false
 layout_mode = 1
 anchors_preset = 0
-offset_left = 276.0
-offset_top = 190.0
-offset_right = 796.0
-offset_bottom = 510.0
+anchor_left = 0.216
+anchor_top = 0.264
+anchor_right = 0.622
+anchor_bottom = 0.708
 
 [node name="VBox" type="VBoxContainer" parent="ResultPanel"]
 layout_mode = 2
@@ -243,77 +176,13 @@ offset_bottom = -12.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Sidebar" type="PanelContainer" parent="."]
+[node name="Sidebar" parent="." instance=ExtResource("3_sidebar")]
 layout_mode = 1
 anchors_preset = 0
-offset_left = 1072.0
-offset_top = 48.0
-offset_right = 1268.0
-offset_bottom = 708.0
+anchor_left = 0.838
+anchor_top = 0.067
+anchor_right = 1.0
+anchor_bottom = 0.985
+offset_right = -12.0
+offset_bottom = -10.0
 mouse_filter = 2
-
-[node name="VBox" type="VBoxContainer" parent="Sidebar"]
-layout_mode = 2
-theme_override_constants/separation = 4.0
-
-[node name="TitleLabel" type="Label" parent="Sidebar/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 16
-text = "信息栏"
-horizontal_alignment = 1
-
-[node name="Sep1" type="HSeparator" parent="Sidebar/VBox"]
-layout_mode = 2
-
-[node name="StatsHead" type="Label" parent="Sidebar/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-modulate = Color(1, 1, 1, 0.65)
-text = "手牌统计"
-
-[node name="MainLabel" type="Label" parent="Sidebar/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-text = ""
-
-[node name="RankGrid" type="GridContainer" parent="Sidebar/VBox"]
-layout_mode = 2
-theme_override_constants/h_separation = 8.0
-theme_override_constants/v_separation = 0.0
-columns = 1
-
-[node name="Sep2" type="HSeparator" parent="Sidebar/VBox"]
-layout_mode = 2
-
-[node name="StateHead" type="Label" parent="Sidebar/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-modulate = Color(1, 1, 1, 0.65)
-text = "局面"
-
-[node name="CapturedLabel" type="Label" parent="Sidebar/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-text = ""
-
-[node name="CumulativeLabel" type="Label" parent="Sidebar/VBox"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_font_sizes/font_size = 13
-text = ""
-autowrap_mode = 3
-
-[node name="Spacer" type="Control" parent="Sidebar/VBox"]
-layout_mode = 2
-size_flags_vertical = 3
-mouse_filter = 2
-
-[node name="MenuButton" type="Button" parent="Sidebar/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 15
-text = "返回主菜单"

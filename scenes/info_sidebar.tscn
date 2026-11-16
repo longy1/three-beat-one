@@ -1,0 +1,72 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/info_sidebar.gd" id="1_sidebar"]
+
+[node name="InfoSidebar" type="PanelContainer"]
+script = ExtResource("1_sidebar")
+
+[node name="VBox" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 4.0
+
+[node name="TitleLabel" type="Label" parent="VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 16
+text = "信息栏"
+horizontal_alignment = 1
+
+[node name="Sep1" type="HSeparator" parent="VBox"]
+layout_mode = 2
+
+[node name="StatsHead" type="Label" parent="VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+modulate = Color(1, 1, 1, 0.65)
+text = "手牌统计"
+
+[node name="MainLabel" type="Label" parent="VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+text = ""
+
+[node name="RankGrid" type="GridContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 8.0
+theme_override_constants/v_separation = 0.0
+columns = 1
+
+[node name="Sep2" type="HSeparator" parent="VBox"]
+layout_mode = 2
+
+[node name="StateHead" type="Label" parent="VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+modulate = Color(1, 1, 1, 0.65)
+text = "局面"
+
+[node name="CapturedLabel" type="Label" parent="VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+text = ""
+
+[node name="CumulativeLabel" type="Label" parent="VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+text = ""
+autowrap_mode = 3
+
+[node name="Spacer" type="Control" parent="VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="MenuButton" type="Button" parent="VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "返回主菜单"

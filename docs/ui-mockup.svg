@@ -21,12 +21,12 @@
   <circle cx="536" cy="240" r="26" fill="none" stroke="#e8b84a" stroke-width="1" stroke-dasharray="4 4"/>
   <text x="536" y="245" font-size="13" fill="#e8b84a" text-anchor="middle">👑</text>
   <text x="560" y="270" font-size="12" fill="#e8b84a">皇冠：中央×4 → 减速缩小飞至庄家名旁</text>
-  <!-- 丙出牌（带内右侧 666~866） -->
-  <rect x="666" y="52" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
-  <text x="690" y="88" font-size="18" fill="#1a1a24" text-anchor="middle">♠</text>
-  <rect x="718" y="52" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
-  <text x="742" y="88" font-size="18" fill="#b32c2c" text-anchor="middle">♥</text>
-  <text x="780" y="130" font-size="12" fill="#5a7a68">丙·出牌（666~866）</text>
+  <!-- 丙出牌（信息板正下方 460~560，对称十字上点） -->
+  <rect x="460" y="132" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="484" y="168" font-size="18" fill="#1a1a24" text-anchor="middle">♠</text>
+  <rect x="512" y="132" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="536" y="168" font-size="18" fill="#b32c2c" text-anchor="middle">♥</text>
+  <text x="590" y="176" font-size="12" fill="#5a7a68">丙·出牌（面板下方，对称十字上点）</text>
 
   <!-- Toast（y132~160） -->
   <text x="536" y="152" font-size="15" fill="#e8b84a" text-anchor="middle">Toast 提示（非法出牌原因等）</text>
@@ -85,7 +85,7 @@
 
   <!-- ═══ ★ 右侧竖直信息栏（新增 x1072~1268, y48~708） ═══ -->
   <rect x="1072" y="48" width="196" height="660" rx="10" fill="#132b1f" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="1170" y="76" font-size="16" fill="#e8b84a" text-anchor="middle" font-weight="bold">信息栏（新增）</text>
+  <text x="1170" y="76" font-size="16" fill="#e8b84a" text-anchor="middle" font-weight="bold">信息栏（独立组件 InfoSidebar）</text>
   <line x1="1084" y1="88" x2="1256" y2="88" stroke="#2c4a38"/>
 
   <!-- 统计块 -->

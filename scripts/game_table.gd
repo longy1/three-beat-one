@@ -9,20 +9,21 @@ const TRICK_PAUSE := 1.0
 
 const SEAT_NAMES := ["甲（你）", "乙（电脑）", "丙（电脑）", "丁（电脑）"]
 
-## 出牌显示锚点（屏幕绝对坐标）：你=手牌正上方、丙=上带右侧、乙/丁=面板朝桌心一侧
+## 出牌显示锚点（相对比例 ×TrickArea 尺寸）：对称十字——
+## 你=下方、丙=信息板正下方、乙/丁=面板朝桌心一侧
 const TRICK_ANCHORS := {
-	0: Vector2(536, 396),
-	1: Vector2(780, 294),
-	2: Vector2(766, 84),
-	3: Vector2(300, 294),
+	0: Vector2(0.419, 0.55),
+	1: Vector2(0.604, 0.408),
+	2: Vector2(0.419, 0.267),
+	3: Vector2(0.234, 0.408),
 }
 
-## 皇冠动画落点（出牌庄家名字旁）
+## 皇冠动画落点（相对比例 ×窗口尺寸；出牌庄家名字旁）
 const CROWN_TARGETS := {
-	0: Vector2(330, 484),
-	1: Vector2(930, 252),
-	2: Vector2(472, 76),
-	3: Vector2(40, 252),
+	0: Vector2(0.258, 0.672),
+	1: Vector2(0.727, 0.35),
+	2: Vector2(0.369, 0.106),
+	3: Vector2(0.031, 0.35),
 }
 
 var engine: GameEngine
@@ -39,8 +40,7 @@ var _human_pile_chip: Button      ## 人类玩家（0 号位）的牌堆悬停�
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var trump_label: Label = $TopBar/TrumpLabel
-@onready var captured_label: Label = $Sidebar/VBox/CapturedLabel
-@onready var cumulative_label: Label = $Sidebar/VBox/CumulativeLabel
+@onready var sidebar: InfoSidebar = $Sidebar
 @onready var toast_label: Label = $ToastLabel
 @onready var hint_label: Label = $BottomArea/HintLabel
 @onready var action_bar: HBoxContainer = $BottomArea/ActionBar
@@ -48,12 +48,12 @@ var _human_pile_chip: Button      ## 人类玩家（0 号位）的牌堆悬停�
 @onready var trick_area: Control = $TrickArea
 @onready var result_panel: PanelContainer = $ResultPanel
 
-## 座位 → 呈现节点（0 号位无座位面板，手牌即呈现）。
+## 座位 → SeatPanel 组件实例（0 号位无座位面板，手牌即呈现）。
 ## 布局使出牌顺序 0→1→2→3 在屏幕上呈逆时针：你(下) → 乙(右) → 丙(上) → 丁(左)
 @onready var seat_panels := {
-	1: $SeatRight,
-	2: $SeatTop,
-	3: $SeatLeft,
+	1: $SeatRight as SeatPanel,
+	2: $SeatTop as SeatPanel,
+	3: $SeatLeft as SeatPanel,
 }
 
 
@@ -67,7 +67,7 @@ func _ready() -> void:
 	_trick_timer.wait_time = TRICK_PAUSE
 	add_child(_trick_timer)
 
-	$Sidebar/VBox/MenuButton.pressed.connect(_on_menu)
+	sidebar.menu_pressed.connect(_on_menu)
 	$ResultPanel/VBox/Buttons/NextButton.pressed.connect(_on_next_game)
 	$ResultPanel/VBox/Buttons/MenuButton2.pressed.connect(_on_menu)
 
@@ -103,12 +103,11 @@ func _setup_pile_ui() -> void:
 	_human_pile_chip.mouse_entered.connect(func(): _show_pile(HUMAN_SEAT))
 	_human_pile_chip.mouse_exited.connect(_hide_pile)
 	add_child(_human_pile_chip)
-	# 电脑玩家入口：各自座位面板悬停
+	# 电脑玩家入口：各自座位面板悬停（SeatPanel 组件信号）
 	for seat in seat_panels:
-		var panel: PanelContainer = seat_panels[seat]
-		panel.mouse_filter = Control.MOUSE_FILTER_STOP
-		panel.mouse_entered.connect(func(): _show_pile(seat))
-		panel.mouse_exited.connect(_hide_pile)
+		var panel: SeatPanel = seat_panels[seat]
+		panel.pile_hovered.connect(_show_pile)
+		panel.pile_exited.connect(_hide_pile)
 	# 弹出层（居中，不拦截鼠标）
 	_pile_popup = PanelContainer.new()
 	_pile_popup.name = "PilePopup"
@@ -231,11 +230,11 @@ func _play_crown_animation(seat: int) -> void:
 	_crown = CrownBadge.new()
 	_crown.size = Vector2(30, 22)
 	_crown.pivot_offset = _crown.size / 2.0
-	_crown.position = Vector2(536, 294) - _crown.size / 2.0  # 牌桌正中央
+	_crown.position = Vector2(0.419, 0.408) * size - _crown.size / 2.0  # 牌桌正中央
 	_crown.scale = Vector2(4, 4)
 	_crown.z_index = 60
 	add_child(_crown)
-	var target: Vector2 = CROWN_TARGETS[seat]
+	var target: Vector2 = CROWN_TARGETS[seat] * size  # 相对落点 × 窗口尺寸
 	var tw := create_tween()
 	tw.set_parallel(true)
 	# TRANS_CUBIC + EASE_OUT：起步快、逐渐减速（加速度减小）
@@ -460,22 +459,22 @@ func _refresh_stats() -> void:
 				suit_counts[c.suit] += 1
 		elif not c.is_joker():
 			suit_counts[c.suit] += 1
-	var main_label: Label = $Sidebar/VBox/MainLabel
 	var bits: Array[String] = []
 	if trump == null:
 		for s in Card.NORMAL_SUITS:
 			bits.append("%s%d" % [suit_chars[s], suit_counts[s]])
-		main_label.text = "未叫主 ｜ " + " ".join(bits)
+		var main_text: String = "未叫主 ｜ " + " ".join(bits)
+		var rank_rows := _build_rank_rows(hand)
+		sidebar.update_stats(main_text, rank_rows)
 	else:
 		for s in Card.NORMAL_SUITS:
 			if s != trump.suit:
 				bits.append("%s%d" % [suit_chars[s], suit_counts[s]])
-		main_label.text = "主 %d ｜ 副 %s" % [trump_count, " ".join(bits)]
+		sidebar.update_stats("主 %d ｜ 副 %s" % [trump_count, " ".join(bits)], _build_rank_rows(hand))
 
-	# 各点数数量（含王、2）
-	var grid: GridContainer = $Sidebar/VBox/RankGrid
-	for child in grid.get_children():
-		child.queue_free()
+
+## 各点数数量行（含王、2）：[{text, present}]
+func _build_rank_rows(hand: Array) -> Array:
 	var rank_counts := {}
 	for c in hand:
 		rank_counts[c.rank] = int(rank_counts.get(c.rank, 0)) + 1
@@ -485,15 +484,15 @@ func _refresh_stats() -> void:
 		Card.RANK_A: "A", Card.RANK_2: "2",
 		Card.RANK_SMALL_JOKER: "小王", Card.RANK_BIG_JOKER: "大王",
 	}
+	var rows: Array = []
 	for rank in [Card.RANK_5, Card.RANK_7, Card.RANK_8, Card.RANK_9, Card.RANK_10,
 			Card.RANK_J, Card.RANK_Q, Card.RANK_K, Card.RANK_A, Card.RANK_2,
 			Card.RANK_SMALL_JOKER, Card.RANK_BIG_JOKER]:
-		var l := Label.new()
-		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		l.add_theme_font_size_override("font_size", 12)
-		l.text = "%s×%d" % [rank_names[rank], int(rank_counts.get(rank, 0))]
-		l.modulate = Color(1, 1, 1) if rank_counts.has(rank) else Color(1, 1, 1, 0.35)
-		grid.add_child(l)
+		rows.append([
+			"%s×%d" % [rank_names[rank], int(rank_counts.get(rank, 0))],
+			rank_counts.has(rank),
+		])
+	return rows
 
 
 func _refresh_top_bar() -> void:
@@ -515,20 +514,14 @@ func _refresh_top_bar() -> void:
 	var captured := "闲家捉分 %d" % engine.captured_points
 	if engine.koudi_points > 0:
 		captured += "（含抠底 %d）" % engine.koudi_points
-	captured_label.text = captured
-	cumulative_label.text = "累计：甲 %+d ｜ 乙 %+d\n　　　丙 %+d ｜ 丁 %+d" \
-		% [engine.cumulative[0], engine.cumulative[1], engine.cumulative[2], engine.cumulative[3]]
+	sidebar.set_state(captured, "累计：甲 %+d ｜ 乙 %+d\n　　　丙 %+d ｜ 丁 %+d" \
+		% [engine.cumulative[0], engine.cumulative[1], engine.cumulative[2], engine.cumulative[3]])
 
 
 func _refresh_seats() -> void:
 	for seat in seat_panels:
-		var panel: PanelContainer = seat_panels[seat]
-		var name_label: Label = panel.get_node("VBox/NameLabel")
-		var count_label: Label = panel.get_node("VBox/CountLabel")
-		var status_label: Label = panel.get_node("VBox/StatusLabel")
+		var panel: SeatPanel = seat_panels[seat]
 		# 庄家由皇冠动画标记，面板不再显示「抓牌/庄」文字
-		name_label.text = SEAT_NAMES[seat]
-		count_label.text = "%d 张" % engine.hand_count(seat)
 		var status := ""
 		match engine.phase:
 			GameEngine.Phase.AUCTION:
@@ -540,10 +533,10 @@ func _refresh_seats() -> void:
 			GameEngine.Phase.TRICKS:
 				if _last_trick_winner == seat:
 					status = "✓ 上轮赢"
-		status_label.text = status
+		panel.set_info(SEAT_NAMES[seat], "%d 张" % engine.hand_count(seat), status)
 		var is_turn: bool = (engine.phase == GameEngine.Phase.AUCTION and engine.auction_turn == seat) \
 			or (engine.phase == GameEngine.Phase.TRICKS and engine.turn_seat == seat)
-		panel.modulate = Color(1.15, 1.12, 0.85) if is_turn else Color.WHITE
+		panel.set_highlight(is_turn)
 
 
 func _refresh_trick_area() -> void:
@@ -555,7 +548,6 @@ func _refresh_trick_area() -> void:
 	var shown: Array = engine.current_plays
 	if shown.is_empty():
 		shown = engine.last_trick
-	var anchors: Dictionary = TRICK_ANCHORS
 	for play in shown:
 		var seat: int = play.seat
 		var box := VBoxContainer.new()
@@ -571,7 +563,8 @@ func _refresh_trick_area() -> void:
 		box.add_child(cards_row)
 		trick_area.add_child(box)
 		var width: int = play.cards.size() * 48 + 8
-		box.position = anchors[seat] - Vector2(width / 2.0, 12)
+		var base: Vector2 = TRICK_ANCHORS[seat] * trick_area.size  # 相对锚点 × 层尺寸
+		box.position = base - Vector2(width / 2.0, 12)
 	# 新一轮开始（无快照、至多只有领出）时清除赢家标记
 	if engine.last_trick.is_empty() and engine.current_plays.size() <= 1:
 		_last_trick_winner = -1
@@ -608,7 +601,7 @@ func _show_bottom_cards() -> void:
 		cards_row.add_child(CardWidget.create(c, true, true))
 	box.add_child(cards_row)
 	trick_area.add_child(box)
-	box.position = Vector2(640, 300) - Vector2(220, 40)
+	box.position = Vector2(0.419, 0.417) * trick_area.size - Vector2(220, 40)  # 牌桌中央
 
 
 func _clear_bottom_cards() -> void:

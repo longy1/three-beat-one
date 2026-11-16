@@ -20,8 +20,10 @@
 core/     规则引擎（M1）+ 对局引擎与 AI（M2）：
           card / trump / combo / follow_rule / trick / game（状态机）/ ai_policy（贪心策略）
 tests/    轻量测试框架 + 58 项用例（含附录 A 推演、抠底剧本、30 局自动对局不变量）+ UI 冒烟
-scenes/   场景（main_menu 主菜单、game_table 牌桌）
-scripts/  场景脚本（game_table 控制器、card_widget 程序化卡牌）
+scenes/   main_menu 主菜单、game_table 牌桌、seat_panel 座位组件、info_sidebar 信息栏组件
+scripts/  game_table 控制器、card_widget 程序化卡牌、seat_panel/info_sidebar 组件脚本、
+          crown_badge 皇冠、dashed_frame 虚线框
+docs/     ui-mockup.svg 界面区域图
 ```
 
 ## 运行
