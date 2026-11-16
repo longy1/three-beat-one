@@ -18,7 +18,7 @@
 | 联机对战 | 第二阶段：Godot 高层多人 API（ENet/WebSocket），服务端可用 Godot headless 跑房间逻辑 |
 | 托管 | 免费平台（Web 导出可放静态托管；游戏服务器免费层到联机阶段再核实） |
 | 目标端 | 桌面 + 移动（含 Web 导出） |
-| 接入方式 | ZCode 官方 Godot 插件（godot:cli / godot:setup），编辑器安装于 `%LOCALAPPDATA%\Programs\Godot\` |
+| 接入方式 | ZCode 官方 Godot 插件（godot:cli / godot:setup），编辑器安装于 `S:\Program\Godot\`（用户级环境变量 `GODOT_PATH` 已指向其主程序） |
 
 ## 2. 里程碑草案（顺序与粒度待细化确认）
 
