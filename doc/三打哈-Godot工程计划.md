@@ -24,11 +24,12 @@
 
 | 里程碑 | 内容 | 状态 |
 |---|---|---|
-| M1 规则引擎 | 牌与牌型、邻接链、跟牌/杀/垫判定、一轮结算、并列规则——纯逻辑 + 单元测试 | ✅ 完成 |
+| M1 规则引擎 | 牌与牌型、邻接链、跟/杀/垫判定、一轮结算、并列规则——纯逻辑 + 单元测试 | ✅ 完成 |
 | M2 单机对局 | 完整一局：庄位轮换、竞叫、叫主、翻底/扣底、逐轮出牌、末轮抠底、分级与收益 + EV 叫分 AI + 组件化牌桌 UI | ✅ 完成（77/77 用例 + UI 冒烟） |
+| 工程重构 | 死代码清理、兜底代码根治、core/UI 模块拆分、架构守护测试、Web 导出与浏览器验收工作流、C/S 预留口子（见 doc/重构规范.md） | ✅ 完成（2026-11-16，82/82 用例 + 冒烟 + Web 浏览器验收） |
 | M3 AI 出牌强化 | 蒙特卡洛评估、候选出牌打分；出牌技巧逐步教授后重跑叫分校准 | 待启动 |
-| M4 联机对战 | 房间系统、状态同步、断线重连 | 待启动 |
-| M5 部署上线 | 免费托管平台部署（静态托管 + 游戏服务端） | 待启动 |
+| M4 联机对战 | 房间系统、状态同步、断线重连（口子已预留：submit_* 值匹配契约 + 信号复制通道 + AI 纯模块） | 待启动 |
+| M5 部署上线 | 免费托管平台部署（静态托管 + 游戏服务端；Web 导出已就绪） | 待启动 |
 
 ## 3. 里程碑实施记录
 
@@ -50,6 +51,24 @@
 - **规则修订（2026-11-16，用户裁定）**：R=A 时 A 为常主，**同花色的 A 对与 2 对相邻**——♣AA♣22（喊 ♠A）为合法拖拉机，且在其花色同类拖中排最小（主牌 AA22 < 主牌 7788）；不同花色常主组合仍非法、K~A 禁连不变。已同步规则文档 3.3/6.2/6.3 四处与引擎/用例
 - UI：组件化（SeatPanel / InfoSidebar / CardWidget / CrownBadge / DashedRoundedFrame 程序化绘制）、主牌桌区域 + 侧信息板区域双区布局、居中规范（十字中心锚点）、手牌分区（左主右副，区内从大到小）、交互（点选/拖选/右键出牌、悬停牌堆/底牌）、结算面板
 - 已知简化：人类固定 0 号位；B 固定 1；无复盘（第 4 节待定事项）；AI 出牌为贪心基线（M3 强化）
+
+### 工程重构（2026-11-16）
+
+全项目重构（执行规则见 **doc/重构规范.md**，四主题五提交 e48b7e9→a651557）：
+
+- **死代码清理**：current_highest_seat / Combo.count / label / CardWidget.set_face_up 等零引用符号删除；测试助手沉淀 TestBase / UiTestBase 共享基类（C() 造牌 8 处重复、_spawn_table 三件套 2 处重复收敛）
+- **兜底根治**（根因→修复→用例守护→删兜底）：
+  - `_process` 0.5s 全量兜底轮询 → 根因是刷新三重触发无单一入口 → 收敛 `_refresh()` 唯一入口后删除（信号完整性由 test_ui 自动对局不变量守护）
+  - submit 内「不得清理」竞态注释 → 根因是按钮生命周期无唯一所有者 → ActionBar 组件化（reset 幂等），按钮界面只由 *_required 处理器重建
+  - settle 失败静默 seat=-1 死锁 → `engine_fault` 信号 + faulted 标记显性冻结（回归用例 test_settle_failure_is_loud）
+  - 校验器/生成器镜像逻辑（_count_identity_pairs≡_identity_pair_count 等）→ FollowRule 公共口径合并
+  - submit_play 引用匹配 vs submit_discard 值匹配的双契约 → 统一按值匹配（Card.key()），联机消息可直接映射
+  - last_trick 镜像字段 → get_last_trick() 派生；bottom 双义 → kitty/buried 拆分；首帧兜底宽度 → HandArea 挂起渲染待布局就绪
+- **模块拆分**：core 增 auction.gd（规则 5 子状态机）/ scoring.gd（规则 9/10 纯函数）/ ai_bidding.gd + ai_play.gd（纯策略，数据进/决策出），ai_policy.gd 收敛为单机门面；game_table.gd 1002→538 行，拆 HandArea / PileViewer / ActionBar / TrumpRankPicker / CrownAnimator 五组件
+- **架构守护**：test_architecture.gd 固化为可执行检查（core 纯度禁依赖清单、AI 模块不引用引擎、submit_* 唯一写入口白名单）；套件注册单一事实源 suite_registry.gd
+- **Web 导出与验收工作流**：Noto Sans SC 子集（tool/subset_font.py，8.3MB→227KB）+ theme/default.tres 项目默认字体；export_presets.cfg（Web，导出过滤排除 test/doc/tool）；主菜单 Web 特性守卫（隐藏退出/自检、自检动态加载）；导出→python http.server→内置浏览器截图验收的固定流程
+- **信号时序不变式确立**：任何信号发出前状态必须完全就绪（_begin_game 先 auction.begin 再 _set_phase——phase_changed 同步到达 UI 时曾读到未初始化 bids）
+- **M4 预留确认**：core 服务端可复用（零依赖机器守护）、submit_* 值匹配契约、信号唯一 UI 复制通道、AI 纯模块可独立调用——后续改动不得破坏（test_architecture.gd 守护）
 
 ## 4. 待定事项清单（联机前需定）
 
