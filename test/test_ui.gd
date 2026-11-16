@@ -154,6 +154,31 @@ func test_discard_submit_leads_to_play_ui(test) -> void:
 	await _release_table(table)
 
 
+## 回归：叫主点数选择以居中多排面板完整展示 12 个按钮（单行曾溢出屏幕丢 5/2）
+func test_trump_rank_picker_shows_all_ranks(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)
+	table._pick_trump_suit(Card.Suit.SPADE)  # 选花色（真实路径）→ 弹出点数面板
+	var panel: PanelContainer = table.get_node_or_null("TrumpRankPicker")
+	test.check(panel != null and panel.visible, "点数选择面板显示")
+	if panel != null and panel.visible:
+		var grid: GridContainer = panel.get_node("VBox/Grid")
+		var btn_count := 0
+		for c in grid.get_children():
+			if c is Button and not c.is_queued_for_deletion():
+				btn_count += 1
+		test.eq(btn_count, 10, "10 个点数按钮完整展示（5~2，R 不可为王）")
+	table._submit_human_trump(Card.RANK_9)
+	await tree_pause()
+	test.eq(eng.phase, Phase.DISCARD, "选择后进入扣底")
+	test.check(table._trump_rank_panel == null, "选择后面板关闭")
+	await _release_table(table)
+
+
 ## 叫主后信息栏展示「正 R」牌面；未叫主时注明「未叫主」
 func test_trump_display_in_sidebar(test) -> void:
 	var table = await _spawn_table()

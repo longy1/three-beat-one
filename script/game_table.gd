@@ -50,6 +50,7 @@ var _pile_popup: PanelContainer   ## 悬停查看某玩家出牌历史的弹出�
 var _human_pile_chip: Button      ## 人类玩家出牌历史入口（左下，始终显示）
 var _bottom_pile_button: Button   ## 庄家是自己时的「牌堆」入口（皇冠下方，悬停看底牌）
 var _bottom_popup: PanelContainer ## 底牌堆弹层（2 行 × 4 张，仅庄家自己可见）
+var _trump_rank_panel: PanelContainer = null  ## 叫主点数选择面板（居中多排）
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var bid_center_label: Label = $BidCenterLabel
@@ -452,6 +453,7 @@ func _submit_human_bid(value: int) -> void:
 
 func _show_trump_picker() -> void:
 	_clear_action_bar()
+	_close_trump_rank_panel()
 	_pending_trump_suit = -1
 	hint_label.text = "你是出牌庄家，请先叫主（看底牌之前）：选择主花色"
 	var suits := [
@@ -467,9 +469,58 @@ func _pick_trump_suit(suit: int) -> void:
 	_pending_trump_suit = suit
 	_clear_action_bar()
 	hint_label.text = "主花色已选，再选常主点数 R（可任选，不必持有）"
+	_show_trump_rank_picker()
+
+
+## 常主点数选择面板：居中多排（2 排 × 6），避免 12 个按钮挤在单行溢出屏幕
+func _show_trump_rank_picker() -> void:
+	_close_trump_rank_panel()
+	_trump_rank_panel = PanelContainer.new()
+	_trump_rank_panel.name = "TrumpRankPicker"
+	_trump_rank_panel.set_anchors_preset(Control.PRESET_CENTER)
+	_trump_rank_panel.offset_left = -330
+	_trump_rank_panel.offset_top = -120
+	_trump_rank_panel.offset_right = 330
+	_trump_rank_panel.offset_bottom = 120
+	add_child(_trump_rank_panel)
+	var vbox := VBoxContainer.new()
+	vbox.name = "VBox"
+	vbox.add_theme_constant_override("separation", 10)
+	_trump_rank_panel.add_child(vbox)
+	var title := Label.new()
+	title.name = "Title"
+	title.text = "选择常主点数 R"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	vbox.add_child(title)
+	var grid := GridContainer.new()
+	grid.name = "Grid"
+	grid.columns = 6
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	vbox.add_child(grid)
 	for r in Card.RANKS:
 		var rank: int = r
-		_add_button(Card.new(Card.Suit.JOKER, rank).label().replace("王", ""), func(): _submit_human_trump(rank))
+		var label_text: String
+		if rank == Card.RANK_SMALL_JOKER:
+			label_text = "小王"
+		elif rank == Card.RANK_BIG_JOKER:
+			label_text = "大王"
+		else:
+			label_text = Card.new(Card.Suit.JOKER, rank).label()
+		var b := Button.new()
+		b.text = label_text
+		b.add_theme_font_size_override("font_size", 20)
+		b.custom_minimum_size = Vector2(92, 48)
+		UiStyle.pad_button(b)
+		b.pressed.connect(func(): _submit_human_trump(rank))
+		grid.add_child(b)
+
+
+func _close_trump_rank_panel() -> void:
+	if _trump_rank_panel != null:
+		_trump_rank_panel.queue_free()
+		_trump_rank_panel = null
 
 
 func _submit_human_trump(rank: int) -> void:
@@ -477,6 +528,7 @@ func _submit_human_trump(rank: int) -> void:
 	if not verdict.ok:
 		_toast(verdict.error)
 		return
+	_close_trump_rank_panel()
 	# submit_trump 会同步进入扣底阶段：discard bar 已清旧按钮并创建「确认扣底」，
 	# 此处不再清理（否则会把新按钮一并删掉）
 
