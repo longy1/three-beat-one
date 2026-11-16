@@ -107,10 +107,33 @@ func test_role_derivation_consistent(test) -> void:
 	test.eq(without_role.winner, 2, "推导角色：同样杀赢")
 
 
-## 非法输入：出牌份数不足 / 领出不构成牌型
+## 部分结算（1~3 份出牌）：用于 AI / UI 判定"当前最大者"
+func test_partial_settle(test) -> void:
+	# 仅领出：领出者暂居最大
+	var r1 := settle([{player = 2, cards = [C(Card.Suit.CLUB, Card.RANK_K, 0)]}])
+	test.check(r1.ok, r1.error)
+	test.eq(r1.winner, 0, "仅领出时领出者最大")
+	test.eq(r1.points, 10, "部分分值已可统计")
+	# 领出 + 一个杀：杀暂时领先
+	var r2 := settle([
+		{player = 2, cards = [C(Card.Suit.CLUB, Card.RANK_K, 0)]},
+		{player = 3, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0)]},
+	])
+	test.eq(r2.winner, 1, "部分结算中杀领先")
+
+
+## 非法输入：出牌份数越界 / 领出不构成牌型
 func test_invalid_inputs(test) -> void:
-	var r := settle([{player = 0, cards = [C(Card.Suit.CLUB, Card.RANK_5, 0)]}])
-	test.check(not r.ok, "不足四人不能结算")
+	var r := settle([])
+	test.check(not r.ok, "空出牌不能结算")
+	var r5 := settle([
+		{player = 0, cards = [C(Card.Suit.CLUB, Card.RANK_5, 0)]},
+		{player = 1, cards = [C(Card.Suit.HEART, Card.RANK_5, 0)]},
+		{player = 2, cards = [C(Card.Suit.DIAMOND, Card.RANK_5, 0)]},
+		{player = 3, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0)]},
+		{player = 0, cards = [C(Card.Suit.CLUB, Card.RANK_7, 0)]},
+	])
+	test.check(not r5.ok, "超过四人不能结算")
 	var bad_lead := settle([
 		{player = 0, cards = [C(Card.Suit.CLUB, Card.RANK_5, 0), C(Card.Suit.CLUB, Card.RANK_5, 0),
 			C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_K, 0)]},

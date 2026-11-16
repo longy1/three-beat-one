@@ -6,15 +6,16 @@ extends RefCounted
 
 ## 结算一轮。plays 按座位顺序、plays[0] 为领出，元素形如：
 ##   { player: int, cards: Array[Card], role: int(可选，跟随者由 is_legal 得出) }
+## 支持 1~4 份出牌的部分结算（AI 与 UI 用于判定"当前最大者"）。
 ## 返回：
 ##   { ok, error, winner: int(plays 下标), player: int,
 ##     points: int, win_main_class: bool, win_type: int }
-## - winner/player：本轮最大者（并列先出者大，3.1）
+## - winner/player：本轮（当前）最大者（并列先出者大，3.1）
 ## - points：本轮所有已出分牌分值合计（8.1）；是否计入闲家捉分由对局层按赢家阵营决定
-## - win_main_class / win_type：末轮抠底判定所需（8.2，M2 使用）
+## - win_main_class / win_type：末轮抠底判定所需（8.2）
 static func settle(plays: Array, trump: TrumpInfo) -> Dictionary:
-	if plays.size() != 4:
-		return _fail("一轮需要 4 份出牌，实得 %d" % plays.size())
+	if plays.is_empty() or plays.size() > 4:
+		return _fail("一轮需要 1~4 份出牌，实得 %d" % plays.size())
 	for p in plays:
 		if not (p is Dictionary) or not p.has("cards") or p.cards.size() == 0:
 			return _fail("出牌记录不完整")

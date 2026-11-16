@@ -18,33 +18,244 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.09, 0.24, 0.15, 1)
+color = Color(0.075, 0.2, 0.13, 1)
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="TopBar" type="HBoxContainer" parent="."]
 layout_mode = 1
-anchors_preset = 15
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 8.0
+offset_right = -12.0
+offset_bottom = 36.0
+grow_horizontal = 2
+theme_override_constants/separation = 36.0
+
+[node name="GameInfoLabel" type="Label" parent="TopBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "第 1 局"
+
+[node name="TrumpLabel" type="Label" parent="TopBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = ""
+
+[node name="ScoreLabel" type="Label" parent="TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 17
+text = ""
+
+[node name="MenuButton" type="Button" parent="TopBar"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "主菜单"
+
+[node name="SeatTop" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -110.0
+offset_top = 44.0
+offset_right = 110.0
+offset_bottom = 116.0
+grow_horizontal = 2
+
+[node name="VBox" type="VBoxContainer" parent="SeatTop"]
+layout_mode = 2
+theme_override_constants/separation = 2.0
+
+[node name="NameLabel" type="Label" parent="SeatTop/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "乙（电脑）"
+horizontal_alignment = 1
+
+[node name="CountLabel" type="Label" parent="SeatTop/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "19 张"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="SeatTop/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = ""
+horizontal_alignment = 1
+
+[node name="SeatLeft" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 9
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -420.0
+offset_top = -70.0
+offset_right = -200.0
+offset_bottom = 70.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBox" type="VBoxContainer" parent="Center"]
+[node name="VBox" type="VBoxContainer" parent="SeatLeft"]
 layout_mode = 2
-theme_override_constants/separation = 24
+theme_override_constants/separation = 2.0
 
-[node name="Title" type="Label" parent="Center/VBox"]
+[node name="NameLabel" type="Label" parent="SeatLeft/VBox"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 40
-text = "牌桌"
-
-[node name="Hint" type="Label" parent="Center/VBox"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 20
-text = "完整对局（拍卖 → 叫主 → 出牌 → 结算）属 M2 里程碑"
+theme_override_font_sizes/font_size = 18
+text = "丙（电脑）"
 horizontal_alignment = 1
 
-[node name="BackButton" type="Button" parent="Center/VBox"]
+[node name="CountLabel" type="Label" parent="SeatLeft/VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(240, 48)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 13
+text = "19 张"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="SeatLeft/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = ""
+horizontal_alignment = 1
+
+[node name="SeatRight" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 9
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 200.0
+offset_top = -70.0
+offset_right = 420.0
+offset_bottom = 70.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="SeatRight"]
+layout_mode = 2
+theme_override_constants/separation = 2.0
+
+[node name="NameLabel" type="Label" parent="SeatRight/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "丁（电脑）"
+horizontal_alignment = 1
+
+[node name="CountLabel" type="Label" parent="SeatRight/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "19 张"
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="SeatRight/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = ""
+horizontal_alignment = 1
+
+[node name="TrickArea" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -320.0
+offset_top = -190.0
+offset_right = 320.0
+offset_bottom = 60.0
+
+[node name="ToastLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -300.0
+offset_top = 40.0
+offset_right = 300.0
+offset_bottom = 68.0
+theme_override_font_sizes/font_size = 16
+modulate = Color(1, 0.8, 0.3, 1)
+text = ""
+
+[node name="ResultPanel" type="PanelContainer" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -170.0
+offset_right = 260.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="ResultPanel"]
+layout_mode = 2
+theme_override_constants/separation = 10.0
+
+[node name="ResultTitle" type="Label" parent="ResultPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = ""
+horizontal_alignment = 1
+
+[node name="ResultDetail" type="Label" parent="ResultPanel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Buttons" type="HBoxContainer" parent="ResultPanel/VBox"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 30.0
+
+[node name="NextButton" type="Button" parent="ResultPanel/VBox/Buttons"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 46)
+theme_override_font_sizes/font_size = 20
+text = "下一局"
+
+[node name="MenuButton2" type="Button" parent="ResultPanel/VBox/Buttons"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 46)
+theme_override_font_sizes/font_size = 20
 text = "返回主菜单"
+
+[node name="BottomArea" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = -190.0
+offset_right = -12.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 6.0
+
+[node name="ActionBar" type="HBoxContainer" parent="BottomArea"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 14.0
+
+[node name="HintLabel" type="Label" parent="BottomArea"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = ""
+horizontal_alignment = 1
+
+[node name="HandRow" type="Control" parent="BottomArea"]
+layout_mode = 2
+size_flags_vertical = 3

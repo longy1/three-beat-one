@@ -152,16 +152,23 @@ static func has_type(hand: Array, suit_class: int, type: int, trump: TrumpInfo) 
 		Combo.Type.PAIR:
 			return not list_pairs(hand, suit_class, trump).is_empty()
 		Combo.Type.TRACTOR:
-			var pairs := list_pairs(hand, suit_class, trump)
-			if pairs.size() < 2:
-				return false
-			pairs.sort_custom(func(a: Array, b: Array) -> bool:
-				return a[0].rank > b[0].rank)
-			for i in pairs.size() - 1:
-				if Combo.pairs_adjacent(pairs[i], pairs[i + 1], trump):
-					return true
-			return false
+			return not list_tractors(hand, suit_class, trump).is_empty()
 	return false
+
+
+## 列出指定类中所有拖拉机（两对相邻，6.2）。每个元素为 4 张牌的数组。
+## 主牌类包含四王特例与主花色链；不同花色的常主对组合不会出现（pairs_adjacent 拒绝）。
+static func list_tractors(cards: Array, suit_class: int, trump: TrumpInfo) -> Array:
+	var tractors: Array = []
+	var pairs := list_pairs(cards, suit_class, trump)
+	if pairs.size() < 2:
+		return tractors
+	pairs.sort_custom(func(a: Array, b: Array) -> bool:
+		return a[0].rank > b[0].rank)
+	for i in pairs.size() - 1:
+		if Combo.pairs_adjacent(pairs[i], pairs[i + 1], trump):
+			tractors.append([pairs[i][0], pairs[i][1], pairs[i + 1][0], pairs[i + 1][1]])
+	return tractors
 
 
 ## 列出指定类中的对子（同花色同点数两张；副花色不含常主，3.3）
