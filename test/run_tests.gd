@@ -14,6 +14,8 @@ const SUITES := [
 	preload("res://test/test_appendix_a.gd"),
 	preload("res://test/test_game.gd"),
 	preload("res://test/test_ai_policy.gd"),
+	preload("res://test/test_components.gd"),
+	preload("res://test/test_flow.gd"),
 	preload("res://test/test_ui.gd"),
 ]
 
