@@ -8,7 +8,9 @@ signal menu_pressed
 
 
 func _ready() -> void:
-	($VBox/MenuButton as Button).pressed.connect(func(): menu_pressed.emit())
+	var menu_button: Button = $VBox/MenuButton
+	UiStyle.pad_button(menu_button)  # 文字与按钮边框留空 ≥ 半字号（UI 规范）
+	menu_button.pressed.connect(func(): menu_pressed.emit())
 
 
 ## 手牌统计：主牌/副牌行 + 各点数行（rows: [{text, present}]，present=false 灰显）

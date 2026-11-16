@@ -72,6 +72,8 @@ func _ready() -> void:
 	add_child(_trick_timer)
 
 	sidebar.menu_pressed.connect(_on_menu)
+	UiStyle.pad_button($ResultPanel/VBox/Buttons/NextButton)
+	UiStyle.pad_button($ResultPanel/VBox/Buttons/MenuButton2)
 	$ResultPanel/VBox/Buttons/NextButton.pressed.connect(_on_next_game)
 	$ResultPanel/VBox/Buttons/MenuButton2.pressed.connect(_on_menu)
 
@@ -99,6 +101,7 @@ func _setup_pile_ui() -> void:
 	_human_pile_chip = Button.new()
 	_human_pile_chip.text = "牌堆"
 	_human_pile_chip.add_theme_font_size_override("font_size", 14)
+	UiStyle.pad_button(_human_pile_chip)
 	_human_pile_chip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_human_pile_chip.offset_left = 12
 	_human_pile_chip.offset_right = 58
@@ -319,6 +322,7 @@ func _add_button(text: String, handler: Callable, disabled := false) -> Button:
 	b.add_theme_font_size_override("font_size", 18)
 	b.custom_minimum_size = Vector2(120, 44)
 	b.disabled = disabled
+	UiStyle.pad_button(b)  # 文字与按钮边框留空 ≥ 半字号（UI 规范）
 	b.pressed.connect(handler)
 	action_bar.add_child(b)
 	return b
