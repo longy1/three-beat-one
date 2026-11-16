@@ -591,8 +591,16 @@ static func _side_display_cmp(a: Card, b: Card) -> bool:
 	return a.rank > b.rank
 
 
+## 叫主前左区（确定常主：王与所有 2）排序键：大王 > 小王 > 各 2（♠→♥→♣→♦）
+static func _pre_trump_main_key(c: Card) -> Array:
+	if c.is_joker():
+		return [2 if c.rank == Card.RANK_BIG_JOKER else 1, 0]
+	return [0, -c.suit]
+
+
 ## 手牌：德州扑克桌面式分区——左框主牌、右框副牌（圆角虚线框），
 ## 每个区域内从左至右按从大到小排列。
+## 叫主前同样分两块：王与所有 2（必然常主）进左框；四门花色普通牌进右框。
 func _render_hand() -> void:
 	for child in hand_row.get_children():
 		child.queue_free()
@@ -602,14 +610,24 @@ func _render_hand() -> void:
 	var trump_cards: Array = []
 	var side_cards: Array = []
 	for c in engine.get_hand(HUMAN_SEAT):
-		if trump != null and trump.is_trump(c):
+		var is_main: bool
+		if trump != null:
+			is_main = trump.is_trump(c)
+		else:
+			is_main = c.is_joker() or c.rank == Card.RANK_2
+		if is_main:
 			trump_cards.append(c)
 		else:
 			side_cards.append(c)
-	# 主牌区：3.1 牌力从大到小（大王最左 → 主5 最右）
-	trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
-		return trump.card_power(a) > trump.card_power(b))
-	# 副牌区：花色分组、组内从大到小；叫主前无主牌区，全部进副牌区
+	# 主牌区（左框）：从大到小。叫主后按 3.1 牌力（大王→…→主5）；
+	# 叫主前为确定常主：大王 → 小王 → 各 2（♠→♥→♣→♦）
+	if trump != null:
+		trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
+			return trump.card_power(a) > trump.card_power(b))
+	else:
+		trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
+			return _pre_trump_main_key(a) > _pre_trump_main_key(b))
+	# 副牌区（右框）：花色分组、组内从大到小
 	side_cards.sort_custom(_side_display_cmp)
 
 	var groups: Array = []
