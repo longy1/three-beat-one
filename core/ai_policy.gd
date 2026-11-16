@@ -58,62 +58,54 @@ static func hand_strength(hand: Array) -> int:
 	return score
 
 
+## ── 叫分校准模型（2026-11-16 蒙特卡洛校准：test/calibrate_bidding.gd，1260 局 AI 互搏）──
+## 庄家平均收益（B=1）按「叫分档 × 手牌强度桶」查表；强度桶中心 17.5/42.5/57.5/82.5。
+## 校准结论：仅极强牌（≥65）叫 130/150 为正期望（+0.85/+0.45）；180/200 一律负期望。
+const BID_CALIB := {
+	130: [-4.43, -1.14, -0.81, 0.85],
+	135: [-3.26, -2.45, -0.45, 0.40],
+	150: [-3.00, -2.35, -2.20, 0.45],
+	165: [-3.12, -4.13, -2.45, -0.75],
+	180: [-4.89, -4.05, -2.65, -1.55],
+	200: [-5.35, -4.56, -3.15, -1.95],
+}
+const CALIB_CENTERS := [17.5, 42.5, 57.5, 82.5]
+
+
+## 查表插值：给定叫分与手牌强度，返回校准的庄家平均收益
+static func _calib_gain(b: int, s: float) -> float:
+	var row: Array = BID_CALIB[b]
+	if s <= CALIB_CENTERS[0]:
+		return row[0]
+	for i in range(CALIB_CENTERS.size() - 1):
+		if s <= CALIB_CENTERS[i + 1]:
+			var t: float = (s - CALIB_CENTERS[i]) / (CALIB_CENTERS[i + 1] - CALIB_CENTERS[i])
+			return lerp(row[i], row[i + 1], t)
+	return row[3]
+
+
 ## 返回意向叫分或 BID_PASS。
-## 策略：大概率只做最小加叫（+5）；叫更高分的概率随分差指数衰减
-## （从 +5 到封顶，分越大概率越小）；手牌强度仅调节衰减速度（强牌更敢叫）
-## 与意愿上限。超过意愿上限时大概率放弃，仅小概率小幅咋呼跟一手。
+## 策略（期望收益模型）：对每个可叫档位查校准收益表（含强度插值），
+## 取期望最大者——仅当期望 > 0.2 直接叫；接近打平（-0.6~0.2）时 40% 概率
+## 参与竞叫；明显负期望一律放弃。130 档 = 底叫被动坐庄（不主动叫）。
 static func choose_bid(hand: Array, highest_bid: int) -> int:
-	var strength := hand_strength(hand)
-	if strength < 30 or highest_bid >= GameEngine.BID_CAP:
+	var s: float = float(hand_strength(hand))
+	var best_b := BID_PASS
+	var best_gain := -999.0
+	for b in [135, 150, 165, 180, 200]:
+		if b <= highest_bid:
+			continue
+		var g: float = _calib_gain(b, s)
+		if g > best_gain:
+			best_gain = g
+			best_b = b
+	if best_b == BID_PASS:
 		return BID_PASS
-	# 意愿上限：强度越高越高
-	var want_cap := 130
-	if strength >= 75:
-		want_cap = 200
-	elif strength >= 62:
-		want_cap = 185
-	elif strength >= 52:
-		want_cap = 165
-	elif strength >= 44:
-		want_cap = 150
-	elif strength >= 36:
-		want_cap = 135
-	# 已超过意愿上限：大概率放弃，小概率小幅咋呼
-	if highest_bid >= want_cap:
-		if highest_bid + 5 <= GameEngine.BID_CAP \
-				and highest_bid - want_cap <= 15 \
-				and rng.randf() < 0.06:
-			return highest_bid + 5
-		return BID_PASS
-	# 候选从 +5 到封顶：权重 = decay^分差格数；越过意愿上限的咋呼候选再压低 10 倍
-	var decay := 0.30 + 0.005 * minf(strength, 80.0)  # strength 30→0.45，80→0.70
-	var candidates: Array = []
-	var weights: Array = []
-	var v: int = highest_bid + 5
-	var k := 0
-	while v <= GameEngine.BID_CAP:
-		var w: float = pow(decay, k)
-		if v > want_cap:
-			w *= 0.10
-		candidates.append(v)
-		weights.append(w)
-		v += 5
-		k += 1
-	return _weighted_pick(candidates, weights)
-
-
-## 按权重随机抽取候选
-static func _weighted_pick(candidates: Array, weights: Array) -> int:
-	var total := 0.0
-	for w in weights:
-		total += w
-	var roll := rng.randf() * total
-	var acc := 0.0
-	for i in candidates.size():
-		acc += weights[i]
-		if roll <= acc:
-			return candidates[i]
-	return candidates[candidates.size() - 1]
+	if best_gain > 0.2:
+		return best_b
+	if best_gain > -0.6 and rng.randf() < 0.4:
+		return best_b
+	return BID_PASS
 
 
 ## ============================= 叫主 =============================
