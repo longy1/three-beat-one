@@ -115,7 +115,8 @@ static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新
 - 套件清单需同步登记到 `test/run_tests.gd` 与 `script/main_menu.gd`（自检按钮复用同一套用例）。
 - AI 改动用两类测试守护：单项策略断言 + **30 局种子化自动对局不变量**（零非法着法、每局完整结束、捉分 ≤200+底牌分、收支守恒、compute_outcome 互检）。
 - 特定规则路径优先用**注入迷你局剧本**（`start_session_with_deal`，如抠底 ×1/×2/庄赢不抠三剧本），不要写脆弱的整局剧本。
-- 叫分等概率策略的断言用分布断言（400 次采样、固定 `AiPolicy.rng.seed`），断言相对关系而非精确值。
+- 叫分等概率策略的断言用分布断言（固定 `AiPolicy.rng.seed`），断言相对关系而非精确值。
+- **平衡校准工具**：`test/calibrate_bidding.gd`（独立 -s 入口，不注册套件）——蒙特卡洛模拟「固定叫分 × 强度桶」统计胜率/期望收益，用于重训 `AiPolicy.BID_CALIB` 查表；AI 策略或对手水平变化后建议重跑校准。
 
 ### UI 用例维护（test/test_ui.gd）
 
