@@ -50,11 +50,6 @@ size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 17
 text = "第 1 局"
 
-[node name="TrumpLabel" type="Label" parent="TopBar"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 17
-text = ""
-
 [node name="SeatTop" parent="." instance=ExtResource("2_seat")]
 layout_mode = 1
 anchors_preset = 0

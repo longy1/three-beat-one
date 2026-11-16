@@ -36,6 +36,7 @@ var select_mode := ""      # "" | "discard" | "play"
 var _last_trick_winner := -1
 var _pending_trump_suit := -1
 var _crown: CrownBadge = null
+var _last_trump_shown = null  ## 上次送入信息栏的主牌（TrumpInfo 引用），避免重复重建
 
 var _ai_timer: Timer
 var _trick_timer: Timer
@@ -43,7 +44,6 @@ var _pile_popup: PanelContainer   ## 悬停查看某玩家出牌历史的弹出�
 var _human_pile_chip: Button      ## 人类玩家（0 号位）的牌堆悬停入口
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
-@onready var trump_label: Label = $TopBar/TrumpLabel
 @onready var sidebar: InfoSidebar = $Sidebar
 @onready var toast_label: Label = $ToastLabel
 @onready var hint_label: Label = $BottomArea/HintLabel
@@ -512,12 +512,13 @@ func _refresh_top_bar() -> void:
 		if engine.contract > 0:
 			info += " ｜ 叫分 %d" % engine.contract
 	game_info.text = info
-	if engine.trump != null:
-		var suit_char: String = ["♠", "♥", "♣", "♦"][engine.trump.suit]
-		var rank_name := Card.new(Card.Suit.JOKER, engine.trump.rank).label().replace("王", "")
-		trump_label.text = "主：%s ｜ R = %s" % [suit_char, rank_name]
-	else:
-		trump_label.text = "未叫主"
+	# 主牌提示：一张「正 R」牌面放入信息栏（仅叫主变化时重建）
+	if engine.trump != _last_trump_shown:
+		_last_trump_shown = engine.trump
+		if engine.trump != null:
+			sidebar.set_trump(Card.new(engine.trump.suit, engine.trump.rank, 0))
+		else:
+			sidebar.set_trump(null)
 	# 信息栏「局面」块
 	var captured := "闲家捉分 %d" % engine.captured_points
 	if engine.koudi_points > 0:

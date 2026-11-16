@@ -31,6 +31,22 @@ horizontal_alignment = 1
 [node name="Sep1" type="HSeparator" parent="VBox"]
 layout_mode = 2
 
+[node name="TrumpHead" type="Label" parent="VBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+modulate = Color(1, 1, 1, 0.65)
+text = "主牌（正 R）"
+
+[node name="TrumpRow" type="HBoxContainer" parent="VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8.0
+
+[node name="TrumpSlot" type="Control" parent="VBox/TrumpRow"]
+custom_minimum_size = Vector2(44, 64)
+layout_mode = 2
+mouse_filter = 2
+
 [node name="StatsHead" type="Label" parent="VBox"]
 layout_mode = 2
 mouse_filter = 2

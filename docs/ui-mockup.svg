@@ -12,7 +12,6 @@
   <!-- ═══ 顶栏（x12~1060，避开信息栏） ═══ -->
   <rect x="12" y="8" width="1048" height="32" rx="6" fill="#12291d" stroke="#2c4a38"/>
   <text x="28" y="29" font-size="15" fill="#d8e5dd">第 1 局 ｜ 出牌庄 丙 · 叫分 135（抓牌庄家不展示）</text>
-  <text x="420" y="29" font-size="15" fill="#7fd4a0">主：♠ ｜ R = 9</text>
 
   <!-- ═══ 丙（上带，SeatPanel 统一 180×100，居中牌桌区 x536） ═══ -->
   <rect x="446" y="48" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
@@ -93,6 +92,10 @@
   <rect x="1072" y="48" width="196" height="660" rx="10" fill="#132b1f" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="6 4"/>
   <text x="1170" y="76" font-size="16" fill="#e8b84a" text-anchor="middle" font-weight="bold">信息栏（独立组件 InfoSidebar）</text>
   <line x1="1084" y1="88" x2="1256" y2="88" stroke="#2c4a38"/>
+  <text x="1084" y="112" font-size="13" fill="#9ab5a5">主牌（正 R）</text>
+  <rect x="1084" y="122" width="44" height="64" rx="6" fill="#f7f3e8" stroke="#888"/>
+  <text x="1090" y="137" font-size="12" fill="#1a1a24">♠2</text>
+  <text x="1136" y="160" font-size="12" fill="#9ab5a5">← 一张正 R 牌面</text>
 
   <!-- 统计块 -->
   <text x="1084" y="112" font-size="13" fill="#9ab5a5">手牌统计</text>
