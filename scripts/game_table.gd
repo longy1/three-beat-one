@@ -80,8 +80,8 @@ func _setup_pile_ui() -> void:
 	_human_pile_chip.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_human_pile_chip.offset_left = 12
 	_human_pile_chip.offset_right = 58
-	_human_pile_chip.offset_top = -180
-	_human_pile_chip.offset_bottom = -150
+	_human_pile_chip.offset_top = -196
+	_human_pile_chip.offset_bottom = -166
 	_human_pile_chip.mouse_entered.connect(func(): _show_pile(HUMAN_SEAT))
 	_human_pile_chip.mouse_exited.connect(_hide_pile)
 	add_child(_human_pile_chip)
@@ -643,9 +643,7 @@ func _render_hand() -> void:
 		total += gap
 	var x := (avail - total) / 2.0
 	var frame_h := card_h + 2 * pad
-	var frame_y := 2.0
-	if hand_row.size.y > frame_h + 8:
-		frame_y = (hand_row.size.y - frame_h) / 2.0
+	var frame_y := 6.0  # 固定纵向位置：不随布局高度变化，避免整排手牌上下漂移
 
 	for i in groups.size():
 		var g: Array = groups[i]
@@ -659,7 +657,8 @@ func _render_hand() -> void:
 			var card_widget := CardWidget.create(c, true)
 			var is_selected: bool = selected.has(c)
 			card_widget.set_selected(is_selected)
-			card_widget.position = Vector2(cx, frame_y + pad - (8 if is_selected else 0))
+			# 选中只用金色边框表示，不位移——避免整排牌上下跳动
+			card_widget.position = Vector2(cx, frame_y + pad)
 			var card_ref: Card = c
 			card_widget.gui_input.connect(func(event: InputEvent):
 				if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
