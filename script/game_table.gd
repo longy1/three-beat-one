@@ -51,6 +51,8 @@ var _human_pile_chip: Button      ## 人类玩家出牌历史入口（左下，�
 var _bottom_pile_button: Button   ## 庄家是自己时的「牌堆」入口（皇冠下方，悬停看底牌）
 var _bottom_popup: PanelContainer ## 底牌堆弹层（2 行 × 4 张，仅庄家自己可见）
 var _trump_rank_panel: PanelContainer = null  ## 叫主点数选择面板（居中多排）
+var _pile_hide_timer: Timer       ## 弹层延迟隐藏（移出入口后 0.35s 才关，防误隐）
+var _sync_accum := 0.0            ## 兜底刷新累计（每 0.5s 强制同步局面显示）
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var bid_center_label: Label = $BidCenterLabel
@@ -100,6 +102,15 @@ func _ready() -> void:
 	_refresh()
 
 
+func _process(delta: float) -> void:
+	# 兜底：每 0.5s 校验局面显示与引擎数据一致（防御任何信号时序遗漏）
+	_sync_accum += delta
+	if _sync_accum >= 0.5:
+		_sync_accum = 0.0
+		if engine != null and sidebar != null and engine.round_index > 0:
+			_refresh_top_bar()
+
+
 func _on_menu() -> void:
 	get_tree().change_scene_to_file("res://scene/main_menu.tscn")
 
@@ -107,6 +118,12 @@ func _on_menu() -> void:
 ## ============================= 玩家牌堆（悬停查看出牌历史） =============================
 
 func _setup_pile_ui() -> void:
+	# 弹层延迟隐藏计时器：移出入口后 0.35s 才关（期间重新进入则取消）
+	_pile_hide_timer = Timer.new()
+	_pile_hide_timer.one_shot = true
+	_pile_hide_timer.wait_time = 0.35
+	_pile_hide_timer.timeout.connect(_hide_pile)
+	add_child(_pile_hide_timer)
 	# 人类玩家出牌历史入口：左下角小按钮（文字「历史」，悬停查看自己的出牌记录）
 	_human_pile_chip = Button.new()
 	_human_pile_chip.text = "历史"
@@ -118,7 +135,7 @@ func _setup_pile_ui() -> void:
 	_human_pile_chip.offset_top = -196
 	_human_pile_chip.offset_bottom = -166
 	_human_pile_chip.mouse_entered.connect(func(): _show_pile(HUMAN_SEAT))
-	_human_pile_chip.mouse_exited.connect(_hide_pile)
+	_human_pile_chip.mouse_exited.connect(_pile_hide_timer.start)
 	add_child(_human_pile_chip)
 	# 庄家是自己时的「牌堆」入口：皇冠下方（左下固定），悬停查看底牌堆
 	_bottom_pile_button = Button.new()
@@ -132,19 +149,21 @@ func _setup_pile_ui() -> void:
 	_bottom_pile_button.offset_bottom = -70
 	_bottom_pile_button.visible = false
 	_bottom_pile_button.mouse_entered.connect(_show_bottom_pile)
-	_bottom_pile_button.mouse_exited.connect(_hide_pile)
+	_bottom_pile_button.mouse_exited.connect(_pile_hide_timer.start)
 	add_child(_bottom_pile_button)
 	# 电脑玩家入口：各自座位面板悬停（SeatPanel 组件信号）
 	for seat in seat_panels:
 		var panel: SeatPanel = seat_panels[seat]
 		panel.setup(seat)  # 注入座位号（组件悬停信号携带它定位牌堆）
 		panel.pile_hovered.connect(_show_pile)
-		panel.pile_exited.connect(_hide_pile)
-	# 弹出层（居中，不拦截鼠标）
+		panel.pile_exited.connect(func(): _pile_hide_timer.start())
+	# 弹出层（居中，可交互滚动；移出入口后延迟隐藏）
 	_pile_popup = PanelContainer.new()
 	_pile_popup.name = "PilePopup"
 	_pile_popup.visible = false
-	_pile_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pile_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	_pile_popup.mouse_entered.connect(_pile_hide_timer.stop)
+	_pile_popup.mouse_exited.connect(_pile_hide_timer.start)
 	# 居中规范：锚点 = 丙中轴 × 乙/丁中轴，grow 向四周自适应（尺寸随内容）
 	_pile_popup.anchor_left = MAIN_TABLE_CENTER.x
 	_pile_popup.anchor_right = MAIN_TABLE_CENTER.x
@@ -155,23 +174,19 @@ func _setup_pile_ui() -> void:
 	add_child(_pile_popup)
 	var vbox := VBoxContainer.new()
 	vbox.name = "VBox"
-	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_theme_constant_override("separation", 6)
 	_pile_popup.add_child(vbox)
 	var title := Label.new()
 	title.name = "Title"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 17)
-	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vbox.add_child(title)
 	var scroll := ScrollContainer.new()
 	scroll.name = "Scroll"
-	scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vbox.add_child(scroll)
 	var list := VBoxContainer.new()
 	list.name = "List"
-	list.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 4)
 	scroll.add_child(list)
@@ -179,7 +194,9 @@ func _setup_pile_ui() -> void:
 	_bottom_popup = PanelContainer.new()
 	_bottom_popup.name = "BottomPopup"
 	_bottom_popup.visible = false
-	_bottom_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_bottom_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	_bottom_popup.mouse_entered.connect(_pile_hide_timer.stop)
+	_bottom_popup.mouse_exited.connect(_pile_hide_timer.start)
 	_bottom_popup.anchor_left = MAIN_TABLE_CENTER.x
 	_bottom_popup.anchor_right = MAIN_TABLE_CENTER.x
 	_bottom_popup.anchor_top = MAIN_TABLE_CENTER.y
@@ -243,6 +260,7 @@ func _show_pile(seat: int) -> void:
 				row.add_child(CardWidget.create(c, true, true))
 			list.add_child(row)
 	_pile_popup.visible = true
+	_pile_hide_timer.stop()
 
 
 func _hide_pile() -> void:
@@ -264,6 +282,7 @@ func _show_bottom_pile() -> void:
 	for c in engine.bottom:
 		grid.add_child(CardWidget.create(c, true, true))
 	_bottom_popup.visible = true
+	_pile_hide_timer.stop()
 
 
 func _on_next_game() -> void:
