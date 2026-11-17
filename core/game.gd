@@ -245,7 +245,7 @@ func submit_play(seat: int, cards: Array) -> Dictionary:
 	if phase != Phase.TRICKS:
 		return _err_play("当前不在出牌阶段")
 	if seat != turn_seat:
-		return _err_play("未轮到座位 %d" % seat)
+		return _err_play("还未轮到你出牌")  # 判定面向提交者本人（toast 直显）；座位上下文由调用方日志补充
 	var lead := _current_lead_combo()
 	var verdict: Dictionary
 	if lead == null and not current_plays.is_empty():
