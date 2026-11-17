@@ -269,9 +269,10 @@ func test_defender_feeds_points_when_teammate_may_beat(test) -> void:
 	var feed := AiPlay.choose_play(hand, t, plays, 1, 2, [])
 	test.eq(feed, [hand[1]], "庄家领先 + 还有未见王 → 提前垫 ♦K 下分（队友或能压）")
 	var seen_all := [{plays = [
-		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
-		C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1)],
-		winner = 0}]
+		{seat = 0, cards = [
+			C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
+			C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1)],
+			role = FollowRule.Role.DISCARD}], winner = 0}]
 	var hold := AiPlay.choose_play(hand, t, plays, 1, 2, seen_all)
 	test.eq(hold, [hand[0]], "四王已全部现身（确定压不住）→ 垫无分的 ♥7 保留分牌")
 
