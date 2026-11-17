@@ -22,7 +22,7 @@
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（全部通过退出码 0；当前 13 套件 130 用例，含联机回环套件）
+# 单元/规则测试（全部通过退出码 0；当前 13 套件 136 用例，含联机回环套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
 
 # UI 冒烟（headless 自动打完一整局，约 1 分钟，退出码 0）
@@ -100,7 +100,7 @@ font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 too
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
 test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ suite_registry.gd（套件注册单一事实源）
-          + test_*.gd（13 套件 130 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环）+ run_tests.gd + smoke_ui.gd
+          + test_*.gd（13 套件 136 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 11 用例）+ run_tests.gd + smoke_ui.gd
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
 doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md
 static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新；含 .gdignore 不参与引擎导入）
@@ -222,7 +222,7 @@ UI 层曾因无用例而集中出 bug（信号时序竞态、引用遗漏、渲�
 ### 联机用例（test/test_online.gd，2026-11-18）
 
 - **真实 WebSocket 回环**：同进程跑 server 栈（store/room_manager/host_room）+ 真 NetClient 客户端，服务端计时全部按 `time_scale=0.02` 缩放（AI 节拍 ~14ms、人类托管 ~0.4s、离线宽限 ~2.4s）。测试夹具注意：`heartbeat_timeout` 须放大到远大于客户端心跳间隔（5s），否则空闲客户端被误判离线触发关房。
-- **覆盖**：store 持久化与昵称全局唯一（重开实例不丢、占用拒绝、AI 前缀拒绝）；房间全生命周期（建房→凭码加入→人数不满拒绝开局→补 AI 开局→完整对局→分数落盘与广播一致→退出关房广播）；可见性断言（`debug_record` 录制回放：扣底无牌面、开局无底牌、game_start 仅本人 19 张）；超时托管（auto 标记 + 服务端状态推进核对）；断线重连（drop→member_offline→宽限内存活→同昵称回房收快照→打完→宽限超时关房）。
+- **覆盖（11 用例）**：store 持久化与昵称全局唯一（重开实例不丢、占用拒绝、trim 归一、AI 前缀拒绝）；房间操作守卫（在房重复建房/加入、满员、对局中加入、非房主开局、重复开局、未开局 next）；房间全生命周期（建房→凭码加入→人数不满拒绝开局→补 AI 开局→完整对局→分数落盘与广播一致→退出关房广播）；可见性断言（`debug_record` 录制回放：扣底无牌面、开局无底牌、game_start 仅本人 19 张、非庄家无 kitty）；超时托管（auto 标记 + 服务端状态推进核对）；断线重连与宽限超时；多局累计（下一局重灌/庄位轮换/跨局累计分/非房主 next 被拒）；注入强牌局的确定性旋转校验与人类操作路径（叫分值/叫主/扣底/非法出牌拒绝+重试）；四阶段重连快照矩阵（叫主/扣底/出牌/终局）；UI 级联机牌桌（真实场景接管、人类走 UI 提交方法、退出弹层回主菜单）。
 - **客户端代打驱动 `_drive_until`**：读本地视图状态 + 状态指纹防重发 + `send_act` 提交（人类决策复用 AiPlay 纯模块）；服务端引擎与客户端视图的公开字段（捉分/轮数）逐局互检。
 - **测试钩子**：`NetClient.standalone`（game_start/snapshot 直接灌视图、不切场景）、`NetClient.debug_record`（录全部入站消息）、`host_room.time_scale`、`manager.sweep_interval/heartbeat_timeout`。
 
