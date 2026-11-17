@@ -68,11 +68,6 @@ func test_seat_panel_component(test) -> void:
 	panel.set_highlight(false)
 	var normal: StyleBox = panel.get_theme_stylebox("panel")
 	test.check(normal is StyleBoxFlat and (normal as StyleBoxFlat).border_width_left < 2, "非高亮恢复常规边")
-	# 悬停信号携带注入的座位号
-	var got := [-1]
-	panel.pile_hovered.connect(func(s: int): got[0] = s)
-	panel.mouse_entered.emit()
-	test.eq(got[0], 3, "悬停信号携带座位号")
 	panel.queue_free()
 	await tree.process_frame
 

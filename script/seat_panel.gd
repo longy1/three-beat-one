@@ -1,13 +1,11 @@
 class_name SeatPanel
 extends PanelContainer
-## 座位信息面板组件（乙/丙/丁复用）：姓名 / 牌数 / 状态 + 悬停查看出牌历史
+## 座位信息面板组件（乙/丙/丁复用）：姓名 / 牌数 / 状态
 ## + 【无主】红印章（右下角，规则 7.3 公示）。
 ## 组件自带统一尺寸（tscn 内 custom_minimum_size = 180×100，720p 基准）；
 ## 实例只负责定位（anchor 锚定左上角，不拉伸），改尺寸只需改组件一处。
+## （2026-11-17 历史面板重做：悬停查看历史路径移除，出牌历史走 TrickHistoryPanel。）
 
-
-signal pile_hovered(seat: int)
-signal pile_exited
 
 const STAMP_MARGIN := 6.0  ## 印章与面板右下角的留空
 
@@ -19,8 +17,6 @@ var _void_stamp: VoidStamp
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	mouse_entered.connect(func(): pile_hovered.emit(seat))
-	mouse_exited.connect(func(): pile_exited.emit())
 	_void_stamp = VoidStamp.new()
 	_void_stamp.name = "VoidStamp"
 	# PanelContainer 会对全部 Control 子件做整面填充布局（直接赋 position 每次排序都被重置，

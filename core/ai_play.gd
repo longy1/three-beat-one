@@ -6,11 +6,12 @@ extends RefCounted
 ##
 ## 策略概要：
 ## - 叫主：花色按张数/大牌/对子加权；R 选持有最多（成对额外加成）的点数
-## - 扣底：副牌分牌优先入底（规则 8.2 策略注记），其次最弱副牌，不扣常主
+## - 扣底：保留顶牌最强的副花色整门（赢张引擎），其余分牌优先入底（规则 8.2 策略注记），不扣常主
 ## - 领出：手中牌力最大的完整牌型（拖拉机 > 对子 > 单张）
 ## - 跟牌：有同型 → 队友领先就出最小（不拆台），否则能赢用最小，赢不了出最小
 ## - 杀/垫：无领出花色时，桌面 ≥10 分或最后一手且能压过 → 最小杀；否则垫最差牌
-##   （防守方在队友领先时垫分喂队友）
+##   （防守方在队友领先时垫分喂队友）；垫牌避开队友已清的副花色（每门留一家闲家守门），
+##   并按花色顶牌分级：顶 ≤10 无赢张的门尽早清理，含 K/A 的门更多保留（2026-11-17）
 ## 全部输出交由 GameEngine 校验；自动对局测试（test_ai_policy.gd）即其正确性验证。
 
 
@@ -59,21 +60,60 @@ static func choose_trump(hand: Array) -> Dictionary:
 
 ## ============================= 扣底 =============================
 
-## 副牌分牌优先（8.2 策略注记），其次最弱副牌；不扣常主；返回 hand 内 8 张引用
+## 扣底（8.2 策略注记 + 2026-11-17 平衡细化）：
+## - 保留一门副花色整门在手作赢张引擎：选顶牌牌力最强（平手取更长）且 ≥2 张的门，
+##   其分牌随整门保留（顶张赢面大，不必白扣入底）
+## - 其余副牌：分牌优先入底（底牌分闲家极难得），再按牌力补足
+## - 保留门仅在其余副牌凑不满时才从最弱处扣起（尽量保整门）；常主始终不扣
 static func choose_discard(hand: Array, trump: TrumpInfo, bottom_size: int) -> Array:
 	var side: Array = []
 	for c in hand:
 		if not trump.is_trump(c):
 			side.append(c)
-	side.sort_custom(func(a: Card, b: Card) -> bool:
+	# 选保留门：按花色分组，顶牌牌力最大者当选
+	var by_suit := {}
+	for c in side:
+		var s: int = trump.effective_suit(c)
+		if not by_suit.has(s):
+			by_suit[s] = []
+		by_suit[s].append(c)
+	var kept_suit := -1
+	var best_top := -1
+	var best_size := 0
+	for s in by_suit:
+		var cards: Array = by_suit[s]
+		if cards.size() < 2:
+			continue
+		var top := 0
+		for c in cards:
+			top = maxi(top, trump.card_power(c))
+		if top > best_top or (top == best_top and cards.size() > best_size):
+			best_top = top
+			best_size = cards.size()
+			kept_suit = s
+	# 保留门之外的副牌：分牌优先入底、牌力弱优先
+	var pool: Array = []
+	for c in side:
+		if trump.effective_suit(c) != kept_suit:
+			pool.append(c)
+	pool.sort_custom(func(a: Card, b: Card) -> bool:
 		if a.points() != b.points():
 			return a.points() > b.points()
 		return trump.card_power(a) < trump.card_power(b))
 	var discard: Array = []
-	for c in side:
+	for c in pool:
 		if discard.size() >= bottom_size:
 			break
 		discard.append(c)
+	# 保留门凑数：从最弱处扣起，尽量少破整门
+	if discard.size() < bottom_size and kept_suit != -1:
+		var kept_cards: Array = by_suit[kept_suit]
+		kept_cards.sort_custom(func(a: Card, b: Card) -> bool:
+			return trump.card_power(a) < trump.card_power(b))
+		for c in kept_cards:
+			if discard.size() >= bottom_size:
+				break
+			discard.append(c)
 	# 副牌不足：补最弱的主花色普通牌（仍不扣常主）
 	if discard.size() < bottom_size:
 		var main_normal: Array = []
@@ -112,7 +152,8 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 		# 领出者是闲家队友时优先垫分喂队友
 		var leader_seat: int = plays[0].seat
 		var feed: bool = seat != banker_seat and leader_seat != banker_seat and leader_seat != seat
-		return build_discard(hand, trump, plays[0].cards.size(), feed)
+		return build_discard(hand, trump, plays[0].cards.size(), feed,
+			_teammate_shed_suits(history, trump, seat, banker_seat))
 	# 部分结算判定"当前最大者"：settle 与 plays 同构（键名 seat），直接传入
 	var cur: Dictionary = Trick.settle(plays, trump)
 	if not cur.ok:
@@ -168,7 +209,8 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 				if opt.power > beat_power:
 					return opt.cards
 	var feed: bool = (winner_is_teammate and i_am_defender) or teammate_may_beat
-	return build_discard(hand, trump, lead.cards.size(), feed)
+	return build_discard(hand, trump, lead.cards.size(), feed,
+		_teammate_shed_suits(history, trump, seat, banker_seat))
 
 
 ## 场上仍未现身的王（大王/小王各 2 张）：> 0 说明队友手里仍有可能握着压牌王牌
@@ -469,7 +511,7 @@ static func build_exhaust_play(class_cards: Array, hand: Array, n: int, suit_cla
 		for c in hand:
 			if not class_cards.has(c):
 				fillers.append(c)
-		fillers.sort_custom(_dump_key_asc(trump, false))
+		fillers.sort_custom(_dump_key_asc(trump, false, [], _suit_classes(hand, trump)))
 		for c in fillers:
 			if play.size() >= n:
 				break
@@ -506,10 +548,12 @@ static func build_exhaust_play(class_cards: Array, hand: Array, n: int, suit_cla
 	return chosen
 
 
-## 垫牌：优先非主牌、非分牌、最低牌力；feed_teammate 时优先垫分牌喂队友
-static func build_discard(hand: Array, trump: TrumpInfo, n: int, feed_teammate := false) -> Array:
+## 垫牌：优先非主牌、非分牌；花色按顶牌牌力分级（弱门先清、K/A 强门留）；
+## feed_teammate 时优先垫分牌喂队友；avoid_suits 的花色最后才垫（守门协调）
+static func build_discard(hand: Array, trump: TrumpInfo, n: int, feed_teammate := false,
+		avoid_suits: Array = []) -> Array:
 	var dump: Array = hand.duplicate()
-	dump.sort_custom(_dump_key_asc(trump, feed_teammate))
+	dump.sort_custom(_dump_key_asc(trump, feed_teammate, avoid_suits, _suit_classes(hand, trump)))
 	return dump.slice(0, n)
 
 
@@ -527,15 +571,65 @@ static func _pair_power_asc(trump: TrumpInfo) -> Callable:
 		return trump.card_power(a[0]) < trump.card_power(b[0])
 
 
-## 垫牌排序：非主牌在前 →（喂队友：分牌大者在前 / 普通：分牌小者在前）→ 牌力低者在前
-static func _dump_key_asc(trump: TrumpInfo, feed: bool) -> Callable:
+## 垫牌排序：非主牌在前 →（喂队友：分牌大者在前 / 普通：分牌小者在前）
+## → 花色强弱分级（弱门先清，2026-11-17 牌力细化）→ avoid_suits 花色靠后（守门协调）
+## → 牌力低者在前
+static func _dump_key_asc(trump: TrumpInfo, feed: bool, avoid_suits: Array,
+		suit_classes: Dictionary = {}) -> Callable:
 	return func(a: Card, b: Card) -> bool:
 		var at := 1 if trump.is_trump(a) else 0
 		var bt := 1 if trump.is_trump(b) else 0
 		if at != bt:
 			return at < bt
-		if feed and a.points() != b.points():
-			return a.points() > b.points()
-		if not feed and a.points() != b.points():
+		if a.points() != b.points():
+			if feed:
+				return a.points() > b.points()
 			return a.points() < b.points()
+		var ca: int = suit_classes.get(trump.effective_suit(a), 1)
+		var cb: int = suit_classes.get(trump.effective_suit(b), 1)
+		if ca != cb:
+			return ca < cb
+		var av := 1 if avoid_suits.has(trump.effective_suit(a)) else 0
+		var bv := 1 if avoid_suits.has(trump.effective_suit(b)) else 0
+		if av != bv:
+			return av < bv
 		return trump.card_power(a) < trump.card_power(b)
+
+
+## 垫牌的花色强弱分级（2026-11-17，按花色顶牌牌力三档）：
+## 0 = 顶 ≤10（无赢张，尽早清理）；1 = 顶 J/Q（中性）；2 = 顶 ≥K（有 K/A 级赢张，更多保留）。
+## 副花色 card_power 即点数值（3.1），弱门留之无守门价值，分级优先于守门避让。
+static func _suit_classes(hand: Array, trump: TrumpInfo) -> Dictionary:
+	var top := {}
+	for c in hand:
+		var s: int = trump.effective_suit(c)
+		if s == TrumpInfo.CLASS_TRUMP:
+			continue
+		top[s] = maxi(top.get(s, 0), trump.card_power(c))
+	var classes := {}
+	for s in top:
+		classes[s] = 0 if top[s] <= Card.RANK_10 else (1 if top[s] <= Card.RANK_Q else 2)
+	return classes
+
+
+## 队友（其余闲家，含人类 0 号位）垫牌清掉的副花色：以垫牌角色累计 ≥2 张视为在清该门。
+## 我方自由垫牌避开同门——每门副牌至少留一家闲家守门，末局庄家剩余副牌有人能压（2026-11-17）。
+static func _teammate_shed_suits(history: Array, trump: TrumpInfo, seat: int, banker_seat: int) -> Array:
+	var counts := {}
+	for th in history:
+		var plays: Array = th.plays
+		for p in plays:
+			if p.seat == seat or p.seat == banker_seat:
+				continue
+			if p.role != FollowRule.Role.DISCARD:
+				continue
+			for c in p.cards:
+				var s: int = trump.effective_suit(c)
+				if s == TrumpInfo.CLASS_TRUMP:
+					continue
+				counts[s] = counts.get(s, 0) + 1
+	var out: Array = []
+	for s in counts:
+		if counts[s] >= 2:
+			out.append(s)
+	return out

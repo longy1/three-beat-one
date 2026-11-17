@@ -25,6 +25,7 @@ const TRICK_ANCHORS := {
 
 var engine: GameEngine
 var _piles: PileViewer
+var _trick_history := TrickHistoryPanel.new()
 var _crown_anim := CrownAnimator.new()
 var _trump_picker: TrumpRankPicker = null
 var _trump_reveal := TrumpReveal.new()  ## 竞叫结束揭主动画（皇冠+主R牌双飞）
@@ -94,17 +95,16 @@ func _ready() -> void:
 	hand_area.play_requested.connect(_submit_human_play)
 	_piles = PileViewer.new()
 	_piles.setup(self)
-	# 「历史」按钮：点击开/关（钉住模式，X 关闭；2026-11-17 起弃用悬停）
-	_piles.history_chip.pressed.connect(func(): _piles.toggle_history_pinned(HUMAN_SEAT, engine.trick_history, SEAT_NAMES))
+	_trick_history.setup(self)
+	# 「历史」按钮：点击打开出牌历史面板（十字形一轮四家出牌 + 翻轮次，✕/点窗外关闭）
+	_piles.history_chip.pressed.connect(func(): _trick_history.open(engine.trick_history, SEAT_NAMES))
 	_piles.bottom_button.mouse_entered.connect(func():
 		if engine.banker_seat == HUMAN_SEAT:
 			_piles.show_bottom(engine.buried))
 	_piles.bottom_button.mouse_exited.connect(_piles.hide_timer.start)
 	for seat in seat_panels:
 		var panel: SeatPanel = seat_panels[seat]
-		panel.setup(seat)  # 注入座位号（组件悬停信号携带它定位牌堆）
-		panel.pile_hovered.connect(func(s: int): _piles.show_history(s, engine.trick_history, SEAT_NAMES))
-		panel.pile_exited.connect(_piles.request_hide)  # 钉住的弹层不自动隐藏；裸 Callable 直连（func(): x.start 是求值不调用，曾致弹层永久滞留）
+		panel.setup(seat)  # 注入座位号（印章定位/测试断言用）
 
 	engine.start_session()  # 同步发出首个 auction_required，由处理器完成首帧刷新
 
@@ -364,8 +364,8 @@ func _refresh() -> void:
 	_refresh_trick_area()
 	_refresh_stats()
 	_render_hand()
-	# 历史弹层悬停阅读期间历史增长 → 就地刷新（状态驱动：随引擎信号走，非定时轮询）
-	_piles.refresh_history(engine.trick_history, SEAT_NAMES)
+	# 历史面板打开期间有新轮次结算 → 就地刷新（状态驱动：随引擎信号走，非定时轮询）
+	_trick_history.refresh(engine.trick_history)
 	# 庄家是自己时：皇冠下方「牌堆」按钮显示（扣底完成后才有底牌可看）
 	var show_bottom := engine.banker_seat == HUMAN_SEAT \
 		and (engine.phase == GameEngine.Phase.TRICKS or engine.phase == GameEngine.Phase.SETTLED)

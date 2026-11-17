@@ -174,6 +174,37 @@ func test_main_pair_must_follow(test) -> void:
 	test.eq(verdict(hand, [hand[2], hand[4]], lead).reason, FollowRule.Reason.MUST_FOLLOW_TYPE, "♠8♠9 非对子不能跟对子轮")
 
 
+## 主牌对子轮（常主对，非主花色）+ 无任何主牌 → 垫牌完全自由（7.2 领出主牌时/垫牌）
+## 领出 ♥99（R=9 → ♥9 为副R常主对，非主花色 ♠）：闲家无任何主牌时垫牌张数匹配即可，
+## 不强制垫该对子原花色（♥）的对子或散张；「常主对子优先」仅在持有主牌时生效
+func test_main_permanent_pair_no_trump_free_discard(test) -> void:
+	var lead := lead_of([C(Card.Suit.HEART, Card.RANK_9, 0), C(Card.Suit.HEART, Card.RANK_9, 1)])
+	test.eq(lead.suit, TrumpInfo.CLASS_TRUMP, "♥99 为常主对（主牌类，非主花色）")
+	var hand := [C(Card.Suit.HEART, Card.RANK_8, 0), C(Card.Suit.HEART, Card.RANK_7, 0),
+		C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_7, 1),
+		C(Card.Suit.DIAMOND, Card.RANK_Q, 0)]
+	# 垫领出对子原花色（♥）的两张散张——既不成对也不构成跟牌型，完全自由
+	var singles := verdict(hand, [hand[0], hand[1]], lead)
+	test.check(singles.legal, "无主牌垫 ♥ 散张两张合法（不强制垫 ♥ 对子）")
+	test.eq(singles.role, FollowRule.Role.DISCARD, "角色 = 自由垫牌")
+	# 垫 ♣ 对子合法（对子优先仅为建议级，非强制）
+	test.check(verdict(hand, [hand[2], hand[3]], lead).legal, "无主牌垫 ♣ 对子合法")
+	# 垫不成对的 ♥8 + ♦Q 同样合法
+	test.check(verdict(hand, [hand[0], hand[4]], lead).legal, "无主牌垫不成对散张合法")
+	# 对照 1：哪怕只持有 1 张主牌 → 主牌打尽，不能垫副牌
+	var with_trump := [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.DIAMOND, Card.RANK_Q, 0),
+		C(Card.Suit.SPADE, Card.RANK_7, 0)]
+	var forced := verdict(with_trump, [with_trump[0], with_trump[1]], lead)
+	test.eq(forced.reason, FollowRule.Reason.MUST_EXHAUST_TRUMP, "对照：持有 1 张主牌必须打尽")
+	test.check(verdict(with_trump, [with_trump[0], with_trump[2]], lead).legal, "对照：主牌 + 副牌补足合法")
+	# 对照 2：持有常主对子（♦2♦2）→ 必须跟对子，不能垫 ♣ 散张
+	var with_pair := [C(Card.Suit.DIAMOND, Card.RANK_2, 0), C(Card.Suit.DIAMOND, Card.RANK_2, 1),
+		C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)]
+	var must := verdict(with_pair, [with_pair[2], with_pair[3]], lead)
+	test.eq(must.reason, FollowRule.Reason.MUST_FOLLOW_TYPE, "对照：持常主对必须跟")
+	test.check(verdict(with_pair, [with_pair[0], with_pair[1]], lead).legal, "对照：♦2♦2 跟常主对合法")
+
+
 ## 主牌拖拉机轮：主牌打尽 + 常主对子优先垫出（【强制】）
 func test_main_tractor_exhaust_perm_priority(test) -> void:
 	var lead := lead_of([
