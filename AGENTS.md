@@ -117,7 +117,8 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 
 **工程配置**
 - `project.godot` 用编辑器/直接编辑均可，但须保持分区有序（application/display/gui/rendering）；新增系统级设置（字体主题等）登记在本文件 §2/§3。
-- `export_presets.cfg` 入库；导出过滤排除非运行时目录（`test/*,doc/*,tool/*`）；`build/` 忽略。
+- `export_presets.cfg` 入库；导出过滤排除非运行时目录（`test/*,doc/*,tool/*,build/*`）；`build/` 忽略。
+- `html/head_include` 注入移动端壳层适配（2026-11-17）：`canvas#canvas{touch-action:none}` 与 `html,body{position:fixed}`（iOS 忽略 overflow:hidden，页面微滚动会吞点按）；右上角 ⛶ 全屏按钮（DOM 覆盖层，非 Godot 控件）——iPhone Safari 无 Element Fullscreen API，点击时降级提示「添加到主屏幕」全屏方案。改此项后须 `--export-release` 并浏览器验证按钮与画布注入。
 - `.gitignore` 只忽略生成物（`.godot/`、`build/`）；`.uid` 与源文件成对提交。
 
 **场景结构**
