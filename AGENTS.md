@@ -82,7 +82,7 @@ test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ su
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
 doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md
 static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新；含 .gdignore 不参与引擎导入）
-build/    导出产物（不入库；_templates/ _font_src/ 为本地缓存）
+build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导出模板在编辑器安装目录 S:\Program\Godot\editor_data\export_templates\，self-contained 模式由 exe 旁 ._sc_ 标记启用）
 ```
 
 `.uid` 文件由 Godot 生成，**必须与对应 `.gd`/`.tscn` 一同提交**；`.godot/`、`.zcode/`、`build/` 已忽略；`export_presets.cfg` **入库**。
