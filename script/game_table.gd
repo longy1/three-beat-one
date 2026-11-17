@@ -27,6 +27,7 @@ var engine: GameEngine
 var _piles: PileViewer
 var _crown_anim := CrownAnimator.new()
 var _trump_picker: TrumpRankPicker = null
+var _trump_reveal := TrumpReveal.new()  ## 竞叫结束揭主动画（皇冠+主R牌双飞）
 var _discard_button: Button = null       ## 扣底确认按钮（计数文案更新用）
 var _pending_trump_suit := -1
 var _last_trick_winner := -1
@@ -118,6 +119,7 @@ func _on_menu() -> void:
 
 func _on_auction_required(seat: int) -> void:
 	_crown_anim.clear()  # 新局拍卖开始：清除上一局的庄家皇冠
+	_trump_reveal.clear()  # 及揭主牌面（正常对局不会残留，防御性清理）
 	_refresh()
 	if seat == HUMAN_SEAT:
 		_show_auction_bar()
@@ -141,6 +143,11 @@ func _on_trump_required(seat: int) -> void:
 
 
 func _on_discard_required(seat: int) -> void:
+	# 揭主双飞（2026-11-17）：叫主完成的此刻皇冠已飞向庄家，主 R 牌从中央飞向
+	# 信息栏主牌展示位；信息栏在牌面落位后才显示主牌（_last_trump_shown 先行
+	# 标记，_refresh 跳过即时刷新，落位回调里 set_trump）
+	var trump_card := Card.new(engine.trump.suit, engine.trump.rank)
+	_last_trump_shown = engine.trump
 	_refresh()
 	if seat == HUMAN_SEAT:
 		hand_area.begin_select("discard")
@@ -153,6 +160,9 @@ func _on_discard_required(seat: int) -> void:
 		action_bar.reset()
 		hint_label.text = "等待 %s 扣底…" % SEAT_NAMES[seat]
 		_run_ai(func(): engine.submit_discard(seat, AiPolicy.choose_discard(engine.hands[seat], engine.trump)), AI_DISCARD_DELAY)
+	_trump_reveal.play(self, trump_card, sidebar.trump_slot_center(), func():
+		sidebar.set_trump(trump_card)
+		_trump_reveal.clear())
 
 
 func _on_play_required(seat: int) -> void:

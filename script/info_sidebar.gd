@@ -14,6 +14,12 @@ func _ready() -> void:
 	set_trump(null)
 
 
+## 主牌展示位的全局中心坐标（揭主动画的飞行落点；须在布局完成后测量）
+func trump_slot_center() -> Vector2:
+	var slot: Control = $VBox/TrumpRow/TrumpStack/TrumpSlot
+	return slot.get_global_rect().get_center()
+
+
 ## 主牌展示：一张「正 R」牌面（主花色 + R，如 ♠ 主 R=2 → ♠2）。
 ## 未叫主：牌背微透明 + 居中问号，下方注明「未叫主」。
 func set_trump(card: Card) -> void:

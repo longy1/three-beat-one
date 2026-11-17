@@ -186,6 +186,9 @@ func test_trump_display_in_sidebar(test) -> void:
 	var state_label: Label = table.get_node("Sidebar/VBox/TrumpRow/TrumpStack/TrumpStateLabel")
 	test.check("未叫主" in state_label.text, "未叫主态注明文字")
 	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	# 主牌经揭主动画落位（0.01s 加速）后才进信息栏；0.3s 等待留足套件负载余量
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.create_timer(0.3).timeout
 	var slot: Control = table.get_node("Sidebar/VBox/TrumpRow/TrumpStack/TrumpSlot")
 	var has_card := false
 	for c in slot.get_children():
@@ -473,4 +476,39 @@ func test_history_chip_click_toggle_with_x(test) -> void:
 	x_btn.pressed.emit()
 	test.check(not popup.visible, "点击 ✕ → 弹层关闭")
 	test.check(not table._piles.history_pinned, "关闭后解除钉住")
+	await _release_table(table)
+
+
+## 揭主双飞（2026-11-17 用户需求）：主 R 牌与皇冠同现于中央，牌面飞至信息栏，
+## 飞行中信息栏不显示主牌，落位后才显示
+func test_trump_reveal_flies_to_sidebar(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	table._trump_reveal.fly_duration = 0.8  # 本用例用真实时长观察飞行过程
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)
+	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	# 飞行中：信息栏主牌位仍是未叫主态，桌上存在揭主牌面
+	var slot: Control = table.get_node("Sidebar/VBox/TrumpRow/TrumpStack/TrumpSlot")
+	var in_slot := false
+	for c in slot.get_children():
+		if c is CardWidget and c.card != null and c.card.rank == Card.RANK_9:
+			in_slot = true
+	test.check(not in_slot, "飞行中信息栏尚未显示主牌（落位后才显示）")
+	test.check(table._trump_reveal.active, "揭主动画进行中")
+	var flying := false
+	for c in table.get_children():
+		if c is CardWidget and c.card != null and c.card.rank == Card.RANK_9:
+			flying = true
+	test.check(flying, "中央存在飞行中的主 R 牌面")
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.create_timer(1.2).timeout  # > 飞行时长 0.8s
+	var has_card := false
+	for c in slot.get_children():
+		if c is CardWidget and c.card != null and c.card.suit == Card.Suit.SPADE and c.card.rank == Card.RANK_9:
+			has_card = true
+	test.check(has_card, "落位后信息栏显示 ♠9 牌面")
+	test.check(not table._trump_reveal.active, "落位后动画结束")
 	await _release_table(table)

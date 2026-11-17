@@ -15,6 +15,7 @@ func _spawn_table():
 	#（AI 延迟经 _ai_delay_scale 缩放：0.7s/1.0s 均收敛到 ~0.01s）
 	table._ai_delay_scale = 0.014
 	table._trick_timer.wait_time = 0.01
+	table._trump_reveal.fly_duration = 0.01
 	return table
 
 
