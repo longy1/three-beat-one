@@ -25,7 +25,7 @@ func _initialize() -> void:
 		match engine.phase:
 			GameEngine.Phase.AUCTION:
 				if engine.auction.turn == 0:
-					engine.submit_bid(0, AiPolicy.choose_bid(engine.hands[0], engine.current_highest_bid()))
+					engine.submit_bid(0, AiPolicy.choose_bid(engine.hands[0], engine.current_highest_bid(), 0, engine.auction.bids))
 			GameEngine.Phase.TRUMP:
 				if engine.banker_seat == 0:
 					var choice: Dictionary = AiPolicy.choose_trump(engine.hands[0])

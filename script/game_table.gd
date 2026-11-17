@@ -126,7 +126,7 @@ func _on_auction_required(seat: int) -> void:
 	else:
 		action_bar.reset()
 		hint_label.text = "等待 %s 表态…" % SEAT_NAMES[seat]
-		_run_ai(func(): engine.submit_bid(seat, AiPolicy.choose_bid(engine.hands[seat], engine.current_highest_bid())))
+		_run_ai(func(): engine.submit_bid(seat, AiPolicy.choose_bid(engine.hands[seat], engine.current_highest_bid(), seat, engine.auction.bids)))
 
 
 func _on_trump_required(seat: int) -> void:

@@ -23,9 +23,19 @@ static func hand_strength(hand: Array) -> int:
 	return AiBidding.hand_strength(hand)
 
 
-## 返回意向叫分或 BID_PASS
-static func choose_bid(hand: Array, highest_bid: int) -> int:
-	return AiBidding.choose_bid(hand, highest_bid, rng)
+## 返回意向叫分或 BID_PASS；my_seat/auction_bids 提供拍卖叫分作对手加叫证据
+## （auction.bids 为每座位 { value, passed }，此处解包为值数组）
+static func choose_bid(hand: Array, highest_bid: int, my_seat := -1, auction_bids: Array = []) -> int:
+	var values: Array = []
+	for b in auction_bids:
+		var v: int = b.value
+		values.append(v)
+	return AiBidding.choose_bid(hand, highest_bid, rng, my_seat, values)
+
+
+## 扫荡对手主牌概率估计（调试/测试用，转发 AiBidding.sweep_prob）
+static func sweep_prob(hand: Array, opponent_raises: Array = []) -> float:
+	return AiBidding.sweep_prob(hand, opponent_raises)
 
 
 ## ============================= 叫主 / 扣底 / 出牌（委托 AiPlay） =============================

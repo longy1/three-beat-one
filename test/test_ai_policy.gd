@@ -7,7 +7,9 @@ extends TestBase
 
 func test_choose_bid_levels(test) -> void:
 	AiPolicy.rng.seed = 2026
-	# 极强牌（四王 + 多 2 + A 对 + K 对，strength≈86 → 校准桶 [65,∞)，愿叫上限档 150）
+	# 极强牌（四王 + ♠2 对 + ♥A 对 + ♣K 对，strength=107 → 校准桶 [65,∞)）。
+	# 缩水手牌（10 张）假想定主 {♠, R=2}：主牌仅 6 张、扫荡概率 ≈0.45 → 上探档仅 165，
+	# 155 起即被 EV 门挡住——165/180 行为同旧版（满编 19 张的扫荡上探见 test_sweep_bid_cap）
 	var strong: Array = [
 		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
 		C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1),
@@ -21,26 +23,127 @@ func test_choose_bid_levels(test) -> void:
 		C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0),
 		C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)]
 	test.eq(AiPolicy.choose_bid(weak, 130), GameEngine.BID_PASS, "弱牌放弃")
-	# 中等牌（大王 + A 对 + K 对 + 2）
+	# 中等牌（大王 + A 对 + K 对 + 2；strength=56、扫荡概率 ≈0.20 不及任何门槛）
 	var medium: Array = [
 		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.SPADE, Card.RANK_A, 0),
 		C(Card.Suit.SPADE, Card.RANK_A, 1), C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
 		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.DIAMOND, Card.RANK_2, 0),
 		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)]
-	# 2026-11-17 平滑化 + 重校准（下分门槛细化策略下 ×2 轮）：EV 只定愿叫上限档——
-	# 强牌 130~150 弱正 EV（+0.17/+0.15/+0.33，150 档最优），165+ 明确负；叫分一律 最高+5 递进
+	# 2026-11-17 平滑化 + 2026-11-18 扫荡迭代：EV 定愿叫上限档、扫荡概率按档上探；
+	# 叫分一律 最高+5 平滑递进，不跳档
 	test.eq(AiPolicy.choose_bid(strong, 130), 135, "极强牌从 130 一手只叫 +5（不跳档）")
 	# 有人已叫 135 且我极强 → 150 档正 EV（+0.33）→ 确定性 +5 参与（仍不越过愿叫上限）
 	AiPolicy.rng.seed = 7
 	var near_cap: int = AiPolicy.choose_bid(strong, 135)
 	test.check(near_cap == GameEngine.BID_PASS or near_cap == 140,
 		"上限档附近：放弃或 +5 平滑（实际 %s）" % str(near_cap))
-	test.eq(AiPolicy.choose_bid(strong, 165), GameEngine.BID_PASS, "越过上限档全负 EV → 放弃")
-	test.eq(AiPolicy.choose_bid(strong, 180), GameEngine.BID_PASS, "180 起全负 EV → 放弃")
-	# 中等牌（strength≈65）：校准负 EV 区 → 要么放弃要么 +5 试探
+	test.eq(AiPolicy.choose_bid(strong, 165), GameEngine.BID_PASS, "上探档 165 → 170 越档放弃")
+	test.eq(AiPolicy.choose_bid(strong, 180), GameEngine.BID_PASS, "180 起越档 → 放弃")
+	# 中等牌：校准负 EV 区且扫荡概率不足 → 要么放弃要么 +5 试探
 	var medium_bid: int = AiPolicy.choose_bid(medium, 130)
 	test.check(medium_bid == GameEngine.BID_PASS or medium_bid == 135,
 		"中等牌噪声区：要么放弃要么 +5（实际 %s）" % str(medium_bid))
+
+
+## ── 扫荡模型 fixture（探针实测 2026-11-18；填充张不成对不计强度）──
+
+func _filler9() -> Array:
+	return [
+		C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0), C(Card.Suit.DIAMOND, Card.RANK_9, 0),
+		C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0), C(Card.Suit.CLUB, Card.RANK_9, 0),
+		C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)]
+
+
+## 四王 + ♠2 对 + ♥A 对 + ♣K 对补满 19 张：假想定主 {♥, R=2}，主牌 10 张、P≈0.96
+func _sweep_strong19() -> Array:
+	return [
+		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
+		C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1),
+		C(Card.Suit.SPADE, Card.RANK_2, 0), C(Card.Suit.SPADE, Card.RANK_2, 1),
+		C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_A, 1),
+		C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1)] + _filler9()
+
+
+## ♥ 五连对（AA KK QQ JJ 1010）+ 大王对补满 19 张：主牌 14 张、P≈1.0（对加叫免疫）
+func _sweep_loaded() -> Array:
+	return [
+		C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_A, 1),
+		C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
+		C(Card.Suit.HEART, Card.RANK_Q, 0), C(Card.Suit.HEART, Card.RANK_Q, 1),
+		C(Card.Suit.HEART, Card.RANK_J, 0), C(Card.Suit.HEART, Card.RANK_J, 1),
+		C(Card.Suit.HEART, Card.RANK_10, 0), C(Card.Suit.HEART, Card.RANK_10, 1),
+		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1)] + _filler9()
+
+
+## 单王 + 双 A 对双 K 对散配补满 19 张：主牌仅 7 张、P≈0.38（强而主薄，不上探）
+func _sweep_thin() -> Array:
+	return [
+		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0),
+		C(Card.Suit.SPADE, Card.RANK_A, 0), C(Card.Suit.SPADE, Card.RANK_A, 1),
+		C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_A, 1),
+		C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1),
+		C(Card.Suit.DIAMOND, Card.RANK_K, 0), C(Card.Suit.DIAMOND, Card.RANK_K, 1)] + _filler9()
+
+
+## ♥ 长套无王（AA KK QQ JJ 10 9 + ♥7♥8）补满 19 张：主牌 12 张四连对、P≈1.0、strength=49
+func _sweep_long_suit() -> Array:
+	return [
+		C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_A, 1),
+		C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
+		C(Card.Suit.HEART, Card.RANK_Q, 0), C(Card.Suit.HEART, Card.RANK_Q, 1),
+		C(Card.Suit.HEART, Card.RANK_J, 0), C(Card.Suit.HEART, Card.RANK_J, 1),
+		C(Card.Suit.HEART, Card.RANK_10, 0), C(Card.Suit.HEART, Card.RANK_9, 0)] + _filler9()
+
+
+## ♥ KQJ10 四连对 + ♠A 单张补满 19 张：主牌 9 张、P≈0.74、EV −1.78 弱负（特批通道 fixture）
+func _sweep_mid_long() -> Array:
+	return [
+		C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
+		C(Card.Suit.HEART, Card.RANK_Q, 0), C(Card.Suit.HEART, Card.RANK_Q, 1),
+		C(Card.Suit.HEART, Card.RANK_J, 0), C(Card.Suit.HEART, Card.RANK_J, 1),
+		C(Card.Suit.HEART, Card.RANK_10, 0), C(Card.Suit.HEART, Card.RANK_10, 1),
+		C(Card.Suit.HEART, Card.RANK_9, 0),
+		C(Card.Suit.SPADE, Card.RANK_A, 0),
+		C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0), C(Card.Suit.CLUB, Card.RANK_9, 0),
+		C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0), C(Card.Suit.DIAMOND, Card.RANK_9, 0),
+		C(Card.Suit.DIAMOND, Card.RANK_5, 0),
+		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)]
+
+
+## 扫荡概率单调性（2026-11-18 扫荡模型）：主牌越多/结构越强概率越高；
+## 对手加叫即时压低——每次表态以最新叫分重算，即「及时更新预估概率」
+func test_sweep_prob_monotonic(test) -> void:
+	var strong19: Array = _sweep_strong19()
+	var thin: Array = _sweep_thin()
+	var p0: float = AiPolicy.sweep_prob(strong19)
+	test.check(p0 >= AiBidding.SWEEP_EXTREME_P, "四王长主手达极端扫荡档（探 200 前提，实测 %.2f）" % p0)
+	test.check(AiPolicy.sweep_prob(thin) < AiBidding.SWEEP_GATE_P, "散配强牌（主牌仅 7 张）不及特批门槛")
+	test.check(AiPolicy.sweep_prob(strong19, [150]) < p0, "对手加叫 150 → 概率下调")
+	test.check(AiPolicy.sweep_prob(strong19, [180]) < AiPolicy.sweep_prob(strong19, [150]), "加叫 180 继续下调")
+	test.check(AiPolicy.sweep_prob(strong19, [200]) < AiPolicy.sweep_prob(strong19, [180]), "加叫 200 压得最低")
+
+
+## 扫荡概率 → 愿叫上限上探 + 对手加叫证据压回（2026-11-18 叫分迭代；
+## 探 200 与放宽参与为用户定夺）。165 档行为翻转：旧版全负 EV 一律放弃，
+## 扫荡概率高的手现在跟叫——满编四王手逐级跟至封顶 200
+func test_sweep_bid_cap_follows_prob(test) -> void:
+	AiPolicy.rng.seed = 2026
+	var strong19: Array = _sweep_strong19()
+	var loaded: Array = _sweep_loaded()
+	var thin: Array = _sweep_thin()
+	var mid_long: Array = _sweep_mid_long()
+	var long_suit: Array = _sweep_long_suit()
+	var ev200: Array = [{value = 130, passed = false}, {value = 200, passed = false},
+		{value = 0, passed = false}, {value = 0, passed = false}]
+	test.eq(AiPolicy.choose_bid(strong19, 130), 135, "扫荡手同样 +5 平滑递进（不跳档）")
+	test.eq(AiPolicy.choose_bid(strong19, 165), 170, "扫荡上探：165 档旧版放弃现跟叫 170")
+	test.eq(AiPolicy.choose_bid(strong19, 195), 200, "极端扫荡（P≈0.96）探顶 200")
+	test.eq(AiPolicy.choose_bid(strong19, 175, 0, ev200), 180, "对手已叫 200 → 概率 0.96→0.65 → 上探回落 180")
+	test.eq(AiPolicy.choose_bid(strong19, 195, 0, ev200), GameEngine.BID_PASS, "对手已叫 200 → 195 档及时收手")
+	test.eq(AiPolicy.choose_bid(loaded, 195, 0, ev200), 200, "满灌长主手（主牌 14 张）对加叫 200 免疫仍探顶")
+	test.eq(AiPolicy.choose_bid(thin, 165), GameEngine.BID_PASS, "强而主薄（P≈0.38）不上探 → 165 仍放弃")
+	test.eq(AiPolicy.choose_bid(mid_long, 130), 135, "长主无王牌（EV −1.8 弱负）扫荡特批参与")
+	test.eq(AiPolicy.choose_bid(long_suit, 195), 200, "长套无王但结构极强（P=1.0）极端探顶")
 
 
 func test_choose_trump_prefers_long_suit(test) -> void:
@@ -185,7 +288,7 @@ func _run_auto_game(test, engine: GameEngine) -> void:
 		match engine.phase:
 			Phase.AUCTION:
 				var seat: int = engine.auction.turn
-				var verdict := engine.submit_bid(seat, AiPolicy.choose_bid(engine.hands[seat], engine.current_highest_bid()))
+				var verdict := engine.submit_bid(seat, AiPolicy.choose_bid(engine.hands[seat], engine.current_highest_bid(), seat, engine.auction.bids))
 				test.check(verdict.ok, "AI 叫分合法：" + verdict.error)
 			Phase.TRUMP:
 				var choice: Dictionary = AiPolicy.choose_trump(engine.hands[engine.banker_seat])

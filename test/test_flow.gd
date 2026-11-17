@@ -25,7 +25,7 @@ func test_flow_human_banker(test) -> void:
 	# 拍卖：人类封顶 200（真实 UI 方法），AI 只能放弃
 	table._submit_human_bid(200)
 	for s in [1, 2, 3]:
-		eng.submit_bid(s, AiPolicy.choose_bid(eng.hands[s], eng.current_highest_bid()))  # 封顶 → 全部放弃
+		eng.submit_bid(s, AiPolicy.choose_bid(eng.hands[s], eng.current_highest_bid(), s, eng.auction.bids))  # 封顶 → 全部放弃
 	test.eq(eng.banker_seat, 0, "人类 200 坐庄")
 	test.eq(eng.contract, 200, "叫分 200")
 	# 叫主（真实 UI 两步：花色 → R）
@@ -76,7 +76,7 @@ func test_flow_ai_banker(test) -> void:
 			table._submit_human_bid(GameEngine.BID_PASS)  # 人类放弃（真实 UI 方法）
 		else:
 			var s: int = eng.auction.turn
-			eng.submit_bid(s, AiPolicy.choose_bid(eng.hands[s], eng.current_highest_bid()))
+			eng.submit_bid(s, AiPolicy.choose_bid(eng.hands[s], eng.current_highest_bid(), s, eng.auction.bids))
 	test.eq(eng.phase, Phase.TRUMP, "拍卖结束进入叫主")
 	test.check(eng.banker_seat != 0, "AI 坐庄（座位 %d）" % eng.banker_seat)
 	var ai_trump: Dictionary = AiPolicy.choose_trump(eng.hands[eng.banker_seat])

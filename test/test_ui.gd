@@ -17,7 +17,7 @@ func _drive_step(eng: GameEngine) -> void:
 	match eng.phase:
 		Phase.AUCTION:
 			var s: int = eng.auction.turn
-			eng.submit_bid(s, AiPolicy.choose_bid(eng.hands[s], eng.current_highest_bid()))
+			eng.submit_bid(s, AiPolicy.choose_bid(eng.hands[s], eng.current_highest_bid(), s, eng.auction.bids))
 		Phase.TRUMP:
 			var ch: Dictionary = AiPolicy.choose_trump(eng.hands[eng.banker_seat])
 			eng.submit_trump(eng.banker_seat, ch.suit, ch.rank)
