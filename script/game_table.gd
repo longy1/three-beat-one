@@ -322,8 +322,12 @@ func _submit_human_play() -> void:
 		return
 	# 已打出的牌从选中集合移除，其余选择跨轮保留（出完一轮不重置选牌）
 	hand_area.consume_selected(picked)
-	# submit_play 同步触发下一个 *_required：轮到 AI / 局已结束时处理器已 reset 按钮；
-	# 连庄领出仍是自己时 _show_play_bar 已重建按钮——两种情况均无须此处清理
+	# 立即清掉旧「出牌」按钮：出牌后常伴结算停留（1.5s），期间下一个 *_required
+	# 处理器在 await 挂起、不会同步重建——不清会让旧按钮（还能点！）挂满停留期。
+	# 安全性：人类出牌的下一手必为 AI 或进入结算，处理器重建都发生在挂起恢复之后，
+	# 此处清理不会误删同步重建的新按钮（其余 submit_* 的下一个处理器是同步重建，
+	# 那些仍遵守「submit 不做清理」纪律）。
+	action_bar.reset()
 
 
 ## 手牌选择数变化：扣底按钮计数联动

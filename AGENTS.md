@@ -94,7 +94,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 1. **纯逻辑与表现严格分离**：`core/` 内的类只依赖彼此与 `RefCounted`，不引用 Node/SceneTree/IO/时间。由 `test/test_architecture.gd` 机器守护（禁用依赖清单扫描）；联机阶段服务端可直接复用 `core/`。
 2. **引擎不信任调用方**：`GameEngine` 所有 `submit_*` 方法自行校验（阶段、座位轮次、合法性、底牌可见性），非法操作返回判定字典且不改变状态。UI/AI 永远不绕过校验。**submit_\* 是唯一状态变更入口**，公开查询方法走白名单（`test_engine_public_api_is_submit_only` 守护）。
 3. **提交按值匹配**：`Card.key()`（花色+点数+副号）在两副牌内唯一，UI/AI/联机消息可传等值副本，无须持有引擎内对象引用——这是网络消息可直接映射为 submit 调用的契约基础（M4）。
-4. **信号驱动 UI，单一刷新入口**：引擎信号（`*_required/trick_settled/game_over/phase_changed/engine_fault`）→ `game_table.gd` 处理器 → `_refresh()`（唯一刷新入口）。**禁止**新增定时轮询式「兜底同步」；信号完整性由 test_ui 自动对局「UI==引擎」不变量守护。按钮界面只由 `*_required` 处理器重建（`ActionBar.reset()` 幂等清理），submit 方法不做清理。
+4. **信号驱动 UI，单一刷新入口**：引擎信号（`*_required/trick_settled/game_over/phase_changed/engine_fault`）→ `game_table.gd` 处理器 → `_refresh()`（唯一刷新入口）。**禁止**新增定时轮询式「兜底同步」；信号完整性由 test_ui 自动对局「UI==引擎」不变量守护。按钮界面只由 `*_required` 处理器重建（`ActionBar.reset()` 幂等清理），submit 方法原则上不做清理；**唯一例外（2026-11-17）**：`_submit_human_play` 成功后立即 reset——出牌后常伴结算停留，期间下一个 `*_required` 处理器在 await 挂起、不会同步重建，旧「出牌」按钮会挂满停留期且可再点；安全性依据：人类出牌的下一手必为 AI 或进结算，重建都发生在挂起恢复之后，清理不会误删新按钮（其余 submit 的下一个处理器为同步重建，那里清理仍会竞态误删——禁止效仿）。
 5. **状态归一所有**：bids/turn 归 `Auction`；选中态归 `HandArea`；按钮归 `ActionBar`；皇冠归 `CrownAnimator`。派生状态用访问器（`get_last_trick()` 由 trick_history 末元素派生），不存镜像字段。**信号发出前状态必须完全就绪**（`_begin_game` 先 `auction.begin` 再 `_set_phase` 的教训）。
 6. **规则出处可追溯**：`core/` 注释标注规则文档章节号；改动规则实现必须先核对规则文档，笔误登记到《三打哈-Godot工程计划.md》"M1 实施记录"。
 7. **AI 数据进/决策出**：`AiBidding/AiPlay` 只收数据参数（随机源注入），不持有引擎引用；`AiPolicy` 是单机门面（解包引擎状态）。M4 服务端绕过门面直调纯模块。

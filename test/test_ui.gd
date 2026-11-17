@@ -382,3 +382,64 @@ func _alive_rows(list: VBoxContainer) -> int:
 		if not c.is_queued_for_deletion():
 			n += 1
 	return n
+
+
+## 回归（2026-11-17 用户需求）：出牌提交成功后按钮立即隐藏——结算停留期
+## 内下一个 *_required 处理器因 await 挂起，旧「出牌」按钮曾挂满整个停留期
+func test_play_bar_hidden_during_settle_pause(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	# 迷你局：庄 3（AI），人类第 4 手收尾；♠ 为主，人类全程无主垫牌
+	var hands := [
+		[C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.HEART, Card.RANK_8, 0)],
+		[C(Card.Suit.SPADE, Card.RANK_J, 0), C(Card.Suit.SPADE, Card.RANK_5, 0)],
+		[C(Card.Suit.HEART, Card.RANK_7, 1), C(Card.Suit.DIAMOND, Card.RANK_7, 0)],
+		[C(Card.Suit.HEART, Card.RANK_9, 0), C(Card.Suit.DIAMOND, Card.RANK_9, 0)],
+	]
+	var bottom: Array = []
+	var bottom_ranks := [Card.RANK_7, Card.RANK_8, Card.RANK_9, Card.RANK_10,
+		Card.RANK_J, Card.RANK_Q, Card.RANK_K, Card.RANK_A]
+	for i in 8:
+		bottom.append(C(Card.Suit.CLUB, bottom_ranks[i], 0))
+	eng.start_session_with_deal(3, hands, bottom)
+	await tree_pause()
+	var guard := 0
+	while eng.phase != Phase.TRICKS and guard < 40:
+		guard += 1
+		if eng.phase == Phase.AUCTION and eng.auction.turn == 0:
+			eng.submit_bid(0, GameEngine.BID_PASS)
+		await tree_pause()
+	test.eq(eng.phase, Phase.TRICKS, "迷你局进入出牌")
+	# r1：庄 3 领（处理器自驱）→ 轮到人类第 2 手
+	guard = 0
+	while eng.turn_seat != 0 and eng.phase == Phase.TRICKS and guard < 40:
+		guard += 1
+		await tree_pause()
+	test.eq(eng.turn_seat, 0, "轮到人类（r1 第 2 手）")
+	var bar: HBoxContainer = table.get_node("BottomArea/ActionBar")
+	var has_btn := false
+	for b in bar.get_children():
+		if b is Button and b.visible and not b.is_queued_for_deletion():
+			has_btn = true
+	test.check(has_btn, "人类回合出牌按钮在")
+	table.hand_area.select_cards([eng.hands[0][0]])
+	table._submit_human_play()
+	await tree_pause()
+	# 推进到 r2 人类第 4 手（处理器自驱 AI）
+	guard = 0
+	while eng.phase == Phase.TRICKS and eng.turn_seat != 0 and guard < 40:
+		guard += 1
+		await tree_pause()
+	test.eq(eng.turn_seat, 0, "人类第 4 手（r2 末尾）")
+	test.eq(eng.hand_count(0), 1, "剩最后一张")
+	table.hand_area.select_cards([eng.hands[0][0]])
+	table._submit_human_play()
+	# 回归断言：提交成功瞬间按钮条已清空（修复前旧「出牌」按钮挂满停留期）
+	var visible_btns := 0
+	for b in bar.get_children():
+		if b is Button and b.visible and not b.is_queued_for_deletion():
+			visible_btns += 1
+	test.eq(visible_btns, 0, "出牌提交后按钮立即隐藏（结算停留期不露旧按钮）")
+	await tree_pause()
+	test.eq(eng.phase, Phase.SETTLED, "迷你局结算完成")
+	await _release_table(table)
