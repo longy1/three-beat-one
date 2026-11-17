@@ -33,11 +33,12 @@ func set_trump(card: Card) -> void:
 		back.modulate = Color(1, 1, 1, 0.45)
 		slot.add_child(back)
 		var q := Label.new()
-		q.text = "？"
+		# 半角 ?（不用全角 ？）：全角标点的墨迹只占字符格左半，Label 按整格居中会整体偏左
+		q.text = "?"
 		q.set_anchors_preset(Control.PRESET_FULL_RECT)
 		q.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		q.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		q.add_theme_font_size_override("font_size", 22)
+		q.add_theme_font_size_override("font_size", 24)
 		q.modulate = Color(0.72, 0.8, 0.95)
 		q.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot.add_child(q)

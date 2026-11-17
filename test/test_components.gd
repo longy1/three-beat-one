@@ -104,7 +104,7 @@ func test_info_sidebar_component(test) -> void:
 		if c is CardWidget and c.card == null:
 			has_back = true
 		if c is Label:
-			if c.text == "？":
+			if c.text == "?":
 				has_question = true
 			if c.text == "哈":
 				has_ha_mark = true
