@@ -40,6 +40,13 @@ func _process(_delta: float) -> void:
 
 ## 全量渲染手牌（分区 / 排序 / 布局；已选中的牌保留选中视觉）
 func render(hand: Array, trump: TrumpInfo) -> void:
+	# 选中集合对齐当前权威手牌：剪除已不在手牌中的陈旧引用（2026-11-17 修复
+	# 「牌不在手中」整局卡死——快速连打/暂停期出牌的渲染竞争可留下已打出牌的引用，
+	# 后续所有提交都会被引擎以 NOT_IN_HAND 拒绝；以渲染时的手牌为准自动自愈）
+	var hand_keys := {}
+	for c in hand:
+		hand_keys[c.key()] = true
+	selected = selected.filter(func(c): return hand_keys.has(c.key()))
 	if size.x < MIN_USABLE_WIDTH:
 		# 首帧布局未就绪：挂起请求，待 _process 检测到有效尺寸后一次性落地
 		_render_pending = true

@@ -278,3 +278,30 @@ func test_hand_area_trump_side_suit_grouping(test) -> void:
 	test.eq(labels, ["大王", "小王", "♠9", "♥9", "♥9", "♣9", "♣9", "♦9", "♦9", "♠2"],
 		"副R 同花色相邻（♥♥♣♣♦♦），正R/正2 按牌力各归其位")
 	ha.queue_free()
+
+
+## 回归（2026-11-17 用户报告「牌不在手中」整局卡死）：快速出牌+马上连打的渲染
+## 竞争可在 selected 留下已打出牌的陈旧引用，此后所有提交都被引擎 NOT_IN_HAND 拒绝。
+## 修复：render 以当前权威手牌为准自动剪除陈旧引用（结构性自愈，不依赖复现竞态）
+func test_hand_area_render_prunes_stale_selection(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var ha := HandArea.new()
+	tree.root.add_child(ha)
+	ha.size = Vector2(1000, 160)
+	await tree.process_frame
+	var kept := Card.new(Card.Suit.HEART, Card.RANK_7, 0)   # 仍在手
+	var played := Card.new(Card.Suit.SPADE, Card.RANK_A, 0)  # 已打出（引擎已移出）
+	var hand := [kept, played]
+	ha.render(hand, null)
+	await tree.process_frame
+	ha.begin_select("play")
+	ha._toggle_select(kept)
+	ha._toggle_select(played)
+	test.eq(ha.selected.size(), 2, "两张均选中（含即将打出的牌）")
+	# 引擎侧 ♠A 已被移出手牌 → 新一帧渲染以权威手牌为准
+	hand.erase(played)
+	ha.render(hand, null)
+	await tree.process_frame
+	test.eq(ha.selected.size(), 1, "陈旧引用（已打出的牌）被渲染剪除")
+	test.check(ha.selected.has(kept), "保留仍在手中的选中")
+	ha.queue_free()
