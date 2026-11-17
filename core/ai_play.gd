@@ -9,6 +9,8 @@ extends RefCounted
 ## - 扣底：保留顶牌最强的副花色整门（赢张引擎），其余分牌优先入底（规则 8.2 策略注记），不扣常主
 ## - 领出：手中牌力最大的完整牌型（拖拉机 > 对子 > 单张）
 ## - 跟牌：有同型 → 队友领先就出最小（不拆台），否则能赢用最小，赢不了出最小
+## - 下分：庄家当前领先且未现身牌中仍有同型能压过其当前牌（队友可能握有）→ 垫分进该轮；
+##   确定无人能压（如双大王已现身、庄家出小王）→ 保留分牌（2026-11-17 迭代）
 ## - 杀/垫：无领出花色时，桌面 ≥10 分或最后一手且能压过 → 最小杀；否则垫最差牌
 ##   （防守方在队友领先时垫分喂队友）；垫牌避开队友已清的副花色（每门留一家闲家守门），
 ##   并按花色顶牌分级：顶 ≤10 无赢张的门尽早清理，含 K/A 的门更多保留（2026-11-17）
@@ -169,10 +171,11 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 	var last_seat := plays.size() >= 3
 	var s_class: int = lead.suit
 
-	# 提前下分（2026-11-17）：当前庄家领先、场上仍有未现身的王（队友手里可能还压得住）
-	# 且后面还有人出牌 → 把分牌垫进这轮；确定压不住 → 保留分牌
+	# 提前下分（2026-11-17 迭代）：当前庄家领先、且未现身牌中仍存在能压过其当前牌的
+	# 同型牌（队友手里可能还握着）→ 把分牌垫进这轮；确定压不住（如双大王已现身、
+	# 庄家出小王）→ 保留分牌。判定见 _unseen_can_beat。
 	var teammate_may_beat: bool = i_am_defender and cur.seat == banker_seat and plays.size() <= 2 \
-		and _unseen_big_trumps(history) > 0
+		and _unseen_can_beat(winner_combo, history, plays, hand, trump)
 
 	# 1) 有同牌型 → 必须跟：队友领先出最小；否则能赢用最小，赢不了出最小
 	if FollowRule.has_type(hand, s_class, lead.type, trump):
@@ -213,15 +216,57 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 		_teammate_shed_suits(history, trump, seat, banker_seat))
 
 
-## 场上仍未现身的王（大王/小王各 2 张）：> 0 说明队友手里仍有可能握着压牌王牌
-static func _unseen_big_trumps(history: Array) -> int:
-	var seen := 0
+## 未现身牌中是否仍存在能压过 beat_combo 的同型牌（2026-11-17 下分前置条件）。
+## 未见 = 全副牌 − 历史已出 − 本轮已出 − 我的手牌（底牌不可知，按仍可能在队友手中计）。
+## 单张：同类更高单牌；对子：同身份两张未见且更高；拖拉机：相邻两对未见且更高；
+## 副牌轮另计主牌杀（未现身主牌同型即可压过一切副牌）。
+## 全部不存在（如双大王已现身、庄家出小王）→ 无人再能压过 → 不应下分。
+static func _unseen_can_beat(beat_combo: Combo, history: Array, current_plays: Array,
+		my_hand: Array, trump: TrumpInfo) -> bool:
+	var seen := {}
 	for th in history:
 		for p in th.plays:
 			for c in p.cards:
-				if c.is_joker():
-					seen += 1
-	return maxi(0, 4 - seen)
+				seen[c.key()] = true
+	for p in current_plays:
+		for c in p.cards:
+			seen[c.key()] = true
+	for c in my_hand:
+		seen[c.key()] = true
+	var unseen: Array = []
+	for c in Card.full_deck():
+		if not seen.has(c.key()):
+			unseen.append(c)
+	var s_class: int = beat_combo.suit
+	match beat_combo.type:
+		Combo.Type.SINGLE:
+			var ref_power: int = trump.card_power(beat_combo.cards[0])
+			for c in FollowRule.filter_class(unseen, s_class, trump):
+				if trump.card_power(c) > ref_power:
+					return true
+			if s_class != TrumpInfo.CLASS_TRUMP \
+					and not FollowRule.filter_class(unseen, TrumpInfo.CLASS_TRUMP, trump).is_empty():
+				return true  # 未现身主牌单张即可杀副牌
+			return false
+		Combo.Type.PAIR:
+			var ref_power: int = trump.card_power(beat_combo.cards[0])
+			for pair in FollowRule.list_pairs(unseen, s_class, trump):
+				if trump.card_power(pair[0]) > ref_power:
+					return true
+			if s_class != TrumpInfo.CLASS_TRUMP \
+					and not FollowRule.list_pairs(unseen, TrumpInfo.CLASS_TRUMP, trump).is_empty():
+				return true  # 未现身主牌对即可杀副牌对子
+			return false
+		Combo.Type.TRACTOR:
+			var ref_power: int = Combo.power(beat_combo, trump)
+			for t in FollowRule.list_tractors(unseen, s_class, trump):
+				if Combo.power(Combo.detect(t, trump), trump) > ref_power:
+					return true
+			if s_class != TrumpInfo.CLASS_TRUMP \
+					and not FollowRule.list_tractors(unseen, TrumpInfo.CLASS_TRUMP, trump).is_empty():
+				return true  # 未现身主牌拖拉机即可杀副牌拖拉机
+			return false
+	return false
 
 
 ## 从历史推断各座位缺失的副花色：某副花色 S 领出的轮次里，

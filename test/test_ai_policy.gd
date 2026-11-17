@@ -27,10 +27,10 @@ func test_choose_bid_levels(test) -> void:
 		C(Card.Suit.SPADE, Card.RANK_A, 1), C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
 		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.DIAMOND, Card.RANK_2, 0),
 		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)]
-	# 2026-11-17 平滑化 + 重校准（守门协调 + 垫牌牌力分级策略下 ×2 轮）：EV 只定愿叫上限档——
-	# 强牌 130~150 均正 EV（+1.70/+0.28/+0.82，150 档最优），165+ 明确负；叫分一律 最高+5 递进
+	# 2026-11-17 平滑化 + 重校准（下分门槛细化策略下 ×2 轮）：EV 只定愿叫上限档——
+	# 强牌 130~150 弱正 EV（+0.17/+0.15/+0.33，150 档最优），165+ 明确负；叫分一律 最高+5 递进
 	test.eq(AiPolicy.choose_bid(strong, 130), 135, "极强牌从 130 一手只叫 +5（不跳档）")
-	# 有人已叫 135 且我极强 → 150 档正 EV（+0.82）→ 确定性 +5 参与（仍不越过愿叫上限）
+	# 有人已叫 135 且我极强 → 150 档正 EV（+0.33）→ 确定性 +5 参与（仍不越过愿叫上限）
 	AiPolicy.rng.seed = 7
 	var near_cap: int = AiPolicy.choose_bid(strong, 135)
 	test.check(near_cap == GameEngine.BID_PASS or near_cap == 140,
@@ -276,21 +276,16 @@ func test_choose_play_dump_follow_no_feed(test) -> void:
 
 
 ## 常主对子领出（非主花色）+ 无任何主牌 → AI 自由垫最低散张，无对子/花色强制（7.2）
-## 庄家领 ♥99（R=9 副R常主对）；闲家手牌全副牌且垫出的两张不成对——引擎校验放行
+## 庄家领顶张大王对（未现身牌无一能压过 → 提前下分关闭）；闲家手牌全副牌且垫出的
+## 两张不成对——引擎校验放行
 func test_choose_play_permanent_pair_lead_no_trump(test) -> void:
 	var hand := [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_7, 0),
 		C(Card.Suit.DIAMOND, Card.RANK_8, 0), C(Card.Suit.DIAMOND, Card.RANK_10, 0)]
-	var lead_cards := [C(Card.Suit.HEART, Card.RANK_9, 0), C(Card.Suit.HEART, Card.RANK_9, 1)]
+	var lead_cards := [C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1)]
 	var lead := Combo.detect(lead_cards, trump)
-	test.eq(lead.suit, TrumpInfo.CLASS_TRUMP, "♥99 为常主对（主牌类）")
+	test.eq(lead.suit, TrumpInfo.CLASS_TRUMP, "大王对为常主对（主牌类）")
 	var plays := [{seat = 2, cards = lead_cards, role = FollowRule.Role.LEAD}]
-	# 历史中四王已全部现身 → 关闭「提前下分」喂分路径，走纯自由垫牌
-	var history := [{plays = [
-		{seat = 2, cards = [C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0)], role = FollowRule.Role.FOLLOW_TYPE},
-		{seat = 0, cards = [C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1)], role = FollowRule.Role.DISCARD},
-		{seat = 3, cards = [C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0)], role = FollowRule.Role.DISCARD},
-		{seat = 1, cards = [C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1)], role = FollowRule.Role.DISCARD}], winner = 2}]
-	var play := AiPlay.choose_play(hand, trump, plays, 1, 2, history)
+	var play := AiPlay.choose_play(hand, trump, plays, 1, 2, [])
 	test.eq(play, [hand[1], hand[2]], "垫最低两张散张 ♥7♦8（保留分牌 ♥5；垫牌不成对亦合法）")
 	var v := FollowRule.is_legal(hand, play, lead, trump)
 	test.check(v.legal, "AI 垫牌通过引擎校验")
@@ -382,16 +377,46 @@ func test_banker_charges_side_pair_early(test) -> void:
 func test_defender_feeds_points_when_teammate_may_beat(test) -> void:
 	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
 	var hand := [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_K, 0)]
+	# 庄家领 ♠5 低单张：未现身牌里仍有很多能压过它（含未见的大王）→ 提前垫 ♦K 下分
 	var plays := [{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0)], role = FollowRule.Role.LEAD}]
 	var feed := AiPlay.choose_play(hand, t, plays, 1, 2, [])
-	test.eq(feed, [hand[1]], "庄家领先 + 还有未见王 → 提前垫 ♦K 下分（队友或能压）")
-	var seen_all := [{plays = [
+	test.eq(feed, [hand[1]], "庄家领先 + 未见牌仍可能压过 → 提前垫 ♦K 下分")
+	# 用户示例（2026-11-17）：双大王已现身、庄家出小王 → 未现身牌无一能压过 → 不下分
+	var jokers_out := [{plays = [
 		{seat = 0, cards = [
-			C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
-			C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1)],
+			C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1)],
 			role = FollowRule.Role.DISCARD}], winner = 0}]
-	var hold := AiPlay.choose_play(hand, t, plays, 1, 2, seen_all)
-	test.eq(hold, [hand[0]], "四王已全部现身（确定压不住）→ 垫无分的 ♥7 保留分牌")
+	var plays_sj := [{seat = 2, cards = [C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0)], role = FollowRule.Role.LEAD}]
+	var hold := AiPlay.choose_play(hand, t, plays_sj, 1, 2, jokers_out)
+	test.eq(hold, [hand[0]], "双大王已现身、庄家出小王 → 无人能压 → 垫无分 ♥7 保留分牌")
+
+
+## 下分门槛的对子/杀主维度（2026-11-17）：未现身牌能压过庄家当前对子才下分——
+## 副R对领出时未现身的正R对可压（下分）；正R对已全部现身则无人能压（保留）
+func test_defender_feed_gate_pair_and_kill(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_K, 0)]
+	# 庄家领 ♥99（副R对 500）：♠99（正R对 600）两张都未现身 → 队友可能压过 → 下分
+	var plays_pair := [{seat = 2, cards = [C(Card.Suit.HEART, Card.RANK_9, 0), C(Card.Suit.HEART, Card.RANK_9, 1)], role = FollowRule.Role.LEAD}]
+	var feed := AiPlay.choose_play(hand, t, plays_pair, 1, 2, [])
+	test.eq(feed, [hand[1], hand[0]], "正R对未现身 → 可能压过副R对 → 下分 ♦K（feed 分牌优先）")
+	# 顶张全现身（双大王对/双小王对/正R对均已出）→ 副R对已是现存最高 → 无人能压 → 保留分牌
+	var all_top_out := [
+		{plays = [
+			{seat = 2, cards = [C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1)], role = FollowRule.Role.LEAD},
+			{seat = 3, cards = [C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.DIAMOND, Card.RANK_A, 0)], role = FollowRule.Role.DISCARD}], winner = 2},
+		{plays = [
+			{seat = 2, cards = [C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1)], role = FollowRule.Role.LEAD},
+			{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)], role = FollowRule.Role.DISCARD},
+			{seat = 0, cards = [C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.DIAMOND, Card.RANK_K, 0)], role = FollowRule.Role.DISCARD},
+			{seat = 1, cards = [C(Card.Suit.SPADE, Card.RANK_9, 0), C(Card.Suit.SPADE, Card.RANK_9, 1)], role = FollowRule.Role.FOLLOW_TYPE}], winner = 2},
+	]
+	var hold := AiPlay.choose_play(hand, t, plays_pair, 1, 2, all_top_out)
+	test.eq(hold, [hand[0], hand[1]], "正R对与王对均已现身 → 无人能压 → 保留分牌（♥7 先垫）")
+	# 杀主维度：庄家领 ♣KK（副牌对）→ 未现身主牌对即可杀 → 下分
+	var plays_club := [{seat = 2, cards = [C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1)], role = FollowRule.Role.LEAD}]
+	var feed_kill := AiPlay.choose_play(hand, t, plays_club, 1, 2, [])
+	test.check(feed_kill.has(hand[1]), "副牌领出 + 未现身主牌对可杀 → 下分 ♦K")
 
 
 ## 甩牌含主牌对子时拆为单张一并甩出（7.3：任意张主牌单牌）
