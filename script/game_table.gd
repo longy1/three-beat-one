@@ -9,6 +9,7 @@ extends Control
 
 const HUMAN_SEAT := 0
 const AI_DELAY := 0.7
+const AI_DISCARD_DELAY := 1.0  ## AI 庄家扣底节奏（2026-11-17）：关键决策点多停约 1 秒，太快看不清翻底
 const TRICK_PAUSE := 1.5  ## 一轮结算后牌面停留时长；到期主动清空出牌桌
 
 const SEAT_NAMES := ["甲（你）", "乙（电脑）", "丙（电脑）", "丁（电脑）"]
@@ -34,6 +35,7 @@ var _last_trump_shown = null             ## 上次送入信息栏的主牌（Tru
 
 var _ai_timer: Timer
 var _trick_timer: Timer
+var _ai_delay_scale := 1.0  ## AI 延迟缩放（UI 测试调小以加速；_run_ai 按比例设置 wait_time）
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var bid_center_label: Label = $BidCenterLabel
@@ -150,7 +152,7 @@ func _on_discard_required(seat: int) -> void:
 	else:
 		action_bar.reset()
 		hint_label.text = "等待 %s 扣底…" % SEAT_NAMES[seat]
-		_run_ai(func(): engine.submit_discard(seat, AiPolicy.choose_discard(engine.hands[seat], engine.trump)))
+		_run_ai(func(): engine.submit_discard(seat, AiPolicy.choose_discard(engine.hands[seat], engine.trump)), AI_DISCARD_DELAY)
 
 
 func _on_play_required(seat: int) -> void:
@@ -208,7 +210,8 @@ func _on_engine_fault(message: String) -> void:
 	_toast("引擎异常，对局已冻结（详见日志）")
 
 
-func _run_ai(action: Callable) -> void:
+func _run_ai(action: Callable, delay := AI_DELAY) -> void:
+	_ai_timer.wait_time = delay * _ai_delay_scale
 	_ai_timer.start()
 	await _ai_timer.timeout
 	if not is_inside_tree():

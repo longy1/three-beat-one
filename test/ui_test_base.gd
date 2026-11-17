@@ -12,7 +12,8 @@ func _spawn_table():
 	await tree.process_frame
 	await tree.process_frame
 	# 加速 UI 定时器：测试不必等待真实的 AI 节奏与结算停留
-	table._ai_timer.wait_time = 0.01
+	#（AI 延迟经 _ai_delay_scale 缩放：0.7s/1.0s 均收敛到 ~0.01s）
+	table._ai_delay_scale = 0.014
 	table._trick_timer.wait_time = 0.01
 	return table
 
