@@ -40,47 +40,48 @@ TOUCHTEST_HTML = """<!DOCTYPE html>
 <title>触控事件探针</title>
 <style>
 body{margin:0;font-family:-apple-system,sans-serif;background:#12291d;color:#d8e5dd;}
-#box{position:fixed;inset:0 0 45% 0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-#box:active{background:#1c3a2a;}
-#info{font-size:13px;line-height:1.6;opacity:.85;text-align:center;padding:12px;word-break:break-all;}
-#log{position:fixed;left:0;right:0;bottom:0;height:45%;overflow-y:auto;background:rgba(0,0,0,.55);
+#count{font-size:64px;font-weight:bold;color:#ffd140;text-align:center;}
+#sec{font-size:15px;line-height:1.8;text-align:center;}
+#last{font-size:13px;color:#7fdc9a;text-align:center;min-height:2em;word-break:break-all;padding:0 10px;}
+#log{position:fixed;left:0;right:0;bottom:0;height:34%;overflow-y:auto;background:rgba(0,0,0,.55);
 font:12px/1.5 monospace;padding:8px;box-sizing:border-box;}
-.ev{color:#ffd140}.hdr{color:#7fdc9a}
-h2{margin:0 0 8px}
+.ev{color:#ffd140}
 </style></head><body>
-<div id="box"><h2>👇 请在此区域连续点按 / 滑动</h2>
-<div id="info"></div></div>
-<div id="log"><div class="hdr">事件日志（最新在上）：正常一次点按应出现
-touchstart → touchend →（可能的 pointer/click 序列）</div></div>
+<div style="padding:14px 10px;">
+<div id="count">0</div>
+<div id="sec">次有效点按事件</div>
+<div id="last">（在页面任意位置点按，此处显示最近事件；下方滚动区为完整序列）</div>
+<div style="text-align:center;opacity:.7;font-size:12px;margin-top:10px;">
+isSecureContext: <b id="sc">?</b><br>UA: <span id="ua"></span><br>innerW/H: <span id="wh"></span></div>
+</div>
+<div id="log"></div>
 <script>
-var box = document.getElementById('box');
-var log = document.getElementById('log');
 var n = 0;
-document.getElementById('info').innerHTML =
-  'isSecureContext: <b>' + window.isSecureContext + '</b><br>' +
-  'UA: ' + navigator.userAgent.slice(0, 90) + '<br>' +
-  'innerW/H: ' + innerWidth + 'x' + innerHeight + '　dpr: ' + devicePixelRatio;
-function add(msg, cls){
+document.getElementById('sc').textContent = window.isSecureContext;
+document.getElementById('ua').textContent = navigator.userAgent.slice(0, 90);
+document.getElementById('wh').textContent = innerWidth + 'x' + innerHeight + ' dpr:' + devicePixelRatio;
+var log = document.getElementById('log');
+function add(msg){
   n++;
+  document.getElementById('count').textContent = n;
+  document.getElementById('last').textContent = msg;
   var d = document.createElement('div');
-  d.className = cls || 'ev';
+  d.className = 'ev';
   d.textContent = n + '. ' + (performance.now() | 0) + 'ms ' + msg;
-  log.insertBefore(d, log.children[1] || null);
+  log.insertBefore(d, log.firstChild);
 }
 ['touchstart', 'touchend', 'touchcancel', 'pointerdown', 'pointerup',
  'mousedown', 'mouseup', 'click'].forEach(function(type){
   window.addEventListener(type, function(evt){
-    var t = evt.touches ? evt.touches.length : 0;
     var x = (evt.clientX !== undefined) ? Math.round(evt.clientX) : '-';
     var y = (evt.clientY !== undefined) ? Math.round(evt.clientY) : '-';
     var pt = evt.pointerType || '';
     add(type + ' x=' + x + ' y=' + y + (pt ? ' type=' + pt : '') +
-        (t ? ' touches=' + t : ''), 'ev');
+        (evt.touches ? ' touches=' + evt.touches.length : ''), 'ev');
   }, true);
 });
 </script></body></html>
 """
-
 
 class NoCacheHandler(SimpleHTTPRequestHandler):
     """Safari 缓存很激进——禁缓存保证手机拿到最新导出产物。"""
