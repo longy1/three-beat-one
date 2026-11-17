@@ -105,6 +105,16 @@
   不确定 → 领 A/Q 级大牌试探
 - 113 用例全绿（+4 策略回归），30 局自动对局不变量保持
 
+### 揭主双飞动画（2026-11-17，用户需求）
+
+- 叫主完成（`_on_discard_required`，此时主花色与 R 已确定）：皇冠（`CrownAnimator`，落庄家不变）与
+  主 R 牌面（新组件 `TrumpReveal`，中央 ×2.2）同现于主牌桌中央，同步 TRANS_CUBIC EASE_OUT 飞行——
+  牌面落点 = 信息栏主牌展示位（新增 `InfoSidebar.trump_slot_center()` 测量），落位回调才把主牌放入信息栏
+- 时序要点：`trump_required` 时 `engine.trump` 仍为 null（该信号含义是"请叫主"），揭主必须在
+  `discard_required` 触发；信息栏延迟显示经 `_last_trump_shown` 先行标记实现（`_refresh` 跳过即时刷新）
+- `ui_test_base` 加速揭主时长（fly_duration 0.01s）；+1 动画过程回归用例（飞行中信息栏空/落位后显示）；
+  117 用例两轮全绿
+
 ## 4. 待定事项清单（联机前需定）
 
 - 每步操作超时时长与托管策略（超时自动跟牌/过）
