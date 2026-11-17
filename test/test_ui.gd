@@ -78,7 +78,7 @@ func test_pile_popup_uses_seat_name(test) -> void:
 	await _release_table(table)
 
 
-## 弹层延迟隐藏：移出入口后 0.35s 内仍可见（可移动视线/滚动），到期自动关闭
+## 弹层延迟隐藏：移出入口后 0.1s 内仍可见（粘滞窗口），到期自动关闭
 func test_pile_popup_delayed_hide(test) -> void:
 	var table = await _spawn_table()
 	var eng: GameEngine = table.engine
@@ -92,8 +92,8 @@ func test_pile_popup_delayed_hide(test) -> void:
 	var popup: PanelContainer = table._piles.history_popup
 	test.check(popup.visible, "悬停后弹层显示")
 	table._piles.history_chip.mouse_exited.emit()  # 移出入口 → 启动延迟隐藏
-	await tree_pause()  # ~0.05s < 0.35s：弹层应仍在
-	test.check(popup.visible, "移出后 0.35s 内弹层保持显示（延迟隐藏）")
+	await tree_pause()  # ~0.05s < 0.1s：弹层应仍在
+	test.check(popup.visible, "移出后 0.1s 内弹层保持显示（延迟隐藏）")
 	var tree: SceneTree = Engine.get_main_loop()
 	await tree.create_timer(0.5).timeout
 	test.check(not popup.visible, "到期后弹层自动关闭")
@@ -309,7 +309,7 @@ func test_seat_panel_popup_hides_on_exit(test) -> void:
 	test.check(popup.visible, "悬停电脑座位后历史弹层显示")
 	panel.mouse_exited.emit()  # 移出面板 → hide_timer.start（回归点：曾未调用）
 	var tree: SceneTree = Engine.get_main_loop()
-	await tree.create_timer(0.5).timeout  # > HIDE_DELAY(0.35s)
+	await tree.create_timer(0.5).timeout  # > HIDE_DELAY(0.1s)
 	test.check(not popup.visible, "移出电脑座位后弹层自动关闭（回归：弹层永久滞留）")
 	await _release_table(table)
 

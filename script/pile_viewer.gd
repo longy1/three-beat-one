@@ -5,7 +5,7 @@ extends RefCounted
 ## 数据由控制器注入（show_history/show_bottom），组件不持有引擎引用。
 
 
-const HIDE_DELAY := 0.35  ## 移出入口后延迟隐藏秒数（期间重新进入则取消）
+const HIDE_DELAY := 0.1  ## 移出入口后延迟隐藏秒数（粘滞；期间重新进入则取消。2026-11-17 用户定夺 0.1s）
 const HISTORY_MIN_WIDTH := 300.0  ## 历史弹层最小宽度（容纳 轮次标签 + 4 张小牌）
 const HISTORY_MAX_ROWS := 4       ## 可视行数上限：超出走滚动（ScrollContainer 最小高度为 0，不设则整层塌缩只剩标题条）
 
