@@ -75,7 +75,7 @@
 - **Web 导出验收闭环**（接续 2026-11-16 阶段 5 收尾）：
   - 根治「导出后主菜单按钮全部失灵」：`main_menu.gd` 顶部遗留 `const TestFramework := preload("res://test/test_framework.gd")`——test/ 已被导出过滤排除，静态 preload 使**整份脚本**在 Web 环境解析失败（_ready 不执行、按钮无处理器、无报错线索）。修复：test/ 一律运行时 `load()`（AGENTS.md §6 已固化为强约束）
   - 导出过滤器补 `build/*`（完整字体源与导出图标曾被误打进包，pck 7.9MB→301KB）
-  - 导出模板安装位置（2026-11-17 起）：`S:\Program\Godot\editor_data\export_templates\4.7.2.stable`——编辑器启用 **self-contained 模式**（exe 旁 `._sc_` 标记文件），编辑器数据目录从 `%APPDATA%\Godot` 改为安装目录；模板随目录迁移，editor_settings-4.7.tres 一并复制保持连续（工程内 build/_templates 缓存已删；注意 4.7.x 数据目录是 `editor_data/` 子目录）
+  - 导出模板安装位置（2026-11-17 起）：`S:\Program\Godot\editor_data\export_templates\4.7.2.stable`——编辑器启用 **self-contained 模式**（exe 旁 `._sc_` 标记文件），编辑器数据目录从 `%APPDATA%\Godot` 改为安装目录 `editor_data/`；editor_settings / projects.cfg（项目列表）/ recent_dirs 一并迁移，shader_cache 等可再生缓存与空目录已删（工程内 build/_templates 缓存已删；注意 4.7.x 数据目录是 `editor_data/` 子目录；`app_userdata/` 为项目 `user://` 运行时数据不受 self-contained 影响，仍留在 AppData）
   - 验收方法学沉淀：IAB 隐藏页面（document.hidden）会停摆 rAF → Godot 主循环冻结、计时器不走、CDP 输入注入失效；验收 harness 用 setTimeout 垫片驱动 rAF + 引擎启动前固定 canvas 尺寸 + CDP 截图页面内解码，实现隐藏页内的完整对局验收（主菜单守卫/全分区渲染/整局推进均通过）
 - **规则 7.3 增补（无主公示与主牌甩打）**：主牌轮垫牌公示【无主】；领出者外三家均无主时可一次甩出任意张主牌单牌（等同连续单张，末轮抠底 ×1）。引擎 trump_void_seats 公示状态 + FollowRule.is_trump_dump/is_legal_dump_follow + Trick.settle 甩打分支 + AiPlay 甩打轮垫牌；AI 不主动甩打（贪心基线），引擎路径由六类迷你剧本确定性覆盖
 - **交互改进**：底牌入手即选中（select_cards(engine.kitty)，扣底 8 张拿起态便于观察）；选牌跨轮保留（begin_select 仅模式切换清空 + consume_selected 移除已打出）；主牌区牌力并列的副R/副2 按 ♠→♥→♣→♦ 同花色相邻分组；翻底「底牌（仅你可见）」面板改点锚居中（程序化 PanelContainer + 半字号留空）
