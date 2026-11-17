@@ -166,6 +166,8 @@ func table_seat_names() -> Array:
 			var display: String = str(m.name)
 			if i == 0:
 				display += "（你）"
+			if bool(m.get("offline", false)):
+				display += "（离线）"
 			out[i] = display
 	return out
 
@@ -214,11 +216,7 @@ func _rotate_game_data(data: Dictionary) -> Dictionary:
 					"winner": NetProto.rot_seat(int(th.winner), my)})
 			out.trick_history = ths
 		if data.get("last_result") != null:
-			var r: Dictionary = data.last_result.duplicate(true)
-			r.banker_seat = NetProto.rot_seat(int(r.banker_seat), my)
-			r.payments = NetProto.rot_array(r.payments, my)
-			r.cumulative = NetProto.rot_array(r.cumulative, my)
-			out.last_result = r
+			out.last_result = _normalize_result(data.last_result, my)
 	return out
 
 
@@ -227,6 +225,30 @@ func _rot_plays(plays: Array, my: int) -> Array:
 	for p in plays:
 		out.append({"seat": NetProto.rot_seat(int(p.seat), my), "cards": p.cards, "role": p.role})
 	return out
+
+
+## 终局结果归一：座位旋转 + 整型还原（JSON 往返会把整型变浮点，直接透传会让
+## 结算面板 %d 格式化与用例 eq 失真）。game_over 与 snapshot.last_result 共用。
+func _normalize_result(raw: Dictionary, my: int) -> Dictionary:
+	var r: Dictionary = raw.duplicate(true)
+	r.round = int(raw.round)
+	r.banker_seat = NetProto.rot_seat(int(raw.banker_seat), my)
+	r.contract = int(raw.contract)
+	r.captured_points = int(raw.captured_points)
+	r.koudi_points = int(raw.koudi_points)
+	r.buried_points = int(raw.buried_points)
+	r.captured_total = int(raw.captured_total)
+	r.total_score = int(raw.total_score)
+	r.level = int(raw.level)
+	var payments: Array = []
+	for p in NetProto.rot_array(raw.payments, my):
+		payments.append(int(p))
+	r.payments = payments
+	var cumulative: Array = []
+	for c in NetProto.rot_array(raw.cumulative, my):
+		cumulative.append(int(c))
+	r.cumulative = cumulative
+	return r
 
 
 func _route_game_data(data: Dictionary) -> void:
@@ -313,7 +335,9 @@ func _handle(msg: Dictionary) -> void:
 				return
 			var seat := NetProto.rot_seat(int(msg.seat), my_seat)
 			var auto: bool = bool(msg.get("auto", false))
-			view.apply_act(str(msg.kind), seat, msg)
+			var payload := msg.duplicate()
+			payload.counts = NetProto.rot_array(msg.counts, my_seat)  # 张数按真座位下标 → 本地下标
+			view.apply_act(str(msg.kind), seat, payload)
 			remote_action.emit(str(msg.kind), seat, auto)
 		NetProto.KITTY:
 			if view == null:
@@ -324,10 +348,7 @@ func _handle(msg: Dictionary) -> void:
 			if view == null:
 				_act_backlog.append(msg)
 				return
-			var r: Dictionary = msg.result.duplicate(true)
-			r.banker_seat = NetProto.rot_seat(int(msg.result.banker_seat), my_seat)
-			r.payments = NetProto.rot_array(msg.result.payments, my_seat)
-			r.cumulative = NetProto.rot_array(msg.result.cumulative, my_seat)
+			var r := _normalize_result(msg.result, my_seat)
 			view.apply_game_over(r)
 			game_finished.emit(r)
 		NetProto.SCORES:
@@ -353,6 +374,7 @@ func _on_connection_lost() -> void:
 	if _leaving or _dialog_open:
 		return
 	_connected = false
+	_peer = null  # 停止轮询：断线后 status 恒为 DISCONNECTED，不置空会每帧重入本分支
 	# 尚未进过房间（连接失败）：交回菜单报错，不弹分数窗
 	if room_state.is_empty() and view == null:
 		net_error.emit("无法连接服务器")

@@ -132,11 +132,20 @@ func _on_menu() -> void:
 	get_tree().change_scene_to_file("res://scene/main_menu.tscn")
 
 
-## 联机接入（M4）：座位名按房间成员旋转生成；接 NetClient 回放/错误信号
+## 联机接入（M4）：座位名按房间成员旋转生成；接 NetClient 回放/错误/房间状态信号
 func _setup_online() -> void:
 	seat_names = _net.table_seat_names()
 	_net.remote_action.connect(_on_remote_action)
 	_net.net_error.connect(_on_net_error)
+	_net.room_state_changed.connect(_on_net_room_state)
+
+
+## 房间状态变化（成员掉线/重连）：刷新座位名（离线标注）与面板
+func _on_net_room_state(_state: Dictionary) -> void:
+	if not _online or engine == null:
+		return
+	seat_names = _net.table_seat_names()
+	_refresh()
 
 
 ## ============================= 联机回放处理（M4） =============================
@@ -167,6 +176,7 @@ func _on_net_error(msg: String) -> void:
 ## 下一局（房主开新局）/ 重连恢复：原地重灌对局（NetClient 路由调用）
 func _on_net_game_started(data: Dictionary) -> void:
 	result_panel.visible = false
+	_trick_timer.stop()  # 上一局结算停留可能未到期（重连恢复路径），防御性停表
 	_last_trick_winner = -1
 	_trick_display_cleared = false
 	_last_trump_shown = null

@@ -38,7 +38,11 @@ func start(port: int, store: RefCounted) -> Error:
 	_sweep_timer.wait_time = sweep_interval
 	_sweep_timer.timeout.connect(_on_sweep)
 	add_child(_sweep_timer)
-	_sweep_timer.start()
+	if is_inside_tree():
+		_sweep_timer.start()
+	else:
+		# -s 测试环境：树尚未激活（_initialize 同步段），推迟到下一帧启动
+		_sweep_timer.start.call_deferred()
 	return OK
 
 
@@ -114,7 +118,7 @@ func _dispatch(msg: Dictionary) -> void:
 
 
 func _on_hello(peer_id: int, msg: Dictionary) -> void:
-	var nick: String = str(msg.get("nick", ""))
+	var nick: String = str(msg.get("nick", "")).strip_edges()
 	var check := NetProto.check_nick(nick)
 	if check != "":
 		_send(peer_id, {"t": NetProto.ERR, "msg": check})
@@ -145,6 +149,9 @@ func _on_create(peer_id: int) -> void:
 	if nick == "":
 		_send(peer_id, {"t": NetProto.ERR, "msg": "请先输入昵称"})
 		return
+	if _room_of_peer(peer_id) != null:
+		_send(peer_id, {"t": NetProto.ERR, "msg": "你已在房间中，请先退出"})
+		return
 	var code := _gen_code()
 	var room: Node = load("res://server/host_room.gd").new()
 	room.name = "Room_" + code
@@ -162,6 +169,9 @@ func _on_join(peer_id: int, msg: Dictionary) -> void:
 	var nick: String = _peer_nick.get(peer_id, "")
 	if nick == "":
 		_send(peer_id, {"t": NetProto.ERR, "msg": "请先输入昵称"})
+		return
+	if _room_of_peer(peer_id) != null:
+		_send(peer_id, {"t": NetProto.ERR, "msg": "你已在房间中，请先退出"})
 		return
 	var code: String = str(msg.get("code", "")).strip_edges().to_upper()
 	var room: Node = _rooms.get(code)
