@@ -347,6 +347,8 @@ func _refresh() -> void:
 	_refresh_trick_area()
 	_refresh_stats()
 	_render_hand()
+	# 历史弹层悬停阅读期间历史增长 → 就地刷新（状态驱动：随引擎信号走，非定时轮询）
+	_piles.refresh_history(engine.trick_history, SEAT_NAMES)
 	# 庄家是自己时：皇冠下方「牌堆」按钮显示（扣底完成后才有底牌可看）
 	var show_bottom := engine.banker_seat == HUMAN_SEAT \
 		and (engine.phase == GameEngine.Phase.TRICKS or engine.phase == GameEngine.Phase.SETTLED)

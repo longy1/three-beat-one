@@ -14,6 +14,7 @@ var history_chip: Button        ## 人类玩家出牌历史入口（左下，始
 var bottom_button: Button       ## 庄家是自己时的「牌堆」入口（皇冠下方，悬停看底牌）
 var history_popup: PanelContainer
 var bottom_popup: PanelContainer
+var showing_seat := -1          ## 历史弹层当前展示的座位（-1 = 未展示；悬停期间历史增长时就地刷新用）
 
 
 func setup(root: Control) -> void:
@@ -53,6 +54,26 @@ func setup(root: Control) -> void:
 
 ## 悬停某座位：按旧→新列出该玩家每轮的出牌（赢轮标 ✓ 高亮）
 func show_history(seat: int, trick_history: Array, seat_names: Array) -> void:
+	showing_seat = seat
+	_fill_history(seat, trick_history, seat_names)
+	history_popup.visible = true
+	hide_timer.stop()
+
+
+## 弹层仍可见（鼠标停在面板/弹层上阅读）而历史增长时：就地重建行内容。
+## 状态驱动（由 trick_settled → _refresh 调用），非定时轮询；保留滚动位置。
+func refresh_history(trick_history: Array, seat_names: Array) -> void:
+	if showing_seat < 0 or not history_popup.visible:
+		return
+	var scroll: ScrollContainer = history_popup.get_node("VBox/Scroll")
+	var keep_y: float = scroll.get_v_scroll_bar().value
+	_fill_history(showing_seat, trick_history, seat_names)
+	# 行重建后容器重新布局，max_value 变化在新布局落地后才生效——延迟恢复滚动位置
+	scroll.get_v_scroll_bar().set_value.call_deferred(keep_y)
+
+
+## 弹层行内容填充（show_history / refresh_history 公共路径）
+func _fill_history(seat: int, trick_history: Array, seat_names: Array) -> void:
 	var title: Label = history_popup.get_node("VBox/Title")
 	title.text = "%s 的出牌（旧 → 新）" % seat_names[seat]
 	var list: VBoxContainer = history_popup.get_node("VBox/Scroll/List")
@@ -89,8 +110,7 @@ func show_history(seat: int, trick_history: Array, seat_names: Array) -> void:
 	var row_h: float = CardWidget.SIZE_SMALL.y + 4.0
 	var scroll: ScrollContainer = history_popup.get_node("VBox/Scroll")
 	scroll.custom_minimum_size = Vector2(HISTORY_MIN_WIDTH, minf(float(row_count), float(HISTORY_MAX_ROWS)) * row_h)
-	history_popup.visible = true
-	hide_timer.stop()
+	# 显隐与计时器只归 show_history 管——refresh 不得触碰（否则移出后的延迟隐藏会被无限续命）
 
 
 ## 庄家是自己时：悬停「牌堆」按钮查看所扣底牌（2 行 × 4 张，仅自己可见）
@@ -117,6 +137,7 @@ func hide_all() -> void:
 		history_popup.visible = false
 	if bottom_popup != null:
 		bottom_popup.visible = false
+	showing_seat = -1
 
 
 ## 居中弹层骨架：点锚 = 主牌桌十字中心，grow 向四周自适应（尺寸随内容）

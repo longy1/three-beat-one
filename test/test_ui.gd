@@ -345,3 +345,40 @@ func test_history_popup_content_expands(test) -> void:
 			alive += 1
 	test.eq(alive, 2, "两轮各一行，行内容已构建")
 	await _release_table(table)
+
+
+## 状态驱动刷新（2026-11-17 设计评审）：历史弹层悬停阅读期间对局继续推进，
+## 内容须就地刷新（trick_settled → _refresh → refresh_history），隐藏后刷新必须无效
+func test_history_popup_refreshes_while_visible(test) -> void:
+	var table = await _spawn_table()
+	var hist1: Array = [
+		{plays = [{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_7, 0)], role = FollowRule.Role.LEAD}], winner = 3},
+	]
+	table._piles.show_history(3, hist1, table.SEAT_NAMES)
+	var list: VBoxContainer = table._piles.history_popup.get_node("VBox/Scroll/List")
+	test.eq(_alive_rows(list), 1, "初始一行")
+	# 悬停期间又结算一轮 → refresh_history 追加内容，弹层保持显示
+	var hist2: Array = hist1.duplicate(true)
+	hist2.append({plays = [
+		{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_8, 0), C(Card.Suit.CLUB, Card.RANK_9, 0)], role = FollowRule.Role.LEAD},
+		{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)], role = FollowRule.Role.FOLLOW_TYPE},
+	], winner = 3})
+	table._piles.refresh_history(hist2, table.SEAT_NAMES)
+	test.check(table._piles.history_popup.visible, "刷新后弹层保持显示")
+	test.eq(_alive_rows(list), 2, "悬停期间历史增长 → 行数就地更新（1 → 2）")
+	test.eq(table._piles.showing_seat, 3, "展示座位保持不变")
+	# 隐藏后刷新：不得复活弹层、不得改动内容
+	table._piles.hide_all()
+	table._piles.refresh_history(hist2, table.SEAT_NAMES)
+	test.check(not table._piles.history_popup.visible, "隐藏后刷新不复活弹层")
+	test.eq(_alive_rows(list), 2, "隐藏后刷新不重建内容")
+	test.eq(table._piles.showing_seat, -1, "隐藏后展示座位复位")
+	await _release_table(table)
+
+
+func _alive_rows(list: VBoxContainer) -> int:
+	var n := 0
+	for c in list.get_children():
+		if not c.is_queued_for_deletion():
+			n += 1
+	return n
