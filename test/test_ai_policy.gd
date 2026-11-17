@@ -238,8 +238,12 @@ func test_banker_bleeds_low_trump_then_charges(test) -> void:
 		C(Card.Suit.DIAMOND, Card.RANK_7, 0)]
 	var lead := AiPlay.choose_play(hand, t, [], 2, 2)
 	test.eq(lead, [hand[0]], "弱主（无王 2 张）+ 有副对 → 先出最小主牌单张逼主")
-	var drained := AiPlay.choose_play(hand, t, [], 2, 2, [], [true, true, false, true])
-	test.eq(drained, [hand[2], hand[3]], "≥2 闲家公示无主 → 改闯最大副牌 ♥KK")
+	# 2026-11-17：三家全公示无主 → 触发 7.3 甩牌（甩出全部主牌压缩闲家）
+	var dump := AiPlay.choose_play(hand, t, [], 2, 2, [], [true, true, false, true])
+	test.eq(dump, [hand[0], hand[1]], "三家公示无主 → 甩出全部主牌（7.3）")
+	# 仅逼空 2 家（尚有一家可能有主）→ 不甩牌，改闯最大副牌
+	var drained := AiPlay.choose_play(hand, t, [], 2, 2, [], [true, true, false, false])
+	test.eq(drained, [hand[2], hand[3]], "≥2 闲家公示无主但未全空 → 改闯最大副牌 ♥KK")
 
 
 ## 庄家开局提前闯中坚副对（防主牌不够大时被闲家单张拆散）
@@ -270,3 +274,44 @@ func test_defender_feeds_points_when_teammate_may_beat(test) -> void:
 		winner = 0}]
 	var hold := AiPlay.choose_play(hand, t, plays, 1, 2, seen_all)
 	test.eq(hold, [hand[0]], "四王已全部现身（确定压不住）→ 垫无分的 ♥7 保留分牌")
+
+
+## 甩牌含主牌对子时拆为单张一并甩出（7.3：任意张主牌单牌）
+func test_banker_dump_includes_trump_pair(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.SPADE, Card.RANK_9, 0), C(Card.Suit.SPADE, Card.RANK_9, 1),
+		C(Card.Suit.SPADE, Card.RANK_J, 0), C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1)]
+	var dump := AiPlay.choose_play(hand, t, [], 2, 2, [], [true, true, false, true])
+	test.eq(dump, [hand[0], hand[1], hand[2]], "甩牌 = 全部主牌（主牌对拆作两张单张）")
+	test.eq(dump.size(), hand.size() - 2, "副牌 ♥KK 留待甩后稳赢轮次")
+
+
+## 闲家单张试探 ①：确定庄家还剩 ♣ → 领该门最大牌 ♣K（出分试探）
+func test_defender_probes_banker_held_suit(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_5, 0),
+		C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.DIAMOND, Card.RANK_7, 0)]
+	var history := [{plays = [
+		{seat = 0, cards = [C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_7, 1)], role = FollowRule.Role.LEAD},
+		{seat = 1, cards = [C(Card.Suit.HEART, Card.RANK_8, 0), C(Card.Suit.DIAMOND, Card.RANK_J, 0)], role = FollowRule.Role.DISCARD},
+		{seat = 2, cards = [C(Card.Suit.CLUB, Card.RANK_J, 0), C(Card.Suit.CLUB, Card.RANK_Q, 0)], role = FollowRule.Role.FOLLOW_TYPE},
+		{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_8, 0), C(Card.Suit.CLUB, Card.RANK_9, 0)], role = FollowRule.Role.FOLLOW_TYPE}], winner = 2}]
+	var lead := AiPlay.choose_play(hand, t, [], 1, 2, history)
+	test.eq(lead, [hand[0]], "庄家跟过 ♣（确定还剩）→ 领 ♣K 出分试探")
+
+
+## 闲家单张试探 ②：不确定庄家剩什么 → 领 A 级大牌试探
+func test_defender_probes_uncertain_high_card(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.CLUB, Card.RANK_7, 0),
+		C(Card.Suit.DIAMOND, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_5, 0)]
+	var lead := AiPlay.choose_play(hand, t, [], 1, 2)
+	test.eq(lead, [hand[0]], "无庄家花色情报 → 领 ♠ 之外最大的 ♥A 试探（旧版会领主牌 ♠5）")
+
+
+## 闲家单张试探 ③：无 A/Q 级牌可试探 → 回退默认（最强单张）
+func test_defender_no_probe_with_low_cards(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)]
+	var lead := AiPlay.choose_play(hand, t, [], 1, 2)
+	test.eq(lead, [hand[1]], "无 A/Q 试探资本 → 回退默认最强单张 ♣8")

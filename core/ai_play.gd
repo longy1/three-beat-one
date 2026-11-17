@@ -207,14 +207,17 @@ static func _infer_suit_voids(history: Array, trump: TrumpInfo) -> Dictionary:
 	return voids
 
 
-## 领出策略（2026-11-17 角色化重写）：
-## - 庄家：①握顶张（大王对/四王）先出最高常主对勾引（藏强牌诱闲家下分/耗牌）
+## 领出策略（2026-11-17 角色化重写 + 甩牌与破坏副牌增补）：
+## - 庄家：⓪三家均已公示无主 → 7.3 甩出全部主牌（一轮逼三家各垫 n 张，压缩闲家牌力）
+##   ①握顶张（大王对/四王）先出最高常主对勾引（藏强牌诱闲家下分/耗牌）
 ##   ②弱主（无王 ≤5 张）且有副对 → 先出最小主牌单张逼闲家放主
 ##   ③逼空（≥2 闲家公示无主）→ 出最大副牌组合闯
 ##   ④开局（手牌 ≥12）有 Q 以上副对 → 提前闯（防主牌不够大时被单张拆散）
 ##   ⑤默认：最强完整组合（拖 > 对 > 单）
-## - 闲家：不主动领主牌对/拖（除非无副牌、庄家已公示无主）；副牌领出优先
-##   队友已缺失的花色（可放心喂分），避开庄家已缺失的花色（防小杀）；无组合时领最大单张
+## - 闲家：不主动领主牌对/拖（除非无副牌、庄家已公示无主）；副牌组合优先
+##   队友已缺失的花色（可放心喂分），避开庄家已缺失的花色（防小杀），
+##   并加成「庄家还持有」的花色（持续磨其副牌）；无组合时单张试探破坏庄家副牌：
+##   确定庄家剩某副花色 → 领该门最大牌（带分即出分试探）；不确定 → 领 A/Q 级大牌
 static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: int,
 		history: Array = [], trump_void: Array = [false, false, false, false]) -> Array:
 	var trump_pairs := FollowRule.list_pairs(hand, TrumpInfo.CLASS_TRUMP, trump)
@@ -259,6 +262,15 @@ static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: 
 		for pair in trump_pairs:
 			if not pair[0].is_joker() and trump.is_permanent_trump(pair[0]):
 				permanent_pairs.append(pair)
+		# ⓪ 7.3 甩牌（2026-11-17）：三家均已公示无主 → 甩出全部主牌。
+		# 甩 n 张逼三家各垫 n 张（一轮挤压 3n 张），闲家手里的分牌会被强制垫出而作废；
+		# 闲家皆无主后我方余下的副牌组合本就稳赢，无须再留主配合。
+		if defenders_void >= 3 and trump_count >= 2:
+			var dump: Array = []
+			for c in hand:
+				if trump.is_trump(c):
+					dump.append(c)
+			return dump
 		# ① 藏强勾引：握顶张且另有常主对 → 先出最高常主对（顶张留到后手收割）
 		if holds_joker_pair and not permanent_pairs.is_empty():
 			permanent_pairs.sort_custom(_pair_power_desc(trump))
@@ -295,9 +307,11 @@ static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: 
 			return best_trump
 		if not trump_tractors.is_empty():
 			return best_trump
-	# 副牌组合评分：队友缺失花色加成（可放心喂分），庄家缺失花色减分（防小杀）
+	# 副牌组合评分：队友缺失花色加成（可放心喂分），庄家缺失花色减分（防小杀），
+	# 庄家还持有的花色加成（2026-11-17：持续消耗其副牌，直到底牌被磨干）
 	if not side_combos.is_empty():
 		var voids := _infer_suit_voids(history, trump)
+		var banker_held: Dictionary = _banker_held_suits(history, trump, banker_seat, voids)
 		var best_side: Dictionary = side_combos[0]
 		var best_score := -1.0
 		for sc in side_combos:
@@ -309,14 +323,84 @@ static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: 
 					score += 300.0
 			if voids.has(banker_seat) and voids[banker_seat].has(sc.suit):
 				score -= 200.0
+			if banker_held.has(sc.suit):
+				score += 150.0
 			if score > best_score:
 				best_score = score
 				best_side = sc
 		return best_side.cards
+	# 无副牌组合 → 单张试探破坏庄家副牌（2026-11-17）：
+	#   确定庄家剩某副花色 → 领该花色最大牌（带分即为出分试探，逼庄家杀分或持续跟牌减薄）
+	#   不确定庄家剩什么 → 领 A/Q 级大牌试探（庄家跟牌减薄，或被迫杀主消耗）
+	var probe_voids := _infer_suit_voids(history, trump)
+	var probe := _banker_probe_card(hand, trump, banker_seat,
+		_banker_held_suits(history, trump, banker_seat, probe_voids), probe_voids)
+	if not probe.is_empty():
+		return probe
 	if not has_side and (not trump_pairs.is_empty() or not trump_tractors.is_empty()):
 		# 无副牌可打：领主牌组合（例外许可）
 		return _best_combo(hand, trump, trump_pairs, trump_tractors, [])
 	return _best_combo(hand, trump, trump_pairs, trump_tractors, [])
+
+
+## 从历史收集「庄家持有过」的副花色（跟/领/打尽过该花色即算持有证据）；
+## 已被推断缺门的排除。返回 { suit: true }
+static func _banker_held_suits(history: Array, trump: TrumpInfo, banker_seat: int,
+		voids: Dictionary) -> Dictionary:
+	var held := {}
+	for th in history:
+		var plays: Array = th.plays
+		if plays.is_empty():
+			continue
+		var lead := Combo.detect(plays[0].cards, trump)
+		if lead == null or lead.suit == TrumpInfo.CLASS_TRUMP:
+			continue
+		var s: int = lead.suit
+		for p in plays:
+			if p.seat != banker_seat:
+				continue
+			for c in p.cards:
+				if trump.effective_suit(c) == s:
+					held[s] = true
+	if voids.has(banker_seat):
+		for s in voids[banker_seat]:
+			held.erase(s)
+	return held
+
+
+## 单张试探领出（破坏庄家副牌）：返回试探牌或空数组
+static func _banker_probe_card(hand: Array, trump: TrumpInfo, banker_seat: int,
+		banker_held: Dictionary, voids: Dictionary) -> Array:
+	var best_by_suit := {}  # suit -> Card（我方该副花色最大牌）
+	for c in hand:
+		var s := trump.effective_suit(c)
+		if s == TrumpInfo.CLASS_TRUMP:
+			continue
+		if not best_by_suit.has(s) or trump.card_power(c) > trump.card_power(best_by_suit[s]):
+			best_by_suit[s] = c
+	if best_by_suit.is_empty():
+		return []
+	# 确定庄家还剩的花色：挑我方顶牌最强的一门（顶牌带分即为出分试探）
+	var probe: Card = null
+	for s in banker_held:
+		if voids.has(banker_seat) and voids[banker_seat].has(s):
+			continue  # 已被推断缺门 → 不再试探该门
+		var c: Card = best_by_suit.get(s)
+		if c == null:
+			continue
+		if probe == null or trump.card_power(c) > trump.card_power(probe):
+			probe = c
+	if probe != null:
+		return [probe]
+	# 不确定庄家剩什么：领 A/Q 级大牌试探
+	var top: Card = null
+	for s in best_by_suit:
+		var c: Card = best_by_suit[s]
+		if top == null or trump.card_power(c) > trump.card_power(top):
+			top = c
+	if top != null and top.rank >= Card.RANK_Q:
+		return [top]
+	return []
 
 
 ## 最强完整组合（拖拉机 > 对子 > 单张；原始贪心口径）
