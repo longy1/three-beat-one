@@ -315,3 +315,15 @@ func test_defender_no_probe_with_low_cards(test) -> void:
 	var hand := [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)]
 	var lead := AiPlay.choose_play(hand, t, [], 1, 2)
 	test.eq(lead, [hand[1]], "无 A/Q 试探资本 → 回退默认最强单张 ♣8")
+
+
+## 甩牌上限（2026-11-17 用户定夺）：一次最多甩 4 张，主牌更多时分多轮甩
+func test_banker_dump_capped_at_four(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0),
+		C(Card.Suit.SPADE, Card.RANK_8, 0), C(Card.Suit.SPADE, Card.RANK_10, 0),
+		C(Card.Suit.SPADE, Card.RANK_J, 0), C(Card.Suit.SPADE, Card.RANK_Q, 0),
+		C(Card.Suit.HEART, Card.RANK_7, 0)]
+	var dump := AiPlay.choose_play(hand, t, [], 2, 2, [], [true, true, false, true])
+	test.eq(dump.size(), 4, "6 张主牌在手 → 一次只甩前 4 张")
+	test.eq(dump, [hand[0], hand[1], hand[2], hand[3]], "甩出的是前 4 张主牌（余下轮次继续）")

@@ -208,7 +208,7 @@ static func _infer_suit_voids(history: Array, trump: TrumpInfo) -> Dictionary:
 
 
 ## 领出策略（2026-11-17 角色化重写 + 甩牌与破坏副牌增补）：
-## - 庄家：⓪三家均已公示无主 → 7.3 甩出全部主牌（一轮逼三家各垫 n 张，压缩闲家牌力）
+## - 庄家：⓪三家均已公示无主 → 7.3 甩主牌（每次最多 4 张，逼三家各垫 n 张压缩闲家牌力）
 ##   ①握顶张（大王对/四王）先出最高常主对勾引（藏强牌诱闲家下分/耗牌）
 ##   ②弱主（无王 ≤5 张）且有副对 → 先出最小主牌单张逼闲家放主
 ##   ③逼空（≥2 闲家公示无主）→ 出最大副牌组合闯
@@ -262,15 +262,16 @@ static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: 
 		for pair in trump_pairs:
 			if not pair[0].is_joker() and trump.is_permanent_trump(pair[0]):
 				permanent_pairs.append(pair)
-		# ⓪ 7.3 甩牌（2026-11-17）：三家均已公示无主 → 甩出全部主牌。
+		# ⓪ 7.3 甩牌（2026-11-17）：三家均已公示无主 → 甩主牌。
 		# 甩 n 张逼三家各垫 n 张（一轮挤压 3n 张），闲家手里的分牌会被强制垫出而作废；
 		# 闲家皆无主后我方余下的副牌组合本就稳赢，无须再留主配合。
+		# 每次最多甩 4 张（2026-11-17 用户定夺：太多看不清）；主牌更多时下一轮继续甩。
 		if defenders_void >= 3 and trump_count >= 2:
 			var dump: Array = []
 			for c in hand:
 				if trump.is_trump(c):
 					dump.append(c)
-			return dump
+			return dump.slice(0, 4)
 		# ① 藏强勾引：握顶张且另有常主对 → 先出最高常主对（顶张留到后手收割）
 		if holds_joker_pair and not permanent_pairs.is_empty():
 			permanent_pairs.sort_custom(_pair_power_desc(trump))
