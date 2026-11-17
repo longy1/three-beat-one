@@ -38,6 +38,8 @@ static func choose_discard(hand: Array, trump: TrumpInfo) -> Array:
 	return AiPlay.choose_discard(hand, trump, GameEngine.BOTTOM_SIZE)
 
 
-## 出牌：从引擎状态解包数据后交纯策略（联机服务端应直接调 AiPlay.choose_play）
+## 出牌：从引擎状态解包数据后交纯策略（联机服务端应直接调 AiPlay.choose_play）；
+## 附带历史轮次与 7.3 无主公示（角色化领出/提前下分的情报输入）
 static func choose_play(engine: GameEngine, seat: int) -> Array:
-	return AiPlay.choose_play(engine.hands[seat], engine.trump, engine.current_plays, seat, engine.banker_seat)
+	return AiPlay.choose_play(engine.hands[seat], engine.trump, engine.current_plays,
+		seat, engine.banker_seat, engine.trick_history, engine.trump_void_seats)

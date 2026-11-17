@@ -7,7 +7,7 @@ extends TestBase
 
 func test_choose_bid_levels(test) -> void:
 	AiPolicy.rng.seed = 2026
-	# 极强牌（四王 + 多 2 + A 对 + K 对，strength≈86 → 校准桶 [65,∞)）
+	# 极强牌（四王 + 多 2 + A 对 + K 对，strength≈86 → 校准桶 [65,∞)，愿叫上限档 150）
 	var strong: Array = [
 		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
 		C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1),
@@ -27,13 +27,20 @@ func test_choose_bid_levels(test) -> void:
 		C(Card.Suit.SPADE, Card.RANK_A, 1), C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
 		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.DIAMOND, Card.RANK_2, 0),
 		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)]
-	# EV 模型：极强牌锁定校准正期望档 150（s≥65 叫 150 = +0.45）
-	test.eq(AiPolicy.choose_bid(strong, 130), 150, "极强牌叫 150（校准正 EV 档）")
-	test.eq(AiPolicy.choose_bid(strong, 150), GameEngine.BID_PASS, "150 已叫 → 剩余档全负 EV → 放弃")
-	test.eq(AiPolicy.choose_bid(strong, 165), GameEngine.BID_PASS, "165 起全负 EV → 放弃")
-	test.eq(AiPolicy.choose_bid(strong, 170), GameEngine.BID_PASS, "170 起无人应叫")
-	# 中等牌（strength≈65，落在校准噪声区）：插值后负 EV → 放弃（不激进）
-	test.eq(AiPolicy.choose_bid(medium, 130), GameEngine.BID_PASS, "中等牌负 EV → 放弃")
+	# 2026-11-17 平滑化 + 重校准：EV 只定愿叫上限档（新校准唯一明确正 EV 档 = 135），
+	# 实际叫分一律 最高+5 逐轮递进，不跳档
+	test.eq(AiPolicy.choose_bid(strong, 130), 135, "极强牌从 130 一手只叫 +5（不跳档）")
+	# 上限档附近为校准噪声区（150 档 +0.10）：40% 概率参与；参与必为 +5 平滑档
+	AiPolicy.rng.seed = 7
+	var near_cap: int = AiPolicy.choose_bid(strong, 135)
+	test.check(near_cap == GameEngine.BID_PASS or near_cap == 140,
+		"上限档附近：放弃或 +5 平滑（实际 %s）" % str(near_cap))
+	test.eq(AiPolicy.choose_bid(strong, 165), GameEngine.BID_PASS, "越过上限档全负 EV → 放弃")
+	test.eq(AiPolicy.choose_bid(strong, 180), GameEngine.BID_PASS, "180 起全负 EV → 放弃")
+	# 中等牌（strength≈65）：校准负 EV 区 → 要么放弃要么 +5 试探
+	var medium_bid: int = AiPolicy.choose_bid(medium, 130)
+	test.check(medium_bid == GameEngine.BID_PASS or medium_bid == 135,
+		"中等牌噪声区：要么放弃要么 +5（实际 %s）" % str(medium_bid))
 
 
 func test_choose_trump_prefers_long_suit(test) -> void:
@@ -171,3 +178,95 @@ func test_choose_play_dump_follow_no_feed(test) -> void:
 	var play := AiPlay.choose_play(hand, trump, plays, 1, 2)  # 自己 1 = 闲家，领出者 2 = 庄家
 	test.eq(play.size(), 2, "垫牌张数 = 甩打张数")
 	test.check(not play.has(hand[0]), "庄家甩打时不喂分（♥5 保留）")
+
+
+## ============================= 角色化领出策略（2026-11-17） =============================
+
+## 闲家不主动领主牌对：有副牌对 → 领副牌；庄家公示无主 / 无副牌 → 例外许可
+func test_defender_avoids_trump_pair_lead(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.SPADE, Card.RANK_9, 0), C(Card.Suit.SPADE, Card.RANK_9, 1),
+		C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_A, 1),
+		C(Card.Suit.CLUB, Card.RANK_5, 0), C(Card.Suit.DIAMOND, Card.RANK_7, 0)]
+	var lead := AiPlay.choose_play(hand, t, [], 1, 2)
+	test.eq(lead, [hand[2], hand[3]], "闲家有副牌对 → 领 ♥AA，不主动领主牌对")
+	var lead2 := AiPlay.choose_play(hand, t, [], 1, 2, [], [false, false, true, false])
+	test.eq(lead2, [hand[0], hand[1]], "庄家公示无主（7.3）→ 领主牌对必赢")
+	var trump_only := [C(Card.Suit.SPADE, Card.RANK_9, 0), C(Card.Suit.SPADE, Card.RANK_9, 1),
+		C(Card.Suit.SPADE, Card.RANK_J, 0)]
+	var lead3 := AiPlay.choose_play(trump_only, t, [], 1, 2)
+	test.eq(lead3, [trump_only[0], trump_only[1]], "实在没有副牌 → 领主牌对")
+
+
+## 闲家副牌领出优先队友已缺失的花色（从历史推断）
+func test_defender_prefers_teammate_void_suit(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.HEART, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_A, 1),
+		C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1),
+		C(Card.Suit.DIAMOND, Card.RANK_5, 0)]
+	var no_history := AiPlay.choose_play(hand, t, [], 1, 2)
+	test.eq(no_history, [hand[0], hand[1]], "无情报 → 领更大的 ♥AA")
+	var history := [{plays = [
+		{seat = 2, cards = [C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_7, 1)], role = FollowRule.Role.LEAD},
+		{seat = 0, cards = [C(Card.Suit.CLUB, Card.RANK_J, 0)], role = FollowRule.Role.FOLLOW_TYPE},
+		{seat = 3, cards = [C(Card.Suit.DIAMOND, Card.RANK_K, 0), C(Card.Suit.DIAMOND, Card.RANK_9, 0)], role = FollowRule.Role.DISCARD},
+		{seat = 1, cards = [C(Card.Suit.CLUB, Card.RANK_5, 0)], role = FollowRule.Role.FOLLOW_TYPE}], winner = 2}]
+	var lead := AiPlay.choose_play(hand, t, [], 1, 2, history)
+	test.eq(lead, [hand[2], hand[3]], "队友（丁）已无 ♣ → 优先领 ♣KK（可放心喂分）")
+
+
+## 庄家握顶张（大王对）另有常主对 → 先出常主对勾引，藏强牌
+func test_banker_baits_from_permanent_pair(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
+		C(Card.Suit.SPADE, Card.RANK_9, 0), C(Card.Suit.SPADE, Card.RANK_9, 1),
+		C(Card.Suit.CLUB, Card.RANK_5, 0), C(Card.Suit.DIAMOND, Card.RANK_7, 0)]
+	var lead := AiPlay.choose_play(hand, t, [], 2, 2)
+	test.eq(lead, [hand[2], hand[3]], "庄家握大王对 + 正R对 → 先出 ♠RR 对勾引（藏大王对）")
+	var top_only := [C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
+		C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1),
+		C(Card.Suit.CLUB, Card.RANK_5, 0)]
+	var lead2 := AiPlay.choose_play(top_only, t, [], 2, 2)
+	test.eq(lead2, [top_only[0], top_only[1], top_only[2], top_only[3]], "无常主对可出 → 领四王（最大拖）")
+
+
+## 庄家弱主逼主：先出最小主牌单张消耗闲家主牌；逼空后改闯最大副牌
+func test_banker_bleeds_low_trump_then_charges(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_J, 0),
+		C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
+		C(Card.Suit.DIAMOND, Card.RANK_7, 0)]
+	var lead := AiPlay.choose_play(hand, t, [], 2, 2)
+	test.eq(lead, [hand[0]], "弱主（无王 2 张）+ 有副对 → 先出最小主牌单张逼主")
+	var drained := AiPlay.choose_play(hand, t, [], 2, 2, [], [true, true, false, true])
+	test.eq(drained, [hand[2], hand[3]], "≥2 闲家公示无主 → 改闯最大副牌 ♥KK")
+
+
+## 庄家开局提前闯中坚副对（防主牌不够大时被闲家单张拆散）
+func test_banker_charges_side_pair_early(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand: Array = [
+		C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0),
+		C(Card.Suit.SPADE, Card.RANK_8, 0), C(Card.Suit.SPADE, Card.RANK_9, 0),
+		C(Card.Suit.SPADE, Card.RANK_J, 0), C(Card.Suit.SPADE, Card.RANK_A, 0),
+		C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
+		C(Card.Suit.DIAMOND, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0),
+		C(Card.Suit.CLUB, Card.RANK_9, 0), C(Card.Suit.CLUB, Card.RANK_Q, 0)]
+	var lead := AiPlay.choose_play(hand, t, [], 2, 2)
+	test.eq(lead, [hand[6], hand[7]], "开局（12 张）有 Q 以上副对 → 提前闯 ♥KK")
+
+
+## 闲家提前下分：庄家当前领先但队友或能压（场上还有未现身的王）→ 垫分；
+## 大牌已全部现身（确定压不住）→ 保留分牌
+func test_defender_feeds_points_when_teammate_may_beat(test) -> void:
+	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_K, 0)]
+	var plays := [{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0)], role = FollowRule.Role.LEAD}]
+	var feed := AiPlay.choose_play(hand, t, plays, 1, 2, [])
+	test.eq(feed, [hand[1]], "庄家领先 + 还有未见王 → 提前垫 ♦K 下分（队友或能压）")
+	var seen_all := [{plays = [
+		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
+		C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1)],
+		winner = 0}]
+	var hold := AiPlay.choose_play(hand, t, plays, 1, 2, seen_all)
+	test.eq(hold, [hand[0]], "四王已全部现身（确定压不住）→ 垫无分的 ♥7 保留分牌")

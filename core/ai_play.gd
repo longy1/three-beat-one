@@ -99,9 +99,12 @@ static func choose_discard(hand: Array, trump: TrumpInfo, bottom_size: int) -> A
 
 ## 出牌决策（数据进/决策出）。plays 为本轮已出记录 [{ seat, cards, role }]，
 ## plays[0] 为领出；空数组表示本手领出。
-static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, banker_seat: int) -> Array:
+## history = 已结算轮次（可空）、trump_void = 7.3 无主公示（seat → bool，可空）：
+## 供领出角色策略做情报推断，缺省时退化为纯手牌贪心。
+static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, banker_seat: int,
+		history: Array = [], trump_void: Array = [false, false, false, false]) -> Array:
 	if plays.is_empty():
-		return _choose_lead(hand, trump)
+		return _choose_lead(hand, trump, seat, banker_seat, history, trump_void)
 
 	var lead := Combo.detect(plays[0].cards, trump)
 	if lead == null:
@@ -125,6 +128,11 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 	var last_seat := plays.size() >= 3
 	var s_class: int = lead.suit
 
+	# 提前下分（2026-11-17）：当前庄家领先、场上仍有未现身的王（队友手里可能还压得住）
+	# 且后面还有人出牌 → 把分牌垫进这轮；确定压不住 → 保留分牌
+	var teammate_may_beat: bool = i_am_defender and cur.seat == banker_seat and plays.size() <= 2 \
+		and _unseen_big_trumps(history) > 0
+
 	# 1) 有同牌型 → 必须跟：队友领先出最小；否则能赢用最小，赢不了出最小
 	if FollowRule.has_type(hand, s_class, lead.type, trump):
 		var options := list_type_options(hand, s_class, lead.type, trump)
@@ -134,6 +142,16 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 		for opt in options:
 			if opt.power > beat_power:
 				return opt.cards
+		# 压不住且队友也难压：跟牌里优先无分的（不在庄家赢轮白送分）
+		if not teammate_may_beat:
+			for opt in options:
+				var has_pts := false
+				for c in opt.cards:
+					if c.points() > 0:
+						has_pts = true
+						break
+				if not has_pts:
+					return opt.cards
 		return options[0].cards
 
 	# 2) 有该类牌但不成型 → 打尽（含优先对子），必输本轮
@@ -149,11 +167,161 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 			for opt in kills:
 				if opt.power > beat_power:
 					return opt.cards
-	return build_discard(hand, trump, lead.cards.size(), winner_is_teammate and i_am_defender)
+	var feed: bool = (winner_is_teammate and i_am_defender) or teammate_may_beat
+	return build_discard(hand, trump, lead.cards.size(), feed)
 
 
-## 领出：手中最大的完整牌型（拖拉机 > 对子 > 单张）
-static func _choose_lead(hand: Array, trump: TrumpInfo) -> Array:
+## 场上仍未现身的王（大王/小王各 2 张）：> 0 说明队友手里仍有可能握着压牌王牌
+static func _unseen_big_trumps(history: Array) -> int:
+	var seen := 0
+	for th in history:
+		for p in th.plays:
+			for c in p.cards:
+				if c.is_joker():
+					seen += 1
+	return maxi(0, 4 - seen)
+
+
+## 从历史推断各座位缺失的副花色：某副花色 S 领出的轮次里，
+## 该座位未打出任何 S 牌（无论垫牌还是杀主）→ 其已无 S。返回 { seat: { suit: true } }
+static func _infer_suit_voids(history: Array, trump: TrumpInfo) -> Dictionary:
+	var voids := {}
+	for th in history:
+		var plays: Array = th.plays
+		if plays.is_empty():
+			continue
+		var lead := Combo.detect(plays[0].cards, trump)
+		if lead == null or lead.suit == TrumpInfo.CLASS_TRUMP:
+			continue
+		var s: int = lead.suit
+		for p in plays:
+			var has_s := false
+			for c in p.cards:
+				if trump.effective_suit(c) == s:
+					has_s = true
+					break
+			if not has_s:
+				if not voids.has(p.seat):
+					voids[p.seat] = {}
+				voids[p.seat][s] = true
+	return voids
+
+
+## 领出策略（2026-11-17 角色化重写）：
+## - 庄家：①握顶张（大王对/四王）先出最高常主对勾引（藏强牌诱闲家下分/耗牌）
+##   ②弱主（无王 ≤5 张）且有副对 → 先出最小主牌单张逼闲家放主
+##   ③逼空（≥2 闲家公示无主）→ 出最大副牌组合闯
+##   ④开局（手牌 ≥12）有 Q 以上副对 → 提前闯（防主牌不够大时被单张拆散）
+##   ⑤默认：最强完整组合（拖 > 对 > 单）
+## - 闲家：不主动领主牌对/拖（除非无副牌、庄家已公示无主）；副牌领出优先
+##   队友已缺失的花色（可放心喂分），避开庄家已缺失的花色（防小杀）；无组合时领最大单张
+static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: int,
+		history: Array = [], trump_void: Array = [false, false, false, false]) -> Array:
+	var trump_pairs := FollowRule.list_pairs(hand, TrumpInfo.CLASS_TRUMP, trump)
+	var trump_tractors := FollowRule.list_tractors(hand, TrumpInfo.CLASS_TRUMP, trump)
+	var side_combos: Array = []  # [{ cards, power, suit }]（副牌对子与拖拉机）
+	var has_side := false
+	var trump_count := 0
+	var has_joker := false
+	for c in hand:
+		if trump.is_trump(c):
+			trump_count += 1
+			if c.is_joker():
+				has_joker = true
+		else:
+			has_side = true
+	for suit_class in Card.NORMAL_SUITS:
+		for pair in FollowRule.list_pairs(hand, suit_class, trump):
+			side_combos.append({cards = pair, power = trump.card_power(pair[0]), suit = suit_class})
+		for t in FollowRule.list_tractors(hand, suit_class, trump):
+			side_combos.append({cards = t, power = Combo.power(Combo.detect(t, trump), trump), suit = suit_class})
+
+	# 主牌组合里的顶张标记：大王对 / 四王
+	var holds_joker_pair := false
+	for pair in trump_pairs:
+		if pair[0].is_joker() and pair[0].rank == Card.RANK_BIG_JOKER:
+			holds_joker_pair = true
+	for t in trump_tractors:
+		var jokers := 0
+		for c in t:
+			if c.is_joker():
+				jokers += 1
+		if jokers == 4:
+			holds_joker_pair = true
+
+	# ================= 庄家 =================
+	if seat == banker_seat:
+		var defenders_void := 0
+		for d in 4:
+			if d != banker_seat and trump_void.size() == 4 and trump_void[d]:
+				defenders_void += 1
+		var permanent_pairs: Array = []
+		for pair in trump_pairs:
+			if not pair[0].is_joker() and trump.is_permanent_trump(pair[0]):
+				permanent_pairs.append(pair)
+		# ① 藏强勾引：握顶张且另有常主对 → 先出最高常主对（顶张留到后手收割）
+		if holds_joker_pair and not permanent_pairs.is_empty():
+			permanent_pairs.sort_custom(_pair_power_desc(trump))
+			return permanent_pairs[0]
+		# ② 弱主逼主：先出最小主牌单张，逼闲家放主消耗
+		if trump_count >= 1 and trump_count <= 5 and not has_joker \
+				and not side_combos.is_empty() and defenders_void < 2:
+			var lowest: Card = null
+			for c in hand:
+				if trump.is_trump(c) and (lowest == null or trump.card_power(c) < trump.card_power(lowest)):
+					lowest = c
+			return [lowest]
+		# ③ 逼空闯副：闲家主牌已耗干 → 最大副牌组合冲分
+		if defenders_void >= 2 and not side_combos.is_empty():
+			side_combos.sort_custom(_combo_power_desc)
+			return side_combos[0].cards
+		# ④ 早局闯中坚副对：趁主牌控制力尚在提前兑现，防被单张拆散
+		if hand.size() >= 12 and not side_combos.is_empty():
+			var big_side: Dictionary = side_combos[0]
+			for sc in side_combos:
+				if sc.power > big_side.power:
+					big_side = sc
+			if big_side.power >= Card.RANK_Q:
+				return big_side.cards
+		# ⑤ 默认：最强完整组合
+		return _best_combo(hand, trump, trump_pairs, trump_tractors, side_combos)
+
+	# ================= 闲家 =================
+	var banker_void: bool = trump_void.size() == 4 and trump_void[banker_seat]
+	if banker_void:
+		# 庄家已公示无主：主牌组合必赢，优先领主牌对（单张威胁已失）
+		var best_trump := _best_combo(hand, trump, trump_pairs, trump_tractors, [])
+		if best_trump.size() == 2 and not trump_pairs.is_empty():
+			return best_trump
+		if not trump_tractors.is_empty():
+			return best_trump
+	# 副牌组合评分：队友缺失花色加成（可放心喂分），庄家缺失花色减分（防小杀）
+	if not side_combos.is_empty():
+		var voids := _infer_suit_voids(history, trump)
+		var best_side: Dictionary = side_combos[0]
+		var best_score := -1.0
+		for sc in side_combos:
+			var score: float = float(sc.power)
+			for mate in 4:
+				if mate == seat or mate == banker_seat:
+					continue
+				if voids.has(mate) and voids[mate].has(sc.suit):
+					score += 300.0
+			if voids.has(banker_seat) and voids[banker_seat].has(sc.suit):
+				score -= 200.0
+			if score > best_score:
+				best_score = score
+				best_side = sc
+		return best_side.cards
+	if not has_side and (not trump_pairs.is_empty() or not trump_tractors.is_empty()):
+		# 无副牌可打：领主牌组合（例外许可）
+		return _best_combo(hand, trump, trump_pairs, trump_tractors, [])
+	return _best_combo(hand, trump, trump_pairs, trump_tractors, [])
+
+
+## 最强完整组合（拖拉机 > 对子 > 单张；原始贪心口径）
+static func _best_combo(hand: Array, trump: TrumpInfo, trump_pairs: Array, trump_tractors: Array,
+		side_combos: Array) -> Array:
 	var best: Array = []
 	var best_score := -1
 	for c in hand:
@@ -161,20 +329,31 @@ static func _choose_lead(hand: Array, trump: TrumpInfo) -> Array:
 		if s > best_score:
 			best_score = s
 			best = [c]
-	var classes: Array = [TrumpInfo.CLASS_TRUMP]
-	classes.append_array(Card.NORMAL_SUITS)
-	for suit_class in classes:
-		for pair in FollowRule.list_pairs(hand, suit_class, trump):
-			var s2 := trump.card_power(pair[0]) + 1000
-			if s2 > best_score:
-				best_score = s2
-				best = pair
-		for t in FollowRule.list_tractors(hand, suit_class, trump):
-			var s3 := Combo.power(Combo.detect(t, trump), trump) + 100000
-			if s3 > best_score:
-				best_score = s3
-				best = t
+	for pair in trump_pairs:
+		var s2 := trump.card_power(pair[0]) + 1000
+		if s2 > best_score:
+			best_score = s2
+			best = pair
+	for t in trump_tractors:
+		var s3 := Combo.power(Combo.detect(t, trump), trump) + 100000
+		if s3 > best_score:
+			best_score = s3
+			best = t
+	for sc in side_combos:
+		var s4: int = sc.power + 1000
+		if s4 > best_score:
+			best_score = s4
+			best = sc.cards
 	return best
+
+
+static func _pair_power_desc(trump: TrumpInfo) -> Callable:
+	return func(a: Array, b: Array) -> bool:
+		return trump.card_power(a[0]) > trump.card_power(b[0])
+
+
+static func _combo_power_desc(a, b) -> bool:
+	return a.power > b.power
 
 
 ## ============================= 出牌构造件（策略内部使用） =============================
