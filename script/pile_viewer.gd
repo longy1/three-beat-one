@@ -11,7 +11,7 @@ const HISTORY_MAX_ROWS := 4       ## 可视行数上限：超出走滚动（Scro
 
 var hide_timer: Timer
 var history_chip: Button        ## 人类玩家出牌历史入口（左下，始终显示）
-var bottom_button: Button       ## 庄家是自己时的「牌堆」入口（皇冠下方，悬停看底牌）
+var bottom_button: Button       ## 庄家是自己时的「牌堆」入口（「历史」右侧，悬停看底牌）
 var history_popup: PanelContainer
 var bottom_popup: PanelContainer
 var showing_seat := -1          ## 历史弹层当前展示的座位（-1 = 未展示；悬停期间历史增长时就地刷新用）
@@ -34,16 +34,16 @@ func setup(root: Control) -> void:
 	history_chip.offset_top = -196
 	history_chip.offset_bottom = -166
 	root.add_child(history_chip)
-	# 庄家是自己时的「牌堆」入口：皇冠下方（左下固定），悬停查看底牌堆
+	# 庄家是自己时的「牌堆」入口：「历史」右侧同一行（2026-11-17 起，原皇冠下方会遮挡手牌）
 	bottom_button = Button.new()
 	bottom_button.text = "牌堆"
 	bottom_button.add_theme_font_size_override("font_size", 14)
 	UiStyle.pad_button(bottom_button)
 	bottom_button.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	bottom_button.offset_left = 70
-	bottom_button.offset_right = 122
-	bottom_button.offset_top = -100
-	bottom_button.offset_bottom = -70
+	bottom_button.offset_left = 66
+	bottom_button.offset_right = 118
+	bottom_button.offset_top = -196
+	bottom_button.offset_bottom = -166
 	bottom_button.visible = false
 	root.add_child(bottom_button)
 	history_popup = _build_popup(root, "PilePopup")

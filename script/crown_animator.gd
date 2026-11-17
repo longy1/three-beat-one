@@ -2,10 +2,10 @@ class_name CrownAnimator
 extends RefCounted
 ## 皇冠庄家标记动画（自 game_table.gd 拆出）：从主牌桌正中央 ×4 出现，
 ## TRANS_CUBIC EASE_OUT 1s 一边缩小一边减速，飞至出牌庄家名字首字之前停驻，
-## 高度与名字字号一致；人类 0 号位无面板，落左下固定位置（不随牌变动）。
+## 高度与名字字号一致；人类 0 号位无面板，落手牌上方按钮行（历史/牌堆按钮右侧，不随牌变动）。
 
 
-const CROWN_HUMAN_TARGET := Vector2(0.075, 0.833)  ## 相对窗口比例（手牌左侧）
+const CROWN_HUMAN_TARGET := Vector2(0.108, 0.749)  ## 相对窗口比例：手牌上方按钮行、牌堆按钮右侧（不遮挡手牌，2026-11-17 调整）
 const CROWN_SIZE := Vector2(24, 18)  ## 高度 = NameLabel 字号（18）
 const FLY_DURATION := 1.0
 

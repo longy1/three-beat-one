@@ -86,9 +86,16 @@
   <rect x="548" y="466" width="120" height="44" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
   <text x="608" y="493" font-size="17" fill="#d8e5dd" text-anchor="middle">放弃</text>
   <text x="380" y="494" font-size="12" fill="#5a7a68" text-anchor="end">提示行 →</text>
-  <!-- 牌堆按钮 -->
-  <rect x="12" y="514" width="46" height="30" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
-  <text x="35" y="534" font-size="13" fill="#d8e5dd" text-anchor="middle">牌堆</text>
+  <!-- 历史 + 牌堆按钮（同一行；牌堆仅庄家是自己且进入出牌阶段显示） -->
+  <rect x="12" y="524" width="46" height="30" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="35" y="544" font-size="13" fill="#d8e5dd" text-anchor="middle">历史</text>
+  <rect x="66" y="524" width="52" height="30" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="92" y="544" font-size="13" fill="#d8e5dd" text-anchor="middle">牌堆</text>
+  <!-- 人类位皇冠落点：按钮行右端（138,539），不遮挡手牌 -->
+  <g transform="translate(126,530)">
+    <path d="M 0 17 L 0 7 L 7 12 L 15 0 L 23 12 L 30 7 L 30 17 Z" fill="#ffd140" stroke="#d9a10e"/>
+    <rect x="0" y="17" width="30" height="5" fill="#d9a10e"/>
+  </g>
   <!-- 人类位【无主】印章：手牌区右上方固定槽位（958,488） -->
   <g transform="translate(958,488) rotate(-12)">
     <circle cx="21" cy="21" r="21" fill="none" stroke="#d42a1f" stroke-width="2.5" opacity="0.9"/>
