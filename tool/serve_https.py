@@ -12,6 +12,11 @@ http://<局域网IP>:端口 不是安全上下文，Godot 启动即报
     python tool/serve_https.py --port 9000
 证书自动生成于 build/web/.cert/（self-signed，仅本地测试用）。
 依赖 openssl 命令（Git for Windows 自带）。
+
+附带 /touchtest.html 触控事件探针页：iPhone 点按无效时打开它连点几下，
+页面直接显示收到的事件序列（touchstart/pointerdown/mousedown…），
+用于判断事件断在哪一层（页面收不到事件 = 浏览器层；收到了 = Godot 层）。
+服务器带 no-cache 头——Safari 缓存很激进，防止手机拿到旧版导出产物。
 """
 
 import argparse
@@ -28,6 +33,61 @@ DEFAULT_DIR = REPO_ROOT / "build" / "web"
 CERT_DIR = DEFAULT_DIR / ".cert"
 CERT_FILE = CERT_DIR / "cert.pem"
 KEY_FILE = CERT_DIR / "key.pem"
+
+TOUCHTEST_HTML = """<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>触控事件探针</title>
+<style>
+body{margin:0;font-family:-apple-system,sans-serif;background:#12291d;color:#d8e5dd;}
+#box{position:fixed;inset:0 0 45% 0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+#box:active{background:#1c3a2a;}
+#info{font-size:13px;line-height:1.6;opacity:.85;text-align:center;padding:12px;word-break:break-all;}
+#log{position:fixed;left:0;right:0;bottom:0;height:45%;overflow-y:auto;background:rgba(0,0,0,.55);
+font:12px/1.5 monospace;padding:8px;box-sizing:border-box;}
+.ev{color:#ffd140}.hdr{color:#7fdc9a}
+h2{margin:0 0 8px}
+</style></head><body>
+<div id="box"><h2>👇 请在此区域连续点按 / 滑动</h2>
+<div id="info"></div></div>
+<div id="log"><div class="hdr">事件日志（最新在上）：正常一次点按应出现
+touchstart → touchend →（可能的 pointer/click 序列）</div></div>
+<script>
+var box = document.getElementById('box');
+var log = document.getElementById('log');
+var n = 0;
+document.getElementById('info').innerHTML =
+  'isSecureContext: <b>' + window.isSecureContext + '</b><br>' +
+  'UA: ' + navigator.userAgent.slice(0, 90) + '<br>' +
+  'innerW/H: ' + innerWidth + 'x' + innerHeight + '　dpr: ' + devicePixelRatio;
+function add(msg, cls){
+  n++;
+  var d = document.createElement('div');
+  d.className = cls || 'ev';
+  d.textContent = n + '. ' + (performance.now() | 0) + 'ms ' + msg;
+  log.insertBefore(d, log.children[1] || null);
+}
+['touchstart', 'touchend', 'touchcancel', 'pointerdown', 'pointerup',
+ 'mousedown', 'mouseup', 'click'].forEach(function(type){
+  window.addEventListener(type, function(evt){
+    var t = evt.touches ? evt.touches.length : 0;
+    var x = (evt.clientX !== undefined) ? Math.round(evt.clientX) : '-';
+    var y = (evt.clientY !== undefined) ? Math.round(evt.clientY) : '-';
+    var pt = evt.pointerType || '';
+    add(type + ' x=' + x + ' y=' + y + (pt ? ' type=' + pt : '') +
+        (t ? ' touches=' + t : ''), 'ev');
+  }, true);
+});
+</script></body></html>
+"""
+
+
+class NoCacheHandler(SimpleHTTPRequestHandler):
+    """Safari 缓存很激进——禁缓存保证手机拿到最新导出产物。"""
+
+    def end_headers(self) -> None:
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        super().end_headers()
 
 
 def lan_ip() -> str:
@@ -72,7 +132,8 @@ def main() -> int:
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(CERT_FILE, KEY_FILE)
-    handler = functools.partial(SimpleHTTPRequestHandler, directory=str(args.dir))
+    (args.dir / "touchtest.html").write_text(TOUCHTEST_HTML, encoding="utf-8")
+    handler = functools.partial(NoCacheHandler, directory=str(args.dir))
     server = ThreadingHTTPServer(("0.0.0.0", args.port), handler)
     server.socket = context.wrap_socket(server.socket, server_side=True)
 
@@ -80,6 +141,7 @@ def main() -> int:
     print(f"HTTPS 服务已启动（目录 {args.dir}）")
     print(f"  本机访问：  https://localhost:{args.port}")
     print(f"  手机访问：  https://{ip}:{args.port}")
+    print(f"  触控探针：  https://{ip}:{args.port}/touchtest.html")
     print("  首次访问浏览器会警告自签名证书——选择「高级 → 继续访问」即可。")
     print("  Ctrl+C 停止。")
     try:
