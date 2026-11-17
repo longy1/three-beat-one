@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://script/info_sidebar.gd" id="1_sidebar"]
+[ext_resource type="Script" path="res://script/table/info_sidebar.gd" id="1_sidebar"]
 
 [sub_resource type="StyleBoxFlat" id="SB_sidebar"]
 content_margin_left = 8.0

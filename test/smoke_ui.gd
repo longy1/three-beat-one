@@ -4,7 +4,7 @@ extends SceneTree
 ## 实例化牌桌场景，代人类玩家行动，跑完整一局；任何节点路径/脚本错误都会打印。
 ## 退出码 0 = 一局完整结束。
 
-const GameTableScene := preload("res://scene/game_table.tscn")
+const GameTableScene := preload("res://scene/table/game_table.tscn")
 
 
 func _initialize() -> void:

@@ -21,7 +21,7 @@ func _ready() -> void:
 	_net = get_tree().root.get_node_or_null("NetClient") as NetClient
 	if _net == null:
 		# 异常路径（未经联机菜单直开本场景）：回主菜单
-		get_tree().change_scene_to_file("res://scene/main_menu.tscn")
+		get_tree().change_scene_to_file("res://scene/menu/main_menu.tscn")
 		return
 	_net.room_state_changed.connect(_render)
 	_net.net_error.connect(func(msg: String): status_hint.text = msg)

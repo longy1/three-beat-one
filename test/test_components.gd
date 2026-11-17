@@ -158,7 +158,7 @@ func test_drawn_components(test) -> void:
 ## 关联：牌桌控制器中三块 SeatPanel 实例的座位号注入正确
 func test_table_seat_wiring(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
-	var table = load("res://scene/game_table.tscn").instantiate()
+	var table = load("res://scene/table/game_table.tscn").instantiate()
 	tree.root.add_child(table)
 	await tree.process_frame
 	await tree.process_frame

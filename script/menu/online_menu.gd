@@ -6,7 +6,7 @@ extends Control
 
 
 const CFG_PATH := "user://online.cfg"
-const LOBBY_SCENE := "res://scene/room_lobby.tscn"
+const LOBBY_SCENE := "res://scene/menu/room_lobby.tscn"
 
 var _net: NetClient = null
 var _pending_join := ""  ## ""=建房；否则为要加入的房间码
@@ -54,7 +54,7 @@ func _on_join() -> void:
 
 
 func _on_back() -> void:
-	get_tree().change_scene_to_file("res://scene/main_menu.tscn")
+	get_tree().change_scene_to_file("res://scene/menu/main_menu.tscn")
 
 
 func _submit(join_code: String) -> void:

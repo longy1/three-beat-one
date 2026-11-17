@@ -26,13 +26,14 @@ net/      联机客户端：protocol（消息契约/座位旋转）/ net_client�
           table_view（可见性裁剪的对局视图状态，信号面与引擎同构）
 server/   联机服务端（桌面源码运行，Web 包排除）：server_main 入口 / room_manager 连接中枢 /
           host_room 权威房间（AI 直调纯模块 + 超时托管 + 离线宽限重连）/ store 持久存储（JSON）
-script/   game_table 控制器（编排）+ 组件：hand_area 手牌区 / pile_viewer 牌堆弹层 /
-          action_bar 操作按钮条 / trump_rank_picker 叫主面板 / crown_animator 皇冠动画 /
-          card_widget 卡牌 / seat_panel / info_sidebar / crown_badge / void_stamp 无主印章 /
-          dashed_frame / ui_style / online_menu 联机入口 / room_lobby 房间大厅 /
-          scores_dialog 累计分数弹层
-scene/    main_menu、online_menu 联机菜单、room_lobby 房间大厅、game_table 牌桌、
-          seat_panel 座位组件、info_sidebar 信息栏组件
+script/   表现层脚本（按模块划分子目录）
+  table/       牌桌模块：game_table 控制器 + hand_area / pile_viewer / action_bar /
+               trump_rank_picker / crown_animator / trump_reveal / card_widget / seat_panel /
+               info_sidebar / crown_badge / void_stamp / dashed_frame / trick_history_panel
+  menu/        界面流程模块：main_menu / online_menu 联机入口 / room_lobby 房间大厅 /
+               scores_dialog 累计分数弹层
+  ui_style.gd  跨模块共享的 UI 规范常量与按钮留空
+scene/    场景（与 script/ 子模块对应）：table/ 牌桌场景；menu/ 主菜单与联机流程场景
 font/     中文字体子集（Web 导出必需：浏览器无系统字体回退）
 theme/    default.tres 默认字体主题
 tool/     subset_font.py 字体子集化脚本

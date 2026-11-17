@@ -129,7 +129,7 @@ func _on_menu() -> void:
 	if _online:
 		_net.leave_room()  # 主动退出：本地弹累计分窗 → 确定 → 主菜单（NetClient 统一接管）
 		return
-	get_tree().change_scene_to_file("res://scene/main_menu.tscn")
+	get_tree().change_scene_to_file("res://scene/menu/main_menu.tscn")
 
 
 ## 联机接入（M4）：座位名按房间成员旋转生成；接 NetClient 回放/错误/房间状态信号

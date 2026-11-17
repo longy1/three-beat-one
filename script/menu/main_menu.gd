@@ -15,11 +15,11 @@ func _ready() -> void:
 
 
 func _on_start() -> void:
-	get_tree().change_scene_to_file("res://scene/game_table.tscn")
+	get_tree().change_scene_to_file("res://scene/table/game_table.tscn")
 
 
 func _on_online() -> void:
-	get_tree().change_scene_to_file("res://scene/online_menu.tscn")
+	get_tree().change_scene_to_file("res://scene/menu/online_menu.tscn")
 
 
 func _on_self_test() -> void:

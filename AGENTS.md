@@ -68,34 +68,17 @@ net/      联机客户端层（进 Web 导出包；协议/连接/视图，全部
   table_view.gd    TableView：可见性裁剪的对局视图状态——信号/查询面与 GameEngine 同构，
                    竞叫用真实 Auction、结算用真实 Trick.settle（公开数据同源）；
                    只持有本人手牌 + 公开回放，隐藏信息不可推导（§4.10）
-script/   表现层脚本
-  game_table.gd    牌桌控制器（编排：引擎接线/信号处理/刷新/提交门面，~540 行）
-  hand_area.gd     HandArea：手牌区（分区渲染/排序/点选拖选右键/精准刷新）
-  pile_viewer.gd   PileViewer：牌堆查看器（历史/牌堆按钮 + 底牌悬停弹层 + 延迟隐藏）
-  trick_history_panel.gd  TrickHistoryPanel：出牌历史面板（十字摆位一轮四家 + 翻轮次 + 遮罩关闭）
-  action_bar.gd    ActionBar：操作按钮条（按钮生命周期唯一所有者）
-  trump_rank_picker.gd  TrumpRankPicker：叫主点数居中面板（rank_picked 信号）
-  crown_animator.gd     CrownAnimator：皇冠庄家标记动画
-  trump_reveal.gd  TrumpReveal：揭主双飞动画（主 R 牌中央出现并飞入信息栏主牌位）
-  card_widget.gd   CardWidget：程序化卡牌控件
-  crown_badge.gd   CrownBadge：程序化皇冠
-  void_stamp.gd   VoidStamp：【无主】圆形红印章（规则 7.3 公示，程序化绘制）
-  dashed_frame.gd  DashedRoundedFrame：手牌分区圆角虚线框
-  seat_panel.gd    SeatPanel：座位面板组件（crown_anchor 落点测量封装）
-  info_sidebar.gd  InfoSidebar：右侧信息栏组件
-  ui_style.gd      UiStyle：UI 规范工具（MAIN_TABLE_CENTER 常量、半字号留空）
-  main_menu.gd     主菜单（自检动态加载套件；Web 下隐藏退出/自检）
-  online_menu.gd   联机入口（昵称/地址/建房/凭码加入；昵称 ConfigFile 记忆）
-  room_lobby.gd    房间大厅（房间码/成员列表/开局/退出；人数不满补电脑确认弹层）
-  scores_dialog.gd ScoresDialog：房间累计分数弹层（退出/掉线/关房时展示，确定→主菜单）
-scene/    main_menu.tscn / online_menu.tscn / room_lobby.tscn / game_table.tscn / seat_panel.tscn / info_sidebar.tscn
-server/   联机服务端（仅桌面源码运行，**已从 Web 导出排除**；不设 class_name，动态 load 装配）
-  server_main.tscn/.gd  入口场景（无头进程：监听端口/装配 manager+store/--port 用户参数）
-  room_manager.gd  连接中枢：peer↔昵称、房间表、消息分发、掉线扫描（探测 ping + 心跳超时）
-  host_room.gd     单房间权威 GameEngine + AI 定时驱动（绕门面直调纯模块）+ 超时托管 +
-                   离线宽限/重连快照 + 动作广播（可见性裁剪）+ 结算入库
-  store.gd         持久存储：本地 JSON（players 昵称注册表 / rooms 留档 / room_scores 房间累计分），
-                   变更即原子落盘；接口形状对齐后续 SQLite 平替
+script/   表现层脚本（按模块划分子目录；ui_style.gd 为跨模块共享规范工具）
+  table/       牌桌模块：game_table.gd 控制器 + hand_area 手牌区 / pile_viewer 牌堆弹层 /
+               trick_history_panel 出牌历史 / action_bar 操作按钮条 / trump_rank_picker 叫主面板 /
+               crown_animator 皇冠动画 / trump_reveal 揭主双飞 / card_widget 卡牌 / crown_badge 皇冠 /
+               void_stamp 无主印章 / dashed_frame 虚线框 / seat_panel 座位面板 / info_sidebar 信息栏
+  menu/        界面流程模块：main_menu 主菜单 / online_menu 联机入口 / room_lobby 房间大厅 /
+               scores_dialog 累计分数弹层
+  ui_style.gd  UiStyle：跨模块共享的布局锚点常量（MAIN_TABLE_CENTER）与半字号按钮留空
+scene/    场景（与 script/ 子模块一一对应）
+  table/       game_table.tscn（内引 seat_panel/info_sidebar 子场景与牌桌组件脚本）
+  menu/        main_menu.tscn / online_menu.tscn / room_lobby.tscn
 font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 tool/subset_font.py）
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
@@ -194,7 +177,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 - **【无主】印章（规则 7.3，2026-11-17）**：主牌轮垫牌公示——`VoidStamp` 圆形红章（斜置半透明红、程序化绘制）：乙/丙/丁盖在 SeatPanel 右下角（`set_void_trump`；印章 `top_level=true` 脱离容器布局树用全局坐标定位——PanelContainer 会对直接子件整面填充布局，曾把印章拽到左上角压住姓名）；人类 0 号位盖在**手牌区右上方固定槽位**（HumanVoidStamp，tscn 锚点 (958,488)，2026-11-17 调整）。
 - **左下按钮区（不随牌变动）**：【历史】= 点击打开**出牌历史面板**（`TrickHistoryPanel`，2026-11-17 重做）：居中弹层以**十字形**展示一轮四家出牌（与牌桌出牌摆位座位方位同构、窗口更小，赢家 ✓ 金标），默认**最后一轮**；中央下方 【<<】【<】【>】【>>】 四按钮翻第一页/上一页/下一页/最后一轮（边界禁用）；右上角 ✕ 或**点击窗口外**（全屏微暗遮罩，`MOUSE_FILTER_STOP` 透明拦截）关闭；打开期间新轮结算由 `trick_settled → _refresh → refresh` 状态驱动就地收敛页码；【牌堆】= 仅庄家是自己且进入出牌阶段后显示（「历史」右侧同一行），悬停弹出**底牌堆 2 行 × 4 张**（`engine.buried`，仅自己可见；弹层归 `PileViewer`）。**悬停弹层机制（2026-11-17 历史面板重做后仅剩【牌堆】按钮悬停路径；座位面板悬停路径已移除）**：事件驱动 + 粘滞——显示随 `mouse_entered` 一次调用，隐藏靠 0.1s 延迟计时器（粘滞时长 2026-11-17 用户定夺为 0.1s；弹层悬停仍保持打开，重悬停即可再次查看），**不用周期轮询**（`mouse_entered/exited` 本就是引擎逐帧悬停判定的结果，自建轮询属 §4 禁止的定时兜底）。
 - 一轮结算后牌面（含 ✓赢家）停留 **1.5 秒后主动清空出牌桌**（TRICK_PAUSE 由 `_trick_timer.timeout` 统一触发清空，不依赖下一手替换）；末轮停留后才弹结算面板。
-- **联机界面（2026-11-18，M4）**：主菜单新增【联机对战】→ `scene/online_menu.tscn`（昵称/服务器地址默认 ws://127.0.0.1:9080/新建房间/房间码+加入/返回；状态行报错；昵称 ConfigFile 记忆）→ `scene/room_lobby.tscn`（房间码大字、四座位成员列表——房主/你/电脑/离线标注、开始游戏仅房主可见、退出房间）。**人数不满开局流程**：房主点开始 → 居中确认弹层「人数不满（X/4），是否自动补充电脑玩家？」——是 → `start{fill_ai:true}` 补满即开；否 → 仅关闭弹层留在房间页；满 4 人直接开。**累计分数弹层** `script/scores_dialog.gd`（MAIN_TABLE_CENTER 居中 + 全屏遮罩）：主动退出（本地立即弹）、他人退出/离线超时/服务器失联（`room_closed`/`connection_lost` 数据弹出），确定 → 主菜单。牌桌联机态复用单机布局：座位名 = 成员昵称（本地座位序，0 号位带（你）），AI 补位名「电脑·乙/丙/丁」；结算面板【下一局】仅房主可见（其余等待）。布局注记见 static/ui-mockup.svg 联机屏。
+- **联机界面（2026-11-18，M4）**：主菜单新增【联机对战】→ `scene/menu/online_menu.tscn`（昵称/服务器地址默认 ws://127.0.0.1:9080/新建房间/房间码+加入/返回；状态行报错；昵称 ConfigFile 记忆）→ `scene/menu/room_lobby.tscn`（房间码大字、四座位成员列表——房主/你/电脑/离线标注、开始游戏仅房主可见、退出房间）。**人数不满开局流程**：房主点开始 → 居中确认弹层「人数不满（X/4），是否自动补充电脑玩家？」——是 → `start{fill_ai:true}` 补满即开；否 → 仅关闭弹层留在房间页；满 4 人直接开。**累计分数弹层** `script/menu/scores_dialog.gd`（MAIN_TABLE_CENTER 居中 + 全屏遮罩）：主动退出（本地立即弹）、他人退出/离线超时/服务器失联（`room_closed`/`connection_lost` 数据弹出），确定 → 主菜单。牌桌联机态复用单机布局：座位名 = 成员昵称（本地座位序，0 号位带（你）），AI 补位名「电脑·乙/丙/丁」；结算面板【下一局】仅房主可见（其余等待）。布局注记见 static/ui-mockup.svg 联机屏。
 - 新增控件一律程序化绘制（参照 CardWidget/CrownBadge/DashedRoundedFrame），不引入图片素材。
 
 ## 8. 测试规范

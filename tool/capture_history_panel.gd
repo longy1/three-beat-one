@@ -12,7 +12,7 @@ func _initialize() -> void:
 
 
 func _capture() -> void:
-	var table = load("res://scene/game_table.tscn").instantiate()
+	var table = load("res://scene/table/game_table.tscn").instantiate()
 	root.add_child(table)
 	await process_frame
 	await process_frame

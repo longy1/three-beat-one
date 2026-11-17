@@ -7,7 +7,7 @@ extends TestBase
 ## 实例化一个干净的牌桌场景并等两帧（布局就绪）；把 AI/停留计时器调快
 func _spawn_table():
 	var tree: SceneTree = Engine.get_main_loop()
-	var table = load("res://scene/game_table.tscn").instantiate()
+	var table = load("res://scene/table/game_table.tscn").instantiate()
 	tree.root.add_child(table)
 	await tree.process_frame
 	await tree.process_frame

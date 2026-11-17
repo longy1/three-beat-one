@@ -20,8 +20,8 @@ signal room_closed(rows: Array, reason: String)
 signal connection_lost(reason: String)
 
 const HEARTBEAT_INTERVAL := 5.0
-const TABLE_SCENE := "res://scene/game_table.tscn"
-const MENU_SCENE := "res://scene/main_menu.tscn"
+const TABLE_SCENE := "res://scene/table/game_table.tscn"
+const MENU_SCENE := "res://scene/menu/main_menu.tscn"
 
 var view: TableView = null           ## 对局视图（进牌桌时由 game_table 建立并复用至解散）
 var my_seat := -1                    ## 真座位（0~3）；旋转基准

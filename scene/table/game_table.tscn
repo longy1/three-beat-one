@@ -1,11 +1,11 @@
 [gd_scene load_steps=8 format=3]
 
-[ext_resource type="Script" path="res://script/game_table.gd" id="1_table"]
-[ext_resource type="PackedScene" path="res://scene/seat_panel.tscn" id="2_seat"]
-[ext_resource type="PackedScene" path="res://scene/info_sidebar.tscn" id="3_sidebar"]
-[ext_resource type="Script" path="res://script/action_bar.gd" id="4_action_bar"]
-[ext_resource type="Script" path="res://script/hand_area.gd" id="5_hand_area"]
-[ext_resource type="Script" path="res://script/void_stamp.gd" id="6_void_stamp"]
+[ext_resource type="Script" path="res://script/table/game_table.gd" id="1_table"]
+[ext_resource type="PackedScene" path="res://scene/table/seat_panel.tscn" id="2_seat"]
+[ext_resource type="PackedScene" path="res://scene/table/info_sidebar.tscn" id="3_sidebar"]
+[ext_resource type="Script" path="res://script/table/action_bar.gd" id="4_action_bar"]
+[ext_resource type="Script" path="res://script/table/hand_area.gd" id="5_hand_area"]
+[ext_resource type="Script" path="res://script/table/void_stamp.gd" id="6_void_stamp"]
 
 [sub_resource type="StyleBoxFlat" id="SB_result"]
 content_margin_left = 15.0
