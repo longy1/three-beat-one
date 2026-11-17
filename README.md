@@ -56,6 +56,9 @@ Godot --headless --path . -s test/calibrate_bidding.gd
 # Web 版导出 + 本地浏览器试玩（视觉验收工作流，详见 doc/重构规范.md 第 6 章）
 Godot --headless --path . --export-release "Web"
 cd build/web && python -m http.server 8765   # 浏览器打开 http://127.0.0.1:8765
+
+# 移动端：手机浏览器直接访问同一地址即可玩（无线程构建兼容 iOS Safari；
+# 自适应画布 + 触控点按等价鼠标；横屏体验最佳，竖屏 letterbox 居中可玩）
 ```
 
 ## 玩法
