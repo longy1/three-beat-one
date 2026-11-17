@@ -1,0 +1,93 @@
+"""局域网 HTTPS 静态服务器：手机/其它设备访问 Godot Web 导出用。
+
+背景：Godot Web 版要求页面处于「安全上下文」（Secure Context）。
+桌面访问 http://127.0.0.1 可行（localhost 是可信任来源），但手机访问
+http://<局域网IP>:端口 不是安全上下文，Godot 启动即报
+「Secure Context - Check web server configuration (use HTTPS)」。
+本脚本用自签名证书以 HTTPS 提供服务：手机首次访问时浏览器会警告证书无效，
+选择「继续访问/信任」即可正常进入游戏。
+
+用法（仓库根目录）：
+    python tool/serve_https.py            # 默认服务 build/web，端口 8765
+    python tool/serve_https.py --port 9000
+证书自动生成于 build/web/.cert/（self-signed，仅本地测试用）。
+依赖 openssl 命令（Git for Windows 自带）。
+"""
+
+import argparse
+import functools
+import ssl
+import subprocess
+import sys
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+import socket
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_DIR = REPO_ROOT / "build" / "web"
+CERT_DIR = DEFAULT_DIR / ".cert"
+CERT_FILE = CERT_DIR / "cert.pem"
+KEY_FILE = CERT_DIR / "key.pem"
+
+
+def lan_ip() -> str:
+    """取局域网 IP（UDP connect 不实际发包，仅选路由源地址）。"""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
+def ensure_cert() -> None:
+    if CERT_FILE.exists() and KEY_FILE.exists():
+        return
+    CERT_DIR.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+        "-days", "3650", "-subj", "/CN=three-beat-one-local",
+        "-keyout", str(KEY_FILE), "-out", str(CERT_FILE),
+    ]
+    print("生成自签名证书……")
+    subprocess.run(cmd, check=True, capture_output=True)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Godot Web 导出局域网 HTTPS 服务器")
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--dir", type=Path, default=DEFAULT_DIR, help="静态目录（默认 build/web）")
+    args = parser.parse_args()
+
+    if not (args.dir / "index.html").exists():
+        print(f"错误：{args.dir} 下没有 index.html——请先执行 Web 导出", file=sys.stderr)
+        return 1
+    try:
+        ensure_cert()
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        print(f"错误：生成证书失败（需要 openssl 命令）：{e}", file=sys.stderr)
+        return 1
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(CERT_FILE, KEY_FILE)
+    handler = functools.partial(SimpleHTTPRequestHandler, directory=str(args.dir))
+    server = ThreadingHTTPServer(("0.0.0.0", args.port), handler)
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+
+    ip = lan_ip()
+    print(f"HTTPS 服务已启动（目录 {args.dir}）")
+    print(f"  本机访问：  https://localhost:{args.port}")
+    print(f"  手机访问：  https://{ip}:{args.port}")
+    print("  首次访问浏览器会警告自签名证书——选择「高级 → 继续访问」即可。")
+    print("  Ctrl+C 停止。")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n已停止。")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

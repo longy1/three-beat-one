@@ -57,8 +57,12 @@ Godot --headless --path . -s test/calibrate_bidding.gd
 Godot --headless --path . --export-release "Web"
 cd build/web && python -m http.server 8765   # 浏览器打开 http://127.0.0.1:8765
 
-# 移动端：手机浏览器直接访问同一地址即可玩（无线程构建兼容 iOS Safari；
-# 自适应画布 + 触控点按等价鼠标；横屏体验最佳，竖屏 letterbox 居中可玩）
+# 移动端：手机访问需要 HTTPS（Godot 要求安全上下文，普通 HTTP 局域网地址会被拒绝，
+# 报「Secure Context ... use HTTPS」）。用自签名证书的 HTTPS 服务器：
+python tool/serve_https.py            # 自动生成证书并打印手机访问地址
+# 手机浏览器打开打印的 https://<局域网IP>:8765，首次会警告自签名证书——
+# 选「高级 → 继续访问」（iOS：显示详细信息 → 访问此网站）即可正常进入。
+# 无线程构建兼容 iOS Safari；触控点按等价鼠标；横屏体验最佳，竖屏 letterbox 居中可玩。
 ```
 
 ## 玩法
