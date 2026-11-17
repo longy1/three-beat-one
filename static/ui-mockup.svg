@@ -1,6 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="'Segoe UI','Microsoft YaHei',sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="2160" viewBox="0 0 1280 2160" font-family="'Segoe UI','Microsoft YaHei',sans-serif">
   <!-- ═══ 底图：牌桌背景 ═══ -->
   <rect width="1280" height="720" fill="#0b2218"/>
+  <rect y="720" width="1280" height="1440" fill="#0b1522"/>
   <text x="16" y="24" font-size="13" fill="#5a7a68">1280 × 720 ｜ 区域图（视觉稿）｜ 全部留白 12px</text>
   <!-- 画面两大区域：主牌桌区域（0~1060）｜ 侧信息板区域（1060~1280） -->
   <line x1="1060" y1="0" x2="1060" y2="720" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="10 7" opacity="0.6"/>
@@ -146,4 +147,80 @@
   <text x="1170" y="420" font-size="12" fill="#e8b84a" text-anchor="middle">宽 196（1072~1268）</text>
   <text x="1170" y="440" font-size="12" fill="#e8b84a" text-anchor="middle">高 660（48~708）</text>
   <text x="1170" y="460" font-size="12" fill="#e8b84a" text-anchor="middle">牌桌区让位：0~1060</text>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- ═══ 联机屏 1（y 720~1440）：联机菜单（左）｜ 房间大厅（右） ═══ -->
+  <line x1="0" y1="720" x2="1280" y2="720" stroke="#e8b84a" stroke-width="1.5" opacity="0.5"/>
+  <text x="16" y="744" font-size="13" fill="#e8b84a">联机屏（M4，2026-11-18）：主菜单【联机对战】进入 ｜ 累计分弹层见联机屏 2</text>
+
+  <!-- 联机菜单（左半 0~640） -->
+  <text x="320" y="780" font-size="16" fill="#8fd0a8" text-anchor="middle" font-weight="bold">联机菜单 online_menu.tscn</text>
+  <rect x="460" y="800" width="360" height="440" rx="10" fill="#12291d" stroke="#2c4a38"/>
+  <text x="640" y="836" font-size="24" fill="#e8f0ea" text-anchor="middle">联机对战</text>
+  <text x="470" y="872" font-size="13" fill="#9ab5a5">昵称（全局唯一，注册后不可改）</text>
+  <rect x="470" y="880" width="360" height="36" rx="6" fill="#0d1f16" stroke="#3a5c48"/>
+  <text x="482" y="904" font-size="14" fill="#5a7a68">输入玩家昵称</text>
+  <text x="470" y="946" font-size="13" fill="#9ab5a5">服务器地址</text>
+  <rect x="470" y="954" width="360" height="36" rx="6" fill="#0d1f16" stroke="#3a5c48"/>
+  <text x="482" y="978" font-size="14" fill="#d8e5dd">ws://127.0.0.1:9080（默认，可改远程）</text>
+  <rect x="470" y="1004" width="360" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="650" y="1030" font-size="16" fill="#d8e5dd" text-anchor="middle">新建房间</text>
+  <rect x="470" y="1054" width="230" height="36" rx="6" fill="#0d1f16" stroke="#3a5c48"/>
+  <text x="482" y="1078" font-size="14" fill="#5a7a68">房间码（4 位）</text>
+  <rect x="712" y="1054" width="118" height="36" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="771" y="1078" font-size="15" fill="#d8e5dd" text-anchor="middle">加入房间</text>
+  <rect x="470" y="1104" width="360" height="36" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="650" y="1128" font-size="14" fill="#d8e5dd" text-anchor="middle">返回</text>
+  <text x="650" y="1170" font-size="13" fill="#e8b84a" text-anchor="middle">状态行：连接中…/昵称已被占用/房间不存在等</text>
+  <text x="650" y="1216" font-size="12" fill="#5a7a68" text-anchor="middle">昵称经 ConfigFile（user://online.cfg）记忆；全屏居中容器</text>
+
+  <!-- 房间大厅（右半 640~1280） -->
+  <text x="960" y="780" font-size="16" fill="#8fd0a8" text-anchor="middle" font-weight="bold">房间大厅 room_lobby.tscn</text>
+  <rect x="740" y="800" width="440" height="440" rx="10" fill="#12291d" stroke="#2c4a38"/>
+  <text x="960" y="836" font-size="20" fill="#e8f0ea" text-anchor="middle">房间大厅</text>
+  <text x="960" y="884" font-size="34" fill="#ffd140" text-anchor="middle" font-weight="bold">房间码：Q7X2</text>
+  <text x="960" y="910" font-size="12" fill="#9ab5a5" text-anchor="middle">把房间码告诉朋友，凭码加入（4 人开局，可电脑补位）</text>
+  <text x="770" y="948" font-size="15" fill="#e8f0ea">1 号位 甲：房主A（房主、你）</text>
+  <text x="770" y="976" font-size="15" fill="#e8f0ea">2 号位 乙：朋友B</text>
+  <text x="770" y="1004" font-size="15" fill="#5a7a68">3 号位 丙：（空位）</text>
+  <text x="770" y="1032" font-size="15" fill="#5a7a68">4 号位 丁：（空位）</text>
+  <text x="960" y="1072" font-size="13" fill="#e8b84a" text-anchor="middle">你是房主：成员到齐可直接开局；人数不满可补电脑</text>
+  <rect x="800" y="1092" width="150" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="875" y="1118" font-size="15" fill="#d8e5dd" text-anchor="middle">开始游戏</text>
+  <rect x="970" y="1092" width="150" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1045" y="1118" font-size="15" fill="#d8e5dd" text-anchor="middle">退出房间</text>
+  <text x="960" y="1180" font-size="12" fill="#5a7a68" text-anchor="middle">非房主不显示【开始游戏】；成员标注（房主/你/电脑/离线）；成员变更信号驱动重渲染</text>
+  <text x="960" y="1208" font-size="12" fill="#e8b84a" text-anchor="middle">人数不满开局 → 居中确认弹层：「人数不满（X/4），是否自动补充电脑玩家？」是/否</text>
+  <text x="960" y="1236" font-size="12" fill="#e8b84a" text-anchor="middle">AI 补位名「电脑·乙/丙/丁」按座位定；任意成员退出/关房 → 全员弹累计分窗（见联机屏 2）</text>
+
+  <!-- ═══ 联机屏 2（y 1440~2160）：累计分数弹层（左）｜ 联机牌桌态注记（右） ═══ -->
+  <line x1="0" y1="1440" x2="1280" y2="1440" stroke="#e8b84a" stroke-width="1.5" opacity="0.5"/>
+  <text x="16" y="1464" font-size="13" fill="#e8b84a">联机屏 2：累计分数弹层（有成员退出/掉线超时/主动退出时，确定 → 主菜单）｜ 联机牌桌态复用单机布局</text>
+
+  <text x="320" y="1500" font-size="16" fill="#8fd0a8" text-anchor="middle" font-weight="bold">累计分数弹层 scores_dialog.gd（居中 + 全屏遮罩）</text>
+  <rect x="0" y="1440" width="640" height="720" fill="#000" opacity="0.25"/>
+  <rect x="140" y="1560" width="360" height="300" rx="10" fill="#212e3e" stroke="#3a5c48"/>
+  <text x="320" y="1596" font-size="22" fill="#ffd140" text-anchor="middle">房间累计分数</text>
+  <text x="320" y="1622" font-size="13" fill="#d8e5dd" text-anchor="middle">「朋友B」主动退出</text>
+  <text x="320" y="1656" font-size="15" fill="#e8f0ea" text-anchor="middle">房主A（你）：+6 分（2 局）</text>
+  <text x="320" y="1684" font-size="15" fill="#e8f0ea" text-anchor="middle">朋友B：-6 分（2 局）</text>
+  <text x="320" y="1712" font-size="15" fill="#e8f0ea" text-anchor="middle">电脑·丙：+2 分（2 局）</text>
+  <text x="320" y="1740" font-size="15" fill="#e8f0ea" text-anchor="middle">电脑·丁：-2 分（2 局）</text>
+  <rect x="260" y="1768" width="120" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="320" y="1794" font-size="16" fill="#d8e5dd" text-anchor="middle">确定</text>
+  <text x="320" y="1840" font-size="12" fill="#5a7a68" text-anchor="middle">触发：主动退出（本地立即弹）/他人退出/离线超时/服务器失联（room_closed、connection_lost）</text>
+  <text x="320" y="1866" font-size="12" fill="#5a7a68" text-anchor="middle">确定 → change_scene 主菜单；数据源 = 服务器权威累计分（store.room_scores，重启不丢）</text>
+
+  <text x="960" y="1500" font-size="16" fill="#8fd0a8" text-anchor="middle" font-weight="bold">联机牌桌态（复用单机布局，仅注记差异）</text>
+  <rect x="720" y="1520" width="480" height="360" rx="10" fill="#12291d" stroke="#2c4a38"/>
+  <text x="740" y="1552" font-size="13" fill="#d8e5dd">· 座位名 = 成员昵称（本地座位序，0 号位带「（你）」）</text>
+  <text x="740" y="1580" font-size="13" fill="#d8e5dd">· 你的座位恒在下方：服务端座位旋转 rot(s)=(s-my+4)%4，</text>
+  <text x="752" y="1604" font-size="13" fill="#d8e5dd">  NetClient 摄取层统一完成——牌桌代码零改动</text>
+  <text x="740" y="1632" font-size="13" fill="#d8e5dd">· 视图只持有本人手牌 + 公开回放（他人手牌/所扣牌面不下发）</text>
+  <text x="740" y="1660" font-size="13" fill="#d8e5dd">· 他人操作超时托管 → toast「XX 超时，已托管」</text>
+  <text x="740" y="1688" font-size="13" fill="#d8e5dd">· 掉线成员座位标注「离线」，宽限 120s 内可同昵称重连恢复</text>
+  <text x="740" y="1716" font-size="13" fill="#d8e5dd">· 结算面板【下一局】仅房主可见；其余显示等待房主</text>
+  <text x="740" y="1744" font-size="13" fill="#d8e5dd">· 下一局由服务端广播新 game_start 原地重灌（庄位轮换同单机）</text>
+  <text x="740" y="1784" font-size="12" fill="#e8b84a">超时托管：叫分 20s / 叫主 30s / 扣底 60s / 出牌 30s（AI 纯模块代打）</text>
+  <text x="740" y="1812" font-size="12" fill="#e8b84a">心跳：客户端 5s ping，服务端 15s 无消息或发送失败判离线（进入宽限期）</text>
 </svg>

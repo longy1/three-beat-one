@@ -7,8 +7,8 @@
 
 湘西扑克**三打哈（三打一）**的 Godot 单机版：1 名人类玩家（甲，座位 0，牌桌下方）对 3 名电脑玩家（乙/丙/丁）。
 
-- **已完成**：M1 规则引擎（牌/牌型/跟杀垫/一轮结算）、M2 单机完整对局（拍卖→叫主→翻底扣底→逐轮出牌→抠底→分级收益→庄位轮换）+ 贪心 AI + 牌桌 UI；2026-11-16 完成全项目重构（死代码清理、兜底根治、core/UI 模块拆分、Web 导出与浏览器验收工作流）；2026-11-17 Web 验收闭环（根治静态 preload 致导出脚本失效）+ 规则 7.3（无主公示/主牌甩打）+ 交互改进（底牌入手即选中、选牌跨轮保留、主牌副花色分组排序）
-- **待启动**：M3 AI 强化与胜率分析（蒙特卡洛）、M4 联机对战（口子已预留，见重构规范第 7 章）、M5 部署上线
+- **已完成**：M1 规则引擎（牌/牌型/跟杀垫/一轮结算）、M2 单机完整对局（拍卖→叫主→翻底扣底→逐轮出牌→抠底→分级收益→庄位轮换）+ 贪心 AI + 牌桌 UI；2026-11-16 完成全项目重构（死代码清理、兜底根治、core/UI 模块拆分、Web 导出与浏览器验收工作流）；2026-11-17 Web 验收闭环（根治静态 preload 致导出脚本失效）+ 规则 7.3（无主公示/主牌甩打）+ 交互改进（底牌入手即选中、选牌跨轮保留、主牌副花色分组排序）；2026-11-18 完成 M4 联机对战（C/S 架构：无头 Godot 服务器 + WebSocket + 可见性裁剪同步 + 超时托管 + 断线重连，见 §4.10~12）
+- **待启动**：M3 AI 强化与胜率分析（蒙特卡洛）、M5 部署上线（联机服务器公网部署）
 
 ## 2. 技术栈与环境
 
@@ -16,13 +16,13 @@
 |---|---|
 | 引擎 | Godot **4.7.2** stable（编辑器位于 `S:\Program\Godot\`，用户级环境变量 `GODOT_PATH` 已指向主程序） |
 | 语言 | GDScript（无 C#）；渲染 gl_compatibility（兼容桌面/移动/Web） |
-| 依赖 | 无第三方插件、无外部美术素材（全部程序化绘制）；**唯一例外：字体**——中文 UI 打包 Noto Sans SC 子集（OFL，Web 无系统字体回退所必需） |
+| 依赖 | 无第三方插件、无外部美术素材（全部程序化绘制）；**唯一例外：字体**——中文 UI 打包 Noto Sans SC 子集（OFL，Web 无系统字体回退所必需）；**联机存储**：本地 JSON 文件（`user://sanhax_server/store.json`，无第三方依赖，接口形状预留 SQLite 平替） |
 | 测试 | 自研轻量框架（`test/test_framework.gd`），headless 运行 |
 
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（全部通过退出码 0；当前 12 套件 100+ 用例）
+# 单元/规则测试（全部通过退出码 0；当前 13 套件 130 用例，含联机回环套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
 
 # UI 冒烟（headless 自动打完一整局，约 1 分钟，退出码 0）
@@ -33,6 +33,9 @@ S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . --imp
 
 # 打开游戏窗口
 S:/Program/Godot/Godot_v4.7.2-stable_win64.exe --path .
+
+# 启动联机服务器（M4，无头进程；端口默认 9080，可 --port 覆盖；或双击根目录「启动联机服务器.bat」）
+S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . res://server/server_main.tscn
 
 # 导出 Web 版（视觉验收用；完整流程见 doc/重构规范.md 第 6 章）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . --export-release "Web"
@@ -58,6 +61,13 @@ core/     纯逻辑层（禁止任何 Node/场景/时序/IO 依赖；test_archit
   ai_bidding.gd    AiBidding：叫分纯策略（强度评分 + EV 校准表；数据进/决策出）
   ai_play.gd       AiPlay：叫主/扣底/出牌纯策略（贪心启发式；数据进/决策出）
   ai_policy.gd     AiPolicy：AI 门面（共享 rng + 引擎状态解包；单机适配层，M4 服务端绕过）
+net/      联机客户端层（进 Web 导出包；协议/连接/视图，全部与具体 UI 解耦）
+  protocol.gd      NetProto：消息契约（种类常量、牌键编解码、座位旋转 rot/unrot、昵称校验）
+  net_client.gd    NetClient：WebSocket 连接/心跳/重连、房间状态缓存、场景路由、
+                   挂 tree.root（名 "NetClient"）跨场景存活；测试钩子 standalone/debug_record
+  table_view.gd    TableView：可见性裁剪的对局视图状态——信号/查询面与 GameEngine 同构，
+                   竞叫用真实 Auction、结算用真实 Trick.settle（公开数据同源）；
+                   只持有本人手牌 + 公开回放，隐藏信息不可推导（§4.10）
 script/   表现层脚本
   game_table.gd    牌桌控制器（编排：引擎接线/信号处理/刷新/提交门面，~540 行）
   hand_area.gd     HandArea：手牌区（分区渲染/排序/点选拖选右键/精准刷新）
@@ -75,12 +85,22 @@ script/   表现层脚本
   info_sidebar.gd  InfoSidebar：右侧信息栏组件
   ui_style.gd      UiStyle：UI 规范工具（MAIN_TABLE_CENTER 常量、半字号留空）
   main_menu.gd     主菜单（自检动态加载套件；Web 下隐藏退出/自检）
-scene/    main_menu.tscn / game_table.tscn / seat_panel.tscn / info_sidebar.tscn
+  online_menu.gd   联机入口（昵称/地址/建房/凭码加入；昵称 ConfigFile 记忆）
+  room_lobby.gd    房间大厅（房间码/成员列表/开局/退出；人数不满补电脑确认弹层）
+  scores_dialog.gd ScoresDialog：房间累计分数弹层（退出/掉线/关房时展示，确定→主菜单）
+scene/    main_menu.tscn / online_menu.tscn / room_lobby.tscn / game_table.tscn / seat_panel.tscn / info_sidebar.tscn
+server/   联机服务端（仅桌面源码运行，**已从 Web 导出排除**；不设 class_name，动态 load 装配）
+  server_main.tscn/.gd  入口场景（无头进程：监听端口/装配 manager+store/--port 用户参数）
+  room_manager.gd  连接中枢：peer↔昵称、房间表、消息分发、掉线扫描（探测 ping + 心跳超时）
+  host_room.gd     单房间权威 GameEngine + AI 定时驱动（绕门面直调纯模块）+ 超时托管 +
+                   离线宽限/重连快照 + 动作广播（可见性裁剪）+ 结算入库
+  store.gd         持久存储：本地 JSON（players 昵称注册表 / rooms 留档 / room_scores 房间累计分），
+                   变更即原子落盘；接口形状对齐后续 SQLite 平替
 font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 tool/subset_font.py）
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
 test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ suite_registry.gd（套件注册单一事实源）
-          + test_*.gd（12 套件 100+ 用例，含 test_architecture.gd 架构守护）+ run_tests.gd + smoke_ui.gd
+          + test_*.gd（13 套件 130 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环）+ run_tests.gd + smoke_ui.gd
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
 doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md
 static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新；含 .gdignore 不参与引擎导入）
@@ -102,10 +122,13 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 7. **AI 数据进/决策出**：`AiBidding/AiPlay` 只收数据参数（随机源注入），不持有引擎引用；`AiPolicy` 是单机门面（解包引擎状态）。M4 服务端绕过门面直调纯模块。
 8. **显性报障**：引擎内部一致性破坏走 `engine_fault` 信号 + `faulted` 标记 + `push_error`（如 settle 失败），禁止静默哨兵值（seat=-1）死锁。
 9. **多局会话**：`start_session(seed)` 种子化发牌；`start_session_with_deal()` 为测试钩子（注入手牌+底牌，按值匹配可传副本）；庄位轮换规则 4 在 `start_next_game()` 内实现。
+10. **联机 C/S（M4 落地，2026-11-18）**：服务端（`server/`，无头 Godot 进程）权威运行 GameEngine 并直调 AiBidding/AiPlay 纯模块（数据进/决策出）；客户端**不跑引擎**——`net/table_view.gd` 以可见性裁剪的视图状态 + 与引擎同构的信号/查询面驱动 game_table（重构规范 §7.3 预留形态的落地）。服务器只下发本人手牌（庄家另加翻底底牌）与公开回放（叫分/亮牌/轮次/捉分/无主公示/终局结算）；**他人手牌、所扣牌面永不出现在广播里**（扣底广播只发座位与新张数），动作回放附带权威 `counts` 张数。座位旋转 `rot(s)=(s-my+4)%4` 在 NetClient 摄取层对 game_start/snapshot 统一完成——本地玩家恒为 0 号位，game_table 的 HUMAN_SEAT=0 语义零改动。
+11. **联机路由**：独立 `WebSocketMultiplayerPeer` + JSON 文本包（不挂高层 multiplayer API，避免跨进程节点路径耦合）；**每条客户端消息自带 `pid`（unique_id）**——服务端 `get_packet_peer()` 实测不返回真实来源 id（恒 1），路由信息由协议层携带（`net/protocol.gd` 契约，踩坑记录）。传输可靠有序 = 回放无需额外排序；客户端 5s 心跳，服务端 15s 无消息或探测发送失败判离线。
+12. **联机托管与宽限**：人类回合超时（叫分 20s/叫主 30s/扣底 60s/出牌 30s）由 AI 纯模块按其手牌代打并以 `auto=true` 广播（客户端 toast「超时托管」），人类出招即重置计时；掉线成员进入**离线宽限期**（120s，回合由托管代打、对局继续），宽限内同昵称 hello 重连并收**公开状态快照**恢复视图，逾期按退出关房；**主动 leave 立即关房**并广播累计分（各端弹分数窗→确定→主菜单）。
 
 ## 5. GDScript 编码规范（本仓库实践）
 
-- **类型推断陷阱**：`Dictionary`/无类型 `Array` 取值、引擎信号携带的 Variant **不能用 `:=` 推断**，必须显式标注（`var x: int = dict.field`；`var k: String = c.key()`）。历史 bug 多源于此，code review 重点。
+- **类型推断陷阱**：`Dictionary`/无类型 `Array` 取值、引擎信号携带的 Variant **不能用 `:=` 推断**，必须显式标注（`var x: int = dict.field`；`var k: String = c.key()`）。历史 bug 多源于此，code review 重点。**联机（2026-11-18）**：game_table 的 `engine` 放宽为非类型化变量（单机 GameEngine / 联机 TableView 鸭子类型）后，所有 `:= engine.xxx` 失去推断来源——已全部显式标注；给持有 Variant 的字段新增读取时同样注意。
 - **不覆盖 `Object.to_string()`**（Godot 视为警告级错误）：Card/Combo 用 `label()`。
 - 方法调用带括号：`c.points()` 而非 `c.points`（后者得到 Callable，运算时报错）。
 - 数组推导式内不要嵌套 `%` 格式化等复杂表达式（解析器不支持），改用显式循环。
@@ -119,8 +142,10 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 
 **工程配置**
 - `project.godot` 用编辑器/直接编辑均可，但须保持分区有序（application/display/gui/rendering）；新增系统级设置（字体主题等）登记在本文件 §2/§3。
-- `export_presets.cfg` 入库；导出过滤排除非运行时目录（`test/*,doc/*,tool/*,build/*`）；`build/` 忽略。
+- `export_presets.cfg` 入库；导出过滤排除非运行时目录（`test/*,doc/*,tool/*,build/*,server/*`，2026-11-18 增 server/——服务端仅桌面源码运行且引用面与客户端隔离）；`net/` 必须进包（Web 客户端联网）；`build/` 忽略。
 - `html/head_include` 注入移动端壳层适配（2026-11-17）：`canvas#canvas{touch-action:none}` 与 `html,body{position:fixed}`（iOS 忽略 overflow:hidden，页面微滚动会吞点按）；右上角 ⛶ 全屏按钮（DOM 覆盖层，非 Godot 控件）——iPhone Safari 无 Element Fullscreen API，点击时降级提示「添加到主屏幕」全屏方案。改此项后须 `--export-release` 并浏览器验证按钮与画布注入。
+- `html/experimental_virtual_keyboard=true`（2026-11-18 联机昵称输入）：触屏 UA 下 LineEdit 聚焦弹系统键盘；桌面浏览器走物理键盘直接输入。
+- **Godot Web 对合成输入免疫（2026-11-18 验收实测）**：自动化注入的合成 KeyboardEvent/ClipboardEvent/CDP 文本均不进引擎（仅受信任的真实输入生效）——浏览器验收能覆盖引导/渲染/按钮路径，**文本输入类流程须真实键盘**（桌面双实例人工步骤）。
 - `.gitignore` 只忽略生成物（`.godot/`、`build/`）；`.uid` 与源文件成对提交。
 
 **场景结构**
@@ -138,6 +163,8 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 - `_ready` 只做接线与轻构建；重构建走组件 `_ready` 分摊；首帧依赖布局的渲染挂起到尺寸有效（HandArea 模式），禁止兜底默认尺寸。
 - 信号连接用 `.connect()` 方法引用/lambda，风格保持统一；信号发出前状态就绪（§4.5）。**陷阱（2026-11-17 实测）**：lambda 内 `func(): x.start` 是求值出 Callable 后丢弃（仅 STANDALONE_EXPRESSION 警告，不报错），方法从未被调用——连接回调方法直接用裸 Callable（`connect(x.start)`），lambda 内必须带括号调用。
 - **ScrollContainer 最小尺寸为 0**：放入自适应容器（VBox/PanelContainer）会整层塌缩，内容全部裁剪不可见——弹层滚动区必须按内容行数设置 `custom_minimum_size`（PileViewer 历史弹层 2026-11-17 回归）。
+- **复用 Timer 的回调单槽化（2026-11-18 联机踩坑）**：one_shot Timer 复用做调度器时，`timeout.connect(action)` 每次调度都会叠加连接——改为单槽「待执行 Callable + 固定回调」（`_pending_ai` 模式）；同理，测试里对**多发信号**（如 remote_action）挂 `CONNECT_ONE_SHOT` 会被首个无关发射消费掉。
+- **跨场景存活组件**：需要跨 `change_scene_to_file` 存活的状态挂 `tree.root` 直属节点（联机 `NetClient`，名字固定便于 `get_node_or_null` 定位），自毁走 `queue_free.call_deferred()`；本项目维持零 autoload。
 
 **资源与字体**
 - 中文显示依赖打包字体（浏览器无系统回退）：文案新增字符后**必须重跑 `python -I tool/subset_font.py`** 再导出，否则豆腐块。
@@ -167,6 +194,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 - **【无主】印章（规则 7.3，2026-11-17）**：主牌轮垫牌公示——`VoidStamp` 圆形红章（斜置半透明红、程序化绘制）：乙/丙/丁盖在 SeatPanel 右下角（`set_void_trump`；印章 `top_level=true` 脱离容器布局树用全局坐标定位——PanelContainer 会对直接子件整面填充布局，曾把印章拽到左上角压住姓名）；人类 0 号位盖在**手牌区右上方固定槽位**（HumanVoidStamp，tscn 锚点 (958,488)，2026-11-17 调整）。
 - **左下按钮区（不随牌变动）**：【历史】= 点击打开**出牌历史面板**（`TrickHistoryPanel`，2026-11-17 重做）：居中弹层以**十字形**展示一轮四家出牌（与牌桌出牌摆位座位方位同构、窗口更小，赢家 ✓ 金标），默认**最后一轮**；中央下方 【<<】【<】【>】【>>】 四按钮翻第一页/上一页/下一页/最后一轮（边界禁用）；右上角 ✕ 或**点击窗口外**（全屏微暗遮罩，`MOUSE_FILTER_STOP` 透明拦截）关闭；打开期间新轮结算由 `trick_settled → _refresh → refresh` 状态驱动就地收敛页码；【牌堆】= 仅庄家是自己且进入出牌阶段后显示（「历史」右侧同一行），悬停弹出**底牌堆 2 行 × 4 张**（`engine.buried`，仅自己可见；弹层归 `PileViewer`）。**悬停弹层机制（2026-11-17 历史面板重做后仅剩【牌堆】按钮悬停路径；座位面板悬停路径已移除）**：事件驱动 + 粘滞——显示随 `mouse_entered` 一次调用，隐藏靠 0.1s 延迟计时器（粘滞时长 2026-11-17 用户定夺为 0.1s；弹层悬停仍保持打开，重悬停即可再次查看），**不用周期轮询**（`mouse_entered/exited` 本就是引擎逐帧悬停判定的结果，自建轮询属 §4 禁止的定时兜底）。
 - 一轮结算后牌面（含 ✓赢家）停留 **1.5 秒后主动清空出牌桌**（TRICK_PAUSE 由 `_trick_timer.timeout` 统一触发清空，不依赖下一手替换）；末轮停留后才弹结算面板。
+- **联机界面（2026-11-18，M4）**：主菜单新增【联机对战】→ `scene/online_menu.tscn`（昵称/服务器地址默认 ws://127.0.0.1:9080/新建房间/房间码+加入/返回；状态行报错；昵称 ConfigFile 记忆）→ `scene/room_lobby.tscn`（房间码大字、四座位成员列表——房主/你/电脑/离线标注、开始游戏仅房主可见、退出房间）。**人数不满开局流程**：房主点开始 → 居中确认弹层「人数不满（X/4），是否自动补充电脑玩家？」——是 → `start{fill_ai:true}` 补满即开；否 → 仅关闭弹层留在房间页；满 4 人直接开。**累计分数弹层** `script/scores_dialog.gd`（MAIN_TABLE_CENTER 居中 + 全屏遮罩）：主动退出（本地立即弹）、他人退出/离线超时/服务器失联（`room_closed`/`connection_lost` 数据弹出），确定 → 主菜单。牌桌联机态复用单机布局：座位名 = 成员昵称（本地座位序，0 号位带（你）），AI 补位名「电脑·乙/丙/丁」；结算面板【下一局】仅房主可见（其余等待）。布局注记见 static/ui-mockup.svg 联机屏。
 - 新增控件一律程序化绘制（参照 CardWidget/CrownBadge/DashedRoundedFrame），不引入图片素材。
 
 ## 8. 测试规范
@@ -190,6 +218,13 @@ UI 层曾因无用例而集中出 bug（信号时序竞态、引用遗漏、渲�
 3. **节点状态断言**：断言按钮存在/可见、Label 文本、popup 标题等真实 UI 状态；计数类断言须跳过 `is_queued_for_deletion()` 节点（queue_free 帧末才删）。
 4. **一致性不变量**：自动对局每步断言「UI 显示 == 引擎数据」（如捉分 label vs `captured_points`），步间 `await 0.05s` 让信号处理器走完。
 5. **纪律：每个用户报告的 UI bug，修复提交必须同时在本套件补一个回归用例**（命名体现回归来源）。框架支持 async 用例（`run_suites` 可 await）。
+
+### 联机用例（test/test_online.gd，2026-11-18）
+
+- **真实 WebSocket 回环**：同进程跑 server 栈（store/room_manager/host_room）+ 真 NetClient 客户端，服务端计时全部按 `time_scale=0.02` 缩放（AI 节拍 ~14ms、人类托管 ~0.4s、离线宽限 ~2.4s）。测试夹具注意：`heartbeat_timeout` 须放大到远大于客户端心跳间隔（5s），否则空闲客户端被误判离线触发关房。
+- **覆盖**：store 持久化与昵称全局唯一（重开实例不丢、占用拒绝、AI 前缀拒绝）；房间全生命周期（建房→凭码加入→人数不满拒绝开局→补 AI 开局→完整对局→分数落盘与广播一致→退出关房广播）；可见性断言（`debug_record` 录制回放：扣底无牌面、开局无底牌、game_start 仅本人 19 张）；超时托管（auto 标记 + 服务端状态推进核对）；断线重连（drop→member_offline→宽限内存活→同昵称回房收快照→打完→宽限超时关房）。
+- **客户端代打驱动 `_drive_until`**：读本地视图状态 + 状态指纹防重发 + `send_act` 提交（人类决策复用 AiPlay 纯模块）；服务端引擎与客户端视图的公开字段（捉分/轮数）逐局互检。
+- **测试钩子**：`NetClient.standalone`（game_start/snapshot 直接灌视图、不切场景）、`NetClient.debug_record`（录全部入站消息）、`host_room.time_scale`、`manager.sweep_interval/heartbeat_timeout`。
 
 ### 组件用例（test/test_components.gd）与主流程用例（test/test_flow.gd）
 
@@ -258,4 +293,5 @@ UI 层曾因无用例而集中出 bug（信号时序竞态、引用遗漏、渲�
   阈值/斜率后建议重跑校准验证收益；60 局观察：200 出现率 2%~20% 随边界手翻转波动，
   庄家胜率 40%→37% 基本守恒
 - 推送依赖 gh API 复刻流程（见第 9 节）
-- Web 导出为验收工具（本地 serve），尚未部署公网（M5）
+- Web 导出为验收工具（本地 serve），尚未部署公网（M5）；联机浏览器验收覆盖引导/入口/渲染/字体与客户端校验路径，**文本输入流程需真实键盘**（Godot Web 对合成输入免疫，见 §6）——桌面双实例人工验收含完整联机流程
+- **联机（M4）已知简化**：反作弊止步于可见性裁剪（不下发隐藏信息；服务端逻辑仍可被逆向，定位为本地/可信小服）；服务端进程重启会解散进行中的房间（昵称注册表与房间累计分已持久化不丢）；无复盘、无观战、无操作时长配置化
