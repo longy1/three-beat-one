@@ -15,6 +15,7 @@ var bottom_button: Button       ## 庄家是自己时的「牌堆」入口（「
 var history_popup: PanelContainer
 var bottom_popup: PanelContainer
 var showing_seat := -1          ## 历史弹层当前展示的座位（-1 = 未展示；悬停期间历史增长时就地刷新用）
+var history_pinned := false     ## 历史弹层被「历史」按钮点击钉住（X/再次点击关闭，悬停自动隐藏不生效）
 
 
 func setup(root: Control) -> void:
@@ -60,6 +61,30 @@ func show_history(seat: int, trick_history: Array, seat_names: Array) -> void:
 	hide_timer.stop()
 
 
+## 「历史」按钮点击开关（2026-11-17：原为悬停出/移出收，触屏上悬停不成立）。
+## 打开即钉住：不受 0.1s 悬停自动隐藏影响，由 X / 再次点击关闭。
+func toggle_history_pinned(seat: int, trick_history: Array, seat_names: Array) -> void:
+	if history_popup.visible and history_pinned:
+		close_history()
+		return
+	history_pinned = true
+	show_history(seat, trick_history, seat_names)
+
+
+## 关闭历史弹层（X 按钮 / 再次点击）
+func close_history() -> void:
+	history_popup.visible = false
+	history_pinned = false
+	showing_seat = -1
+
+
+## 悬停类自动隐藏入口（面板/弹层移出）：钉住的弹层不受影响
+func request_hide() -> void:
+	if history_pinned:
+		return
+	hide_timer.start()
+
+
 ## 弹层仍可见（鼠标停在面板/弹层上阅读）而历史增长时：就地重建行内容。
 ## 状态驱动（由 trick_settled → _refresh 调用），非定时轮询；保留滚动位置。
 func refresh_history(trick_history: Array, seat_names: Array) -> void:
@@ -74,7 +99,7 @@ func refresh_history(trick_history: Array, seat_names: Array) -> void:
 
 ## 弹层行内容填充（show_history / refresh_history 公共路径）
 func _fill_history(seat: int, trick_history: Array, seat_names: Array) -> void:
-	var title: Label = history_popup.get_node("VBox/Title")
+	var title: Label = history_popup.get_node("VBox/Header/Title")
 	title.text = "%s 的出牌（旧 → 新）" % seat_names[seat]
 	var list: VBoxContainer = history_popup.get_node("VBox/Scroll/List")
 	for child in list.get_children():
@@ -138,16 +163,18 @@ func hide_all() -> void:
 	if bottom_popup != null:
 		bottom_popup.visible = false
 	showing_seat = -1
+	history_pinned = false
 
 
-## 居中弹层骨架：点锚 = 主牌桌十字中心，grow 向四周自适应（尺寸随内容）
+## 居中弹层骨架：点锚 = 主牌桌十字中心，grow 向四周自适应（尺寸随内容）。
+## 移出弹层走 request_hide（钉住的弹层不自动隐藏）
 func _build_popup(root: Control, popup_name: String) -> PanelContainer:
 	var popup := PanelContainer.new()
 	popup.name = popup_name
 	popup.visible = false
 	popup.mouse_filter = Control.MOUSE_FILTER_STOP
 	popup.mouse_entered.connect(hide_timer.stop)
-	popup.mouse_exited.connect(hide_timer.start)
+	popup.mouse_exited.connect(request_hide)
 	popup.anchor_left = UiStyle.MAIN_TABLE_CENTER.x
 	popup.anchor_right = UiStyle.MAIN_TABLE_CENTER.x
 	popup.anchor_top = UiStyle.MAIN_TABLE_CENTER.y
@@ -163,11 +190,23 @@ func _build_history_contents() -> void:
 	vbox.name = "VBox"
 	vbox.add_theme_constant_override("separation", 6)
 	history_popup.add_child(vbox)
+	var header := HBoxContainer.new()
+	header.name = "Header"
+	vbox.add_child(header)
 	var title := Label.new()
 	title.name = "Title"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_size_override("font_size", 17)
-	vbox.add_child(title)
+	header.add_child(title)
+	var close_btn := Button.new()
+	close_btn.name = "CloseButton"
+	close_btn.text = "✕"
+	close_btn.add_theme_font_size_override("font_size", 14)
+	close_btn.custom_minimum_size = Vector2(26, 26)
+	close_btn.focus_mode = Control.FOCUS_NONE
+	close_btn.pressed.connect(close_history)
+	header.add_child(close_btn)
 	var scroll := ScrollContainer.new()
 	scroll.name = "Scroll"
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL

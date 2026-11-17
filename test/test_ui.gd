@@ -73,7 +73,7 @@ func test_pile_popup_uses_seat_name(test) -> void:
 	var popup: PanelContainer = table.get_node_or_null("PilePopup")
 	test.check(popup != null and popup.visible, "悬停后牌堆弹层显示")
 	if popup != null and popup.visible:
-		var title: Label = popup.get_node("VBox/Title")
+		var title: Label = popup.get_node("VBox/Header/Title")
 		test.check("丁" in title.text, "弹层标题含座位名（实际：%s）" % title.text)
 	await _release_table(table)
 
@@ -88,10 +88,12 @@ func test_pile_popup_delayed_hide(test) -> void:
 	eng.submit_bid(0, GameEngine.BID_PASS)
 	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
 	eng.submit_discard(0, AiPolicy.choose_discard(eng.hands[0], eng.trump))
-	table._piles.history_chip.mouse_entered.emit()
+	# 历史按钮已改点击开关（2026-11-17）；悬停自动隐藏路径改由座位面板驱动
+	var panel: SeatPanel = table.seat_panels[3]
+	panel.mouse_entered.emit()
 	var popup: PanelContainer = table._piles.history_popup
 	test.check(popup.visible, "悬停后弹层显示")
-	table._piles.history_chip.mouse_exited.emit()  # 移出入口 → 启动延迟隐藏
+	panel.mouse_exited.emit()  # 移出入口 → 启动延迟隐藏
 	await tree_pause()  # ~0.05s < 0.1s：弹层应仍在
 	test.check(popup.visible, "移出后 0.1s 内弹层保持显示（延迟隐藏）")
 	var tree: SceneTree = Engine.get_main_loop()
@@ -442,4 +444,33 @@ func test_play_bar_hidden_during_settle_pause(test) -> void:
 	test.eq(visible_btns, 0, "出牌提交后按钮立即隐藏（结算停留期不露旧按钮）")
 	await tree_pause()
 	test.eq(eng.phase, Phase.SETTLED, "迷你局结算完成")
+	await _release_table(table)
+
+
+## 历史按钮点击开关 + 弹层 X 关闭（2026-11-17 用户需求）：
+## 打开即钉住（面板移出/悬停计时器不隐藏），X 或再次点击关闭
+func test_history_chip_click_toggle_with_x(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	var chip: Button = table._piles.history_chip
+	var popup: PanelContainer = table._piles.history_popup
+	chip.pressed.emit()  # 点击打开
+	test.check(popup.visible, "点击历史按钮 → 弹层显示")
+	test.check(table._piles.history_pinned, "点击打开 → 钉住模式")
+	chip.pressed.emit()  # 再次点击 → 关闭
+	test.check(not popup.visible, "再次点击 → 弹层关闭")
+	chip.pressed.emit()  # 重新打开
+	test.check(popup.visible and table._piles.history_pinned, "可重新打开（钉住）")
+	# 钉住后：面板移出 / 弹层移出都不自动隐藏
+	table.seat_panels[3].mouse_entered.emit()  # 悬停丁 → 内容切为丁（仍钉住）
+	table.seat_panels[3].mouse_exited.emit()
+	table._piles.request_hide()
+	await tree_pause()
+	test.check(popup.visible, "钉住的弹层不受悬停自动隐藏影响")
+	var x_btn: Button = popup.get_node("VBox/Header/CloseButton")
+	test.check(x_btn != null and x_btn.visible, "弹层右上角有 ✕ 关闭按钮")
+	x_btn.pressed.emit()
+	test.check(not popup.visible, "点击 ✕ → 弹层关闭")
+	test.check(not table._piles.history_pinned, "关闭后解除钉住")
 	await _release_table(table)

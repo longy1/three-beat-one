@@ -93,8 +93,8 @@ func _ready() -> void:
 	hand_area.play_requested.connect(_submit_human_play)
 	_piles = PileViewer.new()
 	_piles.setup(self)
-	_piles.history_chip.mouse_entered.connect(func(): _piles.show_history(HUMAN_SEAT, engine.trick_history, SEAT_NAMES))
-	_piles.history_chip.mouse_exited.connect(_piles.hide_timer.start)
+	# 「历史」按钮：点击开/关（钉住模式，X 关闭；2026-11-17 起弃用悬停）
+	_piles.history_chip.pressed.connect(func(): _piles.toggle_history_pinned(HUMAN_SEAT, engine.trick_history, SEAT_NAMES))
 	_piles.bottom_button.mouse_entered.connect(func():
 		if engine.banker_seat == HUMAN_SEAT:
 			_piles.show_bottom(engine.buried))
@@ -103,7 +103,7 @@ func _ready() -> void:
 		var panel: SeatPanel = seat_panels[seat]
 		panel.setup(seat)  # 注入座位号（组件悬停信号携带它定位牌堆）
 		panel.pile_hovered.connect(func(s: int): _piles.show_history(s, engine.trick_history, SEAT_NAMES))
-		panel.pile_exited.connect(_piles.hide_timer.start)  # 裸 Callable 直连；写成 func(): xxx.start 是求值不调用（曾致弹层永久滞留）
+		panel.pile_exited.connect(_piles.request_hide)  # 钉住的弹层不自动隐藏；裸 Callable 直连（func(): x.start 是求值不调用，曾致弹层永久滞留）
 
 	engine.start_session()  # 同步发出首个 auction_required，由处理器完成首帧刷新
 
