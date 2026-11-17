@@ -150,7 +150,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 - **半字号留空原则（2026-11-16 确立）**：所有文字与其最近的边框（面板边、按钮边）四向留空 **≥ 字号的一半**。落实方式：按钮统一走 `UiStyle.pad_button()`（content margin = 字号/2）；面板在 tscn 中用 StyleBoxFlat `content_margin_*` 落实（InfoSidebar 8 / SeatPanel 9 / ResultPanel 15，≈ 各自最大字号的一半）。豁免：无边框裸文字（Toast/提示行/顶栏标签）、卡牌角标（扑克角标贴角为惯例设计）。
 - **组件复用**：三家电庄信息框复用 `SeatPanel`；右侧信息栏 `InfoSidebar`；手牌区 `HandArea`；牌堆弹层 `PileViewer`；操作按钮 `ActionBar`——实例只锚定/挂载，不各自拉伸改尺寸。
 - **对称十字出牌位**：四家出牌围绕牌桌中心对称——你=下方（0.419,0.55）、丙=信息板正下方（0.419,0.28）、丁=面板右侧（0.234,0.408）、乙=面板左侧（0.604,0.408）。
-- 设计分辨率 1280×720（stretch canvas_items / keep），统一 12px 边距。
+- 设计分辨率 1280×720（stretch canvas_items / keep），统一 12px 边距；桌面窗口默认 1920×1080（`window/size/window_*_override`，内容仍按 720p 基准等比放大 1.5×，控件像素常量不随窗口变大——2026-11-17 用户设定）。
 - 区域划分见 [static/ui-mockup.svg](./static/ui-mockup.svg)（布局改动先改视觉稿再施工）：
   - 顶栏（局数/出牌庄/叫分）；**抓牌庄家不展示**
   - 叫主点数选择：居中多排面板（2 排 × 6，TrumpRankPicker），10 个点数按钮完整展示（R ∈ 5~2，不可为王）
