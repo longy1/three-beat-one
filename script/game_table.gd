@@ -101,7 +101,7 @@ func _ready() -> void:
 		var panel: SeatPanel = seat_panels[seat]
 		panel.setup(seat)  # 注入座位号（组件悬停信号携带它定位牌堆）
 		panel.pile_hovered.connect(func(s: int): _piles.show_history(s, engine.trick_history, SEAT_NAMES))
-		panel.pile_exited.connect(func(): _piles.hide_timer.start)
+		panel.pile_exited.connect(_piles.hide_timer.start)  # 裸 Callable 直连；写成 func(): xxx.start 是求值不调用（曾致弹层永久滞留）
 
 	engine.start_session()  # 同步发出首个 auction_required，由处理器完成首帧刷新
 

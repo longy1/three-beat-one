@@ -6,6 +6,8 @@ extends RefCounted
 
 
 const HIDE_DELAY := 0.35  ## 移出入口后延迟隐藏秒数（期间重新进入则取消）
+const HISTORY_MIN_WIDTH := 300.0  ## 历史弹层最小宽度（容纳 轮次标签 + 4 张小牌）
+const HISTORY_MAX_ROWS := 4       ## 可视行数上限：超出走滚动（ScrollContainer 最小高度为 0，不设则整层塌缩只剩标题条）
 
 var hide_timer: Timer
 var history_chip: Button        ## 人类玩家出牌历史入口（左下，始终显示）
@@ -63,11 +65,13 @@ func show_history(seat: int, trick_history: Array, seat_names: Array) -> void:
 		empty.modulate = Color(0.8, 0.85, 0.9)
 		list.add_child(empty)
 	var round_no := 0
+	var row_count := 0
 	for th in trick_history:
 		round_no += 1
 		for play in th.plays:
 			if play.seat != seat:
 				continue
+			row_count += 1
 			var row := HBoxContainer.new()
 			row.add_theme_constant_override("separation", 4)
 			row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -81,6 +85,10 @@ func show_history(seat: int, trick_history: Array, seat_names: Array) -> void:
 			for c in play.cards:
 				row.add_child(CardWidget.create(c, true, true))
 			list.add_child(row)
+	# 滚动区高度随内容自适应、超上限滚动（回归 2026-11-17：不设则整层塌缩只剩标题条）
+	var row_h: float = CardWidget.SIZE_SMALL.y + 4.0
+	var scroll: ScrollContainer = history_popup.get_node("VBox/Scroll")
+	scroll.custom_minimum_size = Vector2(HISTORY_MIN_WIDTH, minf(float(row_count), float(HISTORY_MAX_ROWS)) * row_h)
 	history_popup.visible = true
 	hide_timer.stop()
 

@@ -7,6 +7,9 @@ extends UiTestBase
 ## - 牌堆悬停失效：SeatPanel.setup(seat) 被遗漏，座位号恒 -1
 ## - 叫主前手牌丢王/2：主牌组加入条件误写 trump != null
 ## - 捉分一致性：信息栏显示与引擎 captured_points 逐步一致
+## - 电脑座位历史弹层永久滞留：pile_exited 连接写成求值不调用（`func(): x.start`），
+##   移出面板后延迟隐藏定时器从未启动
+## - 历史弹层只剩标题条：ScrollContainer 默认最小高度 0，整层塌缩致卡牌行全被裁剪
 
 
 ## AI 代打：走完当前阶段的全部引擎交互（不模拟鼠标）
@@ -289,4 +292,55 @@ func test_void_stamp_wiring(test) -> void:
 	table._refresh()
 	test.check(not table.human_void_stamp.visible, "复位后隐藏")
 	test.check(not table.seat_panels[1].get_node("VoidStamp").visible, "复位后隐藏（乙）")
+	await _release_table(table)
+
+
+## 回归（2026-11-17 用户报告）：电脑座位悬停历史弹层**永久滞留**——
+## pile_exited 曾连接成 `func(): _piles.hide_timer.start`（求值出 Callable 后丢弃，
+## 从未调用），移出面板后延迟隐藏定时器从未启动
+func test_seat_panel_popup_hides_on_exit(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	var panel: SeatPanel = table.seat_panels[3]
+	panel.mouse_entered.emit()  # 悬停丁 → pile_hovered → show_history
+	var popup: PanelContainer = table._piles.history_popup
+	test.check(popup.visible, "悬停电脑座位后历史弹层显示")
+	panel.mouse_exited.emit()  # 移出面板 → hide_timer.start（回归点：曾未调用）
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.create_timer(0.5).timeout  # > HIDE_DELAY(0.35s)
+	test.check(not popup.visible, "移出电脑座位后弹层自动关闭（回归：弹层永久滞留）")
+	await _release_table(table)
+
+
+## 回归（2026-11-17 用户报告）：历史弹层**只剩标题条、内容不显示**——
+## ScrollContainer 默认最小高度为 0，放入 VBox 后整层塌缩，卡牌行全被裁剪
+func test_history_popup_content_expands(test) -> void:
+	var table = await _spawn_table()
+	# 注入两轮真实结构的历史（丁两轮出牌，含赢轮 ✓）
+	var hist: Array = [
+		{plays = [
+			{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0)], role = FollowRule.Role.LEAD},
+			{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_7, 0)], role = FollowRule.Role.DISCARD},
+		], winner = 2},
+		{plays = [
+			{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_8, 0), C(Card.Suit.CLUB, Card.RANK_9, 0)], role = FollowRule.Role.LEAD},
+			{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)], role = FollowRule.Role.FOLLOW_TYPE},
+		], winner = 3},
+	]
+	table._piles.show_history(3, hist, table.SEAT_NAMES)
+	var popup: PanelContainer = table._piles.history_popup
+	var scroll: ScrollContainer = popup.get_node("VBox/Scroll")
+	test.check(popup.visible, "悬停后历史弹层显示")
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.process_frame
+	await tree.process_frame  # 布局落地两帧
+	test.check(scroll.size.y > 60, "滚动区高度随内容展开（回归：高度塌缩只剩标题条），实际 %.0f" % scroll.size.y)
+	test.check(popup.size.y > 100, "弹层整体高度随内容展开，实际 %.0f" % popup.size.y)
+	var rows := popup.get_node("VBox/Scroll/List")
+	var alive := 0
+	for c in rows.get_children():
+		if not c.is_queued_for_deletion():
+			alive += 1
+	test.eq(alive, 2, "两轮各一行，行内容已构建")
 	await _release_table(table)

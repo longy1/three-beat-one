@@ -133,7 +133,8 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 - 开发期专属功能（自检）用运行时 `load()` 而非静态 `preload`，避免拖进导出包。**更强约束（2026-11-17 Web 实测踩坑）**：任何对被导出过滤排除文件（如 `test/*`）的静态 `preload`会让**整份脚本**在导出环境解析失败——`_ready` 不执行、按钮全部失去处理器且无任何运行报错线索；此类引用必须全部走运行时 `load()`，并在 `--export-release` 后用浏览器验收确认。
 - **Web 特性守卫**：`OS.has_feature("web")` 分支处理平台差异（quit 无效、test 未打包）；新增平台敏感 API 前先查该守卫。
 - `_ready` 只做接线与轻构建；重构建走组件 `_ready` 分摊；首帧依赖布局的渲染挂起到尺寸有效（HandArea 模式），禁止兜底默认尺寸。
-- 信号连接用 `.connect()` 方法引用/lambda，风格保持统一；信号发出前状态就绪（§4.5）。
+- 信号连接用 `.connect()` 方法引用/lambda，风格保持统一；信号发出前状态就绪（§4.5）。**陷阱（2026-11-17 实测）**：lambda 内 `func(): x.start` 是求值出 Callable 后丢弃（仅 STANDALONE_EXPRESSION 警告，不报错），方法从未被调用——连接回调方法直接用裸 Callable（`connect(x.start)`），lambda 内必须带括号调用。
+- **ScrollContainer 最小尺寸为 0**：放入自适应容器（VBox/PanelContainer）会整层塌缩，内容全部裁剪不可见——弹层滚动区必须按内容行数设置 `custom_minimum_size`（PileViewer 历史弹层 2026-11-17 回归）。
 
 **资源与字体**
 - 中文显示依赖打包字体（浏览器无系统回退）：文案新增字符后**必须重跑 `python -I tool/subset_font.py`** 再导出，否则豆腐块。
