@@ -47,6 +47,12 @@ custom_minimum_size = Vector2(420, 52)
 theme_override_font_sizes/font_size = 24
 text = "开始对局（1 人对 3 电脑）"
 
+[node name="OnlineButton" type="Button" parent="Center/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(420, 52)
+theme_override_font_sizes/font_size = 24
+text = "联机对战"
+
 [node name="SelfTestButton" type="Button" parent="Center/Panel/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(320, 52)

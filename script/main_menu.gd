@@ -6,6 +6,7 @@ extends Control
 
 func _ready() -> void:
 	$Center/Panel/VBox/StartButton.pressed.connect(_on_start)
+	$Center/Panel/VBox/OnlineButton.pressed.connect(_on_online)
 	$Center/Panel/VBox/SelfTestButton.pressed.connect(_on_self_test)
 	$Center/Panel/VBox/QuitButton.pressed.connect(_on_quit)
 	if OS.has_feature("web"):
@@ -15,6 +16,10 @@ func _ready() -> void:
 
 func _on_start() -> void:
 	get_tree().change_scene_to_file("res://scene/game_table.tscn")
+
+
+func _on_online() -> void:
+	get_tree().change_scene_to_file("res://scene/online_menu.tscn")
 
 
 func _on_self_test() -> void:

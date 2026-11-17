@@ -25,7 +25,7 @@ BUFFER_CHARS = "，。：；！？、（）《》「」『』【】—…·×＋
 def collect_chars() -> str:
     chars = set(BUFFER_CHARS)
     chars |= set(chr(c) for c in range(0x20, 0x7F))  # 可打印 ASCII（数字/字母/常用半角符号）
-    patterns = ["core/*.gd", "script/*.gd", "scene/*.tscn", "scene/*.tres", "project.godot"]
+    patterns = ["core/*.gd", "script/*.gd", "net/*.gd", "scene/*.tscn", "scene/*.tres", "project.godot"]
     for pattern in patterns:
         for path in REPO.glob(pattern):
             chars |= set(path.read_text(encoding="utf-8"))

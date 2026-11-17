@@ -1,6 +1,7 @@
 extends Control
-## 牌桌控制器（M2 单机完整对局）：人类 0 号位（下方），其余三家为 AiPolicy 电脑。
-## 引擎（GameEngine）纯逻辑驱动，本脚本只做呈现编排与输入转发。
+## 牌桌控制器（M2 单机完整对局 / M4 联机对局）：人类恒为 0 号位（下方）。
+## 单机：GameEngine 纯逻辑驱动 + AiPolicy 电脑；联机：TableView（可见性裁剪视图，
+## 信号/查询面与引擎同构）驱动，AI 与他人动作来自服务器回放（本类只做呈现与转发）。
 ## 组件分工：HandArea（手牌区）/ PileViewer（牌堆弹层）/ ActionBar（操作按钮条）/
 ## TrumpRankPicker（叫主点数面板）/ CrownAnimator（皇冠动画）——各自持有职责状态。
 ## 刷新纪律：_refresh() 是唯一刷新入口，仅由引擎信号处理器调用；
@@ -23,7 +24,13 @@ const TRICK_ANCHORS := {
 	3: Vector2(0.234, 0.408),
 }
 
-var engine: GameEngine
+## 单机为 GameEngine，联机为 TableView（二者信号/查询面同构，鸭子类型驱动本控制器）
+var engine
+## 座位名（本地座位序，0 号位带「（你）」）：单机为默认常量；联机由房间成员旋转生成
+var seat_names: Array = SEAT_NAMES.duplicate()
+var _online := false              ## 联机模式（tree.root 上的 NetClient 挂起对局判定）
+var _net: NetClient = null        ## 联机客户端门面（单机为 null）
+var _sent_play := false           ## 联机：已提交出牌待回执（错误时需重建出牌按钮）
 var _piles: PileViewer
 var _trick_history := TrickHistoryPanel.new()
 var _crown_anim := CrownAnimator.new()
@@ -81,7 +88,12 @@ func _ready() -> void:
 	result_menu_button.pressed.connect(_on_menu)
 	human_void_stamp.visible = false  # 【无主】印章默认隐藏（公示后显示）
 
-	engine = GameEngine.new()
+	_net = get_tree().root.get_node_or_null("NetClient") as NetClient
+	_online = _net != null and _net.has_pending_game()
+	if _online:
+		engine = _net.make_view()
+	else:
+		engine = GameEngine.new()
 	engine.auction_required.connect(_on_auction_required)
 	engine.trump_required.connect(_on_trump_required)
 	engine.discard_required.connect(_on_discard_required)
@@ -97,7 +109,7 @@ func _ready() -> void:
 	_piles.setup(self)
 	_trick_history.setup(self)
 	# 「历史」按钮：点击打开出牌历史面板（十字形一轮四家出牌 + 翻轮次，✕/点窗外关闭）
-	_piles.history_chip.pressed.connect(func(): _trick_history.open(engine.trick_history, SEAT_NAMES))
+	_piles.history_chip.pressed.connect(func(): _trick_history.open(engine.trick_history, seat_names))
 	_piles.bottom_button.mouse_entered.connect(func():
 		if engine.banker_seat == HUMAN_SEAT:
 			_piles.show_bottom(engine.buried))
@@ -106,11 +118,66 @@ func _ready() -> void:
 		var panel: SeatPanel = seat_panels[seat]
 		panel.setup(seat)  # 注入座位号（印章定位/测试断言用）
 
-	engine.start_session()  # 同步发出首个 auction_required，由处理器完成首帧刷新
+	if _online:
+		_setup_online()
+		_net.start_pending()  # 灌入 game_start/snapshot → 同步信号链完成首帧刷新
+	else:
+		engine.start_session()  # 同步发出首个 auction_required，由处理器完成首帧刷新
 
 
 func _on_menu() -> void:
+	if _online:
+		_net.leave_room()  # 主动退出：本地弹累计分窗 → 确定 → 主菜单（NetClient 统一接管）
+		return
 	get_tree().change_scene_to_file("res://scene/main_menu.tscn")
+
+
+## 联机接入（M4）：座位名按房间成员旋转生成；接 NetClient 回放/错误信号
+func _setup_online() -> void:
+	seat_names = _net.table_seat_names()
+	_net.remote_action.connect(_on_remote_action)
+	_net.net_error.connect(_on_net_error)
+
+
+## ============================= 联机回放处理（M4） =============================
+
+## 远端动作已应用到视图之后：托管提示、扣底弹层关闭、出牌回执清标记。
+## 牌面刷新全部由视图信号驱动，这里只做视图信号覆盖不到的 UI 收尾。
+func _on_remote_action(kind: String, seat: int, auto: bool) -> void:
+	if auto:
+		_toast("%s 超时，已托管" % seat_names[seat])
+	match kind:
+		NetProto.KIND_DISCARD:
+			_clear_bottom_cards()
+		NetProto.KIND_PLAY:
+			if seat == HUMAN_SEAT:
+				_sent_play = false  # 自己出牌的回执到达（已打出的牌由 _render_hand 自动剪除）
+		_:
+			pass
+
+
+## 服务器拒绝（竞态/异常）：toast 提示；自己刚提交的出牌需重建出牌按钮
+func _on_net_error(msg: String) -> void:
+	_toast(msg)
+	if _sent_play:
+		_sent_play = false
+		_show_play_bar()
+
+
+## 下一局（房主开新局）/ 重连恢复：原地重灌对局（NetClient 路由调用）
+func _on_net_game_started(data: Dictionary) -> void:
+	result_panel.visible = false
+	_last_trick_winner = -1
+	_trick_display_cleared = false
+	_last_trump_shown = null
+	_clear_trick_area()
+	_crown_anim.clear()
+	_trump_reveal.clear()
+	hand_area.end_select()
+	if str(data.t) == NetProto.SNAPSHOT:
+		engine.restore(data)
+	else:
+		engine.load_game(data)
 
 
 ## ============================= 引擎信号处理 =============================
@@ -125,7 +192,9 @@ func _on_auction_required(seat: int) -> void:
 		_show_auction_bar()
 	else:
 		action_bar.reset()
-		hint_label.text = "等待 %s 表态…" % SEAT_NAMES[seat]
+		hint_label.text = "等待 %s 表态…" % seat_names[seat]
+		if _online:
+			return  # 联机：远端动作由服务器回放驱动（AI/托管代打均在服务端）
 		_run_ai(func(): engine.submit_bid(seat, AiPolicy.choose_bid(engine.hands[seat], engine.current_highest_bid(), seat, engine.auction.bids)))
 
 
@@ -136,7 +205,9 @@ func _on_trump_required(seat: int) -> void:
 		_show_trump_picker()
 	else:
 		action_bar.reset()
-		hint_label.text = "等待 %s 叫主…" % SEAT_NAMES[seat]
+		hint_label.text = "等待 %s 叫主…" % seat_names[seat]
+		if _online:
+			return  # 联机：远端动作由服务器回放驱动
 		_run_ai(func():
 			var choice: Dictionary = AiPolicy.choose_trump(engine.hands[seat])
 			engine.submit_trump(seat, choice.suit, choice.rank))
@@ -158,7 +229,9 @@ func _on_discard_required(seat: int) -> void:
 		hand_area.select_cards(engine.kitty)
 	else:
 		action_bar.reset()
-		hint_label.text = "等待 %s 扣底…" % SEAT_NAMES[seat]
+		hint_label.text = "等待 %s 扣底…" % seat_names[seat]
+		if _online:
+			return  # 联机：远端动作由服务器回放驱动
 		_run_ai(func(): engine.submit_discard(seat, AiPolicy.choose_discard(engine.hands[seat], engine.trump)), AI_DISCARD_DELAY)
 	_trump_reveal.play(self, trump_card, sidebar.trump_slot_center(), func():
 		sidebar.set_trump(trump_card)
@@ -180,7 +253,9 @@ func _on_play_required(seat: int) -> void:
 		_show_play_bar()
 	else:
 		action_bar.reset()
-		hint_label.text = "等待 %s 出牌…" % SEAT_NAMES[seat]
+		hint_label.text = "等待 %s 出牌…" % seat_names[seat]
+		if _online:
+			return  # 联机：远端动作由服务器回放驱动
 		_run_ai(func():
 			var verdict: Dictionary = engine.submit_play(seat, AiPolicy.choose_play(engine, seat))
 			if not verdict.legal:
@@ -233,7 +308,7 @@ func _run_ai(action: Callable, delay := AI_DELAY) -> void:
 
 func _show_auction_bar() -> void:
 	action_bar.reset()
-	var highest := engine.current_highest_bid()
+	var highest: int = engine.current_highest_bid()
 	if highest >= GameEngine.BID_CAP:
 		hint_label.text = "叫分已封顶 200，只能放弃"
 	else:
@@ -251,7 +326,10 @@ func _show_auction_bar() -> void:
 
 
 func _submit_human_bid(value: int) -> void:
-	var verdict := engine.submit_bid(HUMAN_SEAT, value)
+	if _online:
+		_net.send_act(NetProto.KIND_BID, {"value": value})
+		return  # 回放驱动状态推进；服务器拒绝经 net_error toast（按钮保留可重试）
+	var verdict: Dictionary = engine.submit_bid(HUMAN_SEAT, value)
 	if not verdict.ok:
 		_toast(verdict.error)
 	# 后续由下一个 *_required 处理器统一重建按钮（人类轮→新面板；AI 轮→reset）
@@ -288,7 +366,11 @@ func _close_trump_picker() -> void:
 
 
 func _submit_human_trump(rank: int) -> void:
-	var verdict := engine.submit_trump(HUMAN_SEAT, _pending_trump_suit, rank)
+	if _online:
+		_net.send_act(NetProto.KIND_TRUMP, {"suit": _pending_trump_suit, "rank": rank})
+		_close_trump_picker()
+		return  # 翻底私有下发 + 扣底阶段均由回放驱动
+	var verdict: Dictionary = engine.submit_trump(HUMAN_SEAT, _pending_trump_suit, rank)
 	if not verdict.ok:
 		_toast(verdict.error)
 		return
@@ -306,7 +388,10 @@ func _submit_human_discard() -> void:
 	if hand_area.selected.size() != GameEngine.BOTTOM_SIZE:
 		_toast("须恰好选 8 张扣底（当前 %d 张）" % hand_area.selected.size())
 		return
-	var verdict := engine.submit_discard(HUMAN_SEAT, hand_area.selected.duplicate())
+	if _online:
+		_net.send_discard(hand_area.selected.duplicate())
+		return  # 扣底弹层由 discard 回放到达时统一关闭
+	var verdict: Dictionary = engine.submit_discard(HUMAN_SEAT, hand_area.selected.duplicate())
 	if not verdict.ok:
 		_toast(verdict.error)
 		return
@@ -325,6 +410,13 @@ func _show_play_bar() -> void:
 
 
 func _submit_human_play() -> void:
+	if _online:
+		_sent_play = true
+		_net.send_act(NetProto.KIND_PLAY, {"cards": NetProto.keys_of(hand_area.selected.duplicate())})
+		# 与单机同理由：出牌后常伴结算停留，期间处理器挂起不重建——立即清掉旧按钮
+		# （合法性由服务器权威判定；拒绝经 net_error 重建出牌按钮）
+		action_bar.reset()
+		return
 	var picked: Array = hand_area.selected.duplicate()
 	var verdict: Dictionary = engine.submit_play(HUMAN_SEAT, picked)
 	if not verdict.legal:
@@ -367,7 +459,7 @@ func _refresh() -> void:
 	# 历史面板打开期间有新轮次结算 → 就地刷新（状态驱动：随引擎信号走，非定时轮询）
 	_trick_history.refresh(engine.trick_history)
 	# 庄家是自己时：皇冠下方「牌堆」按钮显示（扣底完成后才有底牌可看）
-	var show_bottom := engine.banker_seat == HUMAN_SEAT \
+	var show_bottom: bool = engine.banker_seat == HUMAN_SEAT \
 		and (engine.phase == GameEngine.Phase.TRICKS or engine.phase == GameEngine.Phase.SETTLED)
 	_piles.set_bottom_button_visible(show_bottom)
 
@@ -377,7 +469,7 @@ func _refresh_stats() -> void:
 	if engine.hands.is_empty():
 		return
 	var hand: Array = engine.get_hand(HUMAN_SEAT)
-	var trump := engine.trump
+	var trump: TrumpInfo = engine.trump
 	var suit_chars := ["♠", "♥", "♣", "♦"]
 
 	# 主副计数（叫主前王无花色，不计入花色）
@@ -433,7 +525,7 @@ func _refresh_top_bar() -> void:
 		# 叫分提示显示在主牌桌正中央（本土用语，不用「拍卖」）
 		bid_center_label.text = "叫分中（最高 %d）" % engine.current_highest_bid()
 	elif engine.banker_seat >= 0:
-		info += " ｜ 出牌庄 %s" % SEAT_NAMES[engine.banker_seat]
+		info += " ｜ 出牌庄 %s" % seat_names[engine.banker_seat]
 		if engine.contract > 0:
 			info += " ｜ 叫分 %d" % engine.contract
 	game_info.text = info
@@ -468,7 +560,7 @@ func _refresh_seats() -> void:
 			GameEngine.Phase.TRICKS:
 				if _last_trick_winner == seat:
 					status = "✓ 上轮赢"
-		panel.set_info(SEAT_NAMES[seat], "%d 张" % engine.hand_count(seat), status)
+		panel.set_info(seat_names[seat], "%d 张" % engine.hand_count(seat), status)
 		var is_turn: bool = (engine.phase == GameEngine.Phase.AUCTION and engine.auction.turn == seat) \
 			or (engine.phase == GameEngine.Phase.TRICKS and engine.turn_seat == seat)
 		panel.set_highlight(is_turn)
@@ -558,6 +650,9 @@ func _render_hand() -> void:
 
 
 func _on_next_game() -> void:
+	if _online:
+		_net.request_next()  # 服务器重开 → 广播新 game_start → _on_net_game_started 原地重灌
+		return
 	result_panel.visible = false
 	_last_trick_winner = -1
 	_trick_display_cleared = false
@@ -576,7 +671,7 @@ func _show_result(result: Dictionary) -> void:
 		var multiplier: int = 2 if result.koudi_points == result.buried_points * 2 else 1
 		koudi_text = "底牌 %d 分 × %d = %d" % [result.buried_points, multiplier, result.koudi_points]
 	var lines := [
-		"出牌庄家：%s ｜ 叫分 %d" % [SEAT_NAMES[result.banker_seat], result.contract],
+		"出牌庄家：%s ｜ 叫分 %d" % [seat_names[result.banker_seat], result.contract],
 		"闲家捉分 %d ＋ 抠底 %d ＝ %d" % [result.captured_points, result.koudi_points, result.captured_total],
 		"总分 %d ＋ 捉分 ＝ %s（胜线 205）" % [result.contract, str(result.total_score)],
 		"抠底：%s" % koudi_text,
@@ -584,4 +679,6 @@ func _show_result(result: Dictionary) -> void:
 		"累计：甲 %+d ｜ 乙 %+d ｜ 丙 %+d ｜ 丁 %+d" % [result.cumulative[0], result.cumulative[1], result.cumulative[2], result.cumulative[3]],
 	]
 	result_detail.text = "\n".join(lines)
+	# 联机：只有房主能开下一局，其余人显示等待
+	result_next_button.visible = not _online or _net.am_i_owner()
 	result_panel.visible = true
