@@ -287,7 +287,8 @@ func test_void_stamp_wiring(test) -> void:
 	test.check(table.seat_panels[1].get_node("VoidStamp").visible, "乙公示无主 → 印章显示")
 	test.check(not table.seat_panels[2].get_node("VoidStamp").visible, "丙未公示 → 印章隐藏")
 	test.check(table.seat_panels[3].get_node("VoidStamp").visible, "丁公示无主 → 印章显示")
-	test.check(table.human_void_stamp.visible, "人类位公示无主 → 印章显示（手牌区上方）")
+	test.check(table.human_void_stamp.visible, "人类位公示无主 → 印章显示")
+	test.eq(table.human_void_stamp.position, Vector2(958, 488), "人类位印章固定槽位 = 手牌右上方（2026-11-17 需求）")
 	eng.trump_void_seats = [false, false, false, false]
 	table._refresh()
 	test.check(not table.human_void_stamp.visible, "复位后隐藏")

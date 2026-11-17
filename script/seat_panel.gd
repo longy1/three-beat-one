@@ -23,6 +23,9 @@ func _ready() -> void:
 	mouse_exited.connect(func(): pile_exited.emit())
 	_void_stamp = VoidStamp.new()
 	_void_stamp.name = "VoidStamp"
+	# PanelContainer 会对全部 Control 子件做整面填充布局（直接赋 position 每次排序都被重置，
+	# 曾致印章被拽到左上角压住姓名）；top_level 脱离布局树，用全局坐标自行定位
+	_void_stamp.top_level = true
 	add_child(_void_stamp)
 	# 行动指示：淡金色边框样式（复制常规样式 + 金边），不改变透明度
 	_style_normal = get_theme_stylebox("panel")
@@ -52,8 +55,15 @@ func set_highlight(on: bool) -> void:
 func set_void_trump(on: bool) -> void:
 	_void_stamp.visible = on
 	if on:
-		_void_stamp.position = size - VoidStamp.STAMP_SIZE - Vector2(STAMP_MARGIN, STAMP_MARGIN)
+		_place_void_stamp()
+		_place_void_stamp.call_deferred()  # 本帧容器排序完成后再校准一次
 		_void_stamp.z_index = 5
+
+
+## 印章锚定面板右下角（top_level：position 即全局坐标）
+func _place_void_stamp() -> void:
+	_void_stamp.global_position = global_position + size \
+		- VoidStamp.STAMP_SIZE - Vector2(STAMP_MARGIN, STAMP_MARGIN)
 
 
 ## 皇冠落点（中心）：名字文字左缘前方 4px、姓名行垂直居中（庄家标记动画用）。

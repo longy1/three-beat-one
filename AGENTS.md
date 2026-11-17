@@ -161,7 +161,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
   - 牌堆按钮左下（悬停查看出牌历史，旧→新）
 - **手牌交互**：选中的牌**上浮牌高的 20%**（`HandArea.SELECT_LIFT_RATIO`）；左键按住滑动可**批量选择相邻牌**（以首张的新态对齐滑过的牌）；出牌模式下**右键直接提交出牌**（`play_requested` 信号，引擎校验非法 toast）。选中态刷新走 `HandArea._widgets` 精准更新单张，禁止整排重建（闪烁/抖动）。**选牌跨轮保留（2026-11-17）**：同模式连续轮次不清空选择（`begin_select` 仅模式切换时清），提交成功后 `consume_selected` 只移除已打出的牌；**底牌入手即选中**：人类庄家翻底后 `select_cards(engine.kitty)` 预选 8 张（拿起态，便于观察与直接扣回）。
 - 庄家标记 = 皇冠动画（`CrownAnimator`）：拍卖结束从主牌桌区域正中央 ×4 出现，`TRANS_CUBIC EASE_OUT` 1s 飞至庄家名字旁停驻——落点动态测量（`SeatPanel.crown_anchor()`：名字首字左缘前 4px、冠高 = NameLabel 字号）；人类 0 号位落**左下固定位置**（手牌左侧，不随牌变动）。新局拍卖开始时清除。面板不用「·抓牌/·庄」文字。
-- **【无主】印章（规则 7.3，2026-11-17）**：主牌轮垫牌公示——`VoidStamp` 圆形红章（斜置半透明红、程序化绘制）：乙/丙/丁盖在 SeatPanel 右下角（`set_void_trump`）；人类 0 号位盖在手牌区上方左侧（game_table 的 HumanVoidStamp，与历史按钮同列）。
+- **【无主】印章（规则 7.3，2026-11-17）**：主牌轮垫牌公示——`VoidStamp` 圆形红章（斜置半透明红、程序化绘制）：乙/丙/丁盖在 SeatPanel 右下角（`set_void_trump`；印章 `top_level=true` 脱离容器布局树用全局坐标定位——PanelContainer 会对直接子件整面填充布局，曾把印章拽到左上角压住姓名）；人类 0 号位盖在**手牌区右上方固定槽位**（HumanVoidStamp，tscn 锚点 (958,488)，2026-11-17 调整）。
 - **左下按钮区（不随牌变动）**：【历史】= 自己的出牌历史（始终显示）；【牌堆】= 仅庄家是自己且进入出牌阶段后显示（皇冠下方），悬停弹出**底牌堆 2 行 × 4 张**（`engine.buried`，仅自己可见；弹层归 `PileViewer`）。
 - 一轮结算后牌面（含 ✓赢家）停留 **1.5 秒后主动清空出牌桌**（TRICK_PAUSE 由 `_trick_timer.timeout` 统一触发清空，不依赖下一手替换）；末轮停留后才弹结算面板。
 - 新增控件一律程序化绘制（参照 CardWidget/CrownBadge/DashedRoundedFrame），不引入图片素材。

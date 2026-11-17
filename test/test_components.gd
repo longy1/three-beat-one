@@ -174,7 +174,9 @@ func test_table_seat_wiring(test) -> void:
 	await tree.process_frame
 
 
-## VoidStamp：【无主】印章默认隐藏，set_void_trump 点亮；SeatPanel 集成在右下角
+## VoidStamp：【无主】印章默认隐藏，set_void_trump 点亮；SeatPanel 集成锚定右下角
+## 回归（2026-11-17 用户报告）：印章曾是 PanelContainer 直接子件，容器整面填充布局
+## 把 position 重置回内容区原点——印章被拽到左上角压住姓名。修复用 top_level 脱离布局树
 func test_void_stamp_component(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var panel: SeatPanel = load("res://scene/seat_panel.tscn").instantiate()
@@ -183,10 +185,16 @@ func test_void_stamp_component(test) -> void:
 	var stamp: VoidStamp = panel.get_node("VoidStamp")
 	test.check(stamp != null, "面板自带无主印章子节点")
 	test.check(not stamp.visible, "印章默认隐藏")
+	test.check(stamp.top_level, "印章 top_level 脱离容器布局树（回归：曾遭 PanelContainer 整面布局拽位）")
 	panel.set_info("丁（电脑）", "3 张", "")
 	panel.set_void_trump(true)
 	test.check(stamp.visible, "公示后印章显示")
-	test.check(stamp.position.x > 0 and stamp.position.y > 0, "印章落在面板内右下角")
+	await tree.process_frame
+	await tree.process_frame  # 容器排序后再断言（布局曾把印章拽回左上角）
+	var expected: Vector2 = panel.global_position + panel.size \
+		- VoidStamp.STAMP_SIZE - Vector2(SeatPanel.STAMP_MARGIN, SeatPanel.STAMP_MARGIN)
+	test.check(stamp.position.distance_to(expected) < 4.0,
+		"印章锚定面板右下角（期望 %s，实际 %s）" % [expected, stamp.position])
 	panel.queue_free()
 	# 独立实例绘制不崩（headless 下 _draw 早退/正常均不得报错）
 	var solo := VoidStamp.new()
