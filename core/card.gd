@@ -65,6 +65,12 @@ func key() -> String:
 	return "%d_%d_%d" % [suit, rank, copy]
 
 
+## 从值身份键还原等值副本（联机消息按 key 传牌，落地还原；键格式见 key()）。
+static func from_key(key_text: String) -> Card:
+	var parts := key_text.split("_")
+	return Card.new(int(parts[0]), int(parts[1]), int(parts[2]))
+
+
 ## 分牌分值：5=5 分、10=10 分、K=10 分，其余 0（规则 8.1）。
 ## 分牌身份与分值不随常主化改变（如 R=5 时正5/副5 仍是 5 分牌）。
 func points() -> int:
