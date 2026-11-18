@@ -6,7 +6,7 @@ extends SceneTree
 
 const B_LEVELS := [135, 150, 165, 180, 200]
 const B130 := 130  # 底叫档（其它全 pass）
-const TRIALS_PER_CELL := 60
+const TRIALS_PER_CELL := 200
 const STRENGTH_BINS := [[0, 35], [35, 50], [50, 65], [65, 999]]
 
 var rng := RandomNumberGenerator.new()
@@ -31,7 +31,7 @@ func _initialize() -> void:
 	for bin in STRENGTH_BINS:
 		all_cells.append([B130, bin[0], bin[1]])
 
-	while done < total_target and attempts < 20000:
+	while done < total_target and attempts < 60000:
 		attempts += 1
 		eng.start_session(rng.randi_range(1, 999999))
 		# 强制 0 号坐庄：按其手牌强度做拒绝采样，从“尚未跑满的格”里随机挑一个匹配格
