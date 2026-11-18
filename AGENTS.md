@@ -126,7 +126,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 **工程配置**
 - `project.godot` 用编辑器/直接编辑均可，但须保持分区有序（application/display/gui/rendering）；新增系统级设置（字体主题等）登记在本文件 §2/§3。
 - `export_presets.cfg` 入库；导出过滤排除非运行时目录（`test/*,doc/*,tool/*,build/*,server/*`，2026-11-18 增 server/——服务端仅桌面源码运行且引用面与客户端隔离）；`net/` 必须进包（Web 客户端联网）；`build/` 忽略。
-- `html/head_include` 注入移动端壳层适配（2026-11-17）：`canvas#canvas{touch-action:none}` 与 `html,body{position:fixed}`（iOS 忽略 overflow:hidden，页面微滚动会吞点按）；右上角 ⛶ 全屏按钮（DOM 覆盖层，非 Godot 控件）——iPhone Safari 无 Element Fullscreen API，点击时降级提示「添加到主屏幕」全屏方案。改此项后须 `--export-release` 并浏览器验证按钮与画布注入。
+- `html/head_include` 注入移动端壳层适配（2026-11-17，2026-11-18 Safari 强化）：`canvas#canvas{touch-action:none}`、`html,body{position:fixed}`（iOS 忽略 overflow:hidden，页面微滚动会吞点按）+ `height:100dvh` 兜底与 `touch-action:manipulation`（禁双击缩放）；**viewport meta 归一**（JS 重写全部 viewport meta 补 `maximum-scale=1.0`+`viewport-fit=cover`——iOS 10+ 忽略单独的 user-scalable=no，且 Godot 壳自身 meta 缺这两项）；`gesturestart/change/end` preventDefault（拦 iOS 捏合缩放）；`visualViewport.resize → window.resize` 桥（iOS 工具栏收起/展开时引擎画布跟随重排，防点按坐标漂移）；右上角 ⛶ 全屏按钮（DOM 覆盖层）——Safari 需 webkit 前缀，iPhone Safari 无 Element Fullscreen API，降级提示「添加到主屏幕」全屏方案（iPad/桌面 Safari webkitRequestFullscreen 实际进入全屏）。配套工程设置：`input_devices/pointing/touch_delay=0.0`（iOS 默认 0.15s 触控延迟=快速点按像失灵）与 `emulate_mouse_from_touch=true` 显式开启。改此项后须 `--export-release` 并浏览器验证按钮与画布注入；**真 Safari 行为需真机确认**（自动化环境为 Chromium）。
 - `html/experimental_virtual_keyboard=true`（2026-11-18 联机昵称输入）：触屏 UA 下 LineEdit 聚焦弹系统键盘；桌面浏览器走物理键盘直接输入。
 - **Godot Web 对合成输入免疫（2026-11-18 验收实测）**：自动化注入的合成 KeyboardEvent/ClipboardEvent/CDP 文本均不进引擎（仅受信任的真实输入生效）——浏览器验收能覆盖引导/渲染/按钮路径，**文本输入类流程须真实键盘**（桌面双实例人工步骤）。
 - `.gitignore` 只忽略生成物（`.godot/`、`build/`）；`.uid` 与源文件成对提交。
