@@ -44,6 +44,7 @@ doc/      三打哈规则（唯一规则依据）、三打哈-Godot工程计划�
 static/   ui-mockup.svg 界面区域图（含联机屏）
 AGENTS.md 项目规范
 启动联机服务器.bat  一键启动无头联机服务器（用 %GODOT_PATH%，端口 9080）
+启动移动端https服务.bat  一键启动移动端 HTTPS 服务（包装 tool/serve_https.py，自动生成自签名证书）
 ```
 
 ## 运行
@@ -81,6 +82,7 @@ cd build/web && python -m http.server 8765   # 浏览器打开 http://127.0.0.1:
 
 # 移动端：手机访问需要 HTTPS（Godot 要求安全上下文，普通 HTTP 局域网地址会被拒绝，
 # 报「Secure Context ... use HTTPS」）。用自签名证书的 HTTPS 服务器：
+# 双击根目录「启动移动端https服务.bat」，或命令行：
 python tool/serve_https.py            # 自动生成证书并打印手机访问地址
 # 手机浏览器打开打印的 https://<局域网IP>:8765，首次会警告自签名证书——
 # 选「高级 → 继续访问」（iOS：显示详细信息 → 访问此网站）即可正常进入。
