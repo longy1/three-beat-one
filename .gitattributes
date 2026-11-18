@@ -1,0 +1,11 @@
+# 换行符统一：仓库与工作区一律 LF（AI 工具/Godot 均写 LF）。
+# 例外：GBK 批处理保持原样不做任何转换（-text），二进制资产显式标记。
+* text=auto eol=lf
+*.bat -text
+*.otf binary
+*.png binary
+*.ico binary
+*.gz binary
+*.wasm binary
+*.pck binary
+*.part binary
