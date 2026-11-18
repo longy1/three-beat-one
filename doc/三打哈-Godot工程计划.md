@@ -233,6 +233,12 @@
 - 后续单变量排查顺序：干净基线复测 → 仍冻结则移除 `html,body{position:fixed}`（iOS
   Safari 固定定位全屏 canvas 呈现冻结，社区同例）→ 仍冻结则加诊断浮层（rAF 频率/
   canvas 尺寸/hidden 状态）拿真机数据
+- **执行记录（2026-11-18）**：干净基线真机复测仍冻结 → 本包合并执行两步：①移除注入 CSS
+  的 `position:fixed/inset/height:100%`（Godot 自带壳层本有 body{overflow:hidden}，该项冗余
+  且是头号嫌疑）；②加纯观察诊断角标 `#sbd-diag`（左上角小字：墙钟/rAF 每帧计数/canvas
+  实际尺寸/win 尺寸/resize 次数/hidden——零行为影响，桌面同显用于对照）。角标判读：
+  rAF 计数停=主循环停（Safari 停 rAF）；cv 尺寸 0 或异常=缓冲区归零；两者都活仍停帧=
+  合成器呈现层问题。定位后移除角标
 
 ## 4. 待定事项清单（联机前需定）
 
