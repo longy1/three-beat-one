@@ -32,7 +32,8 @@ func test_choose_bid_levels(test) -> void:
 	# 策略口径：EV 定愿叫上限档、扫荡概率按档上探；
 	# 叫分一律 最高+5 平滑递进，不跳档
 	test.eq(AiPolicy.choose_bid(strong, 130), 135, "极强牌从 130 一手只叫 +5（不跳档）")
-	# 有人已叫 135 且我极强 → 150 档正 EV（+0.33）→ 确定性 +5 参与（仍不越过愿叫上限）
+	# 有人已叫 135 且我极强 → 150 档 EV −0.01 落噪声区（重训后 135 为唯一正期望档）
+	# → 40% 概率参与或放弃（两可断言）
 	AiPolicy.rng.seed = 7
 	var near_cap: int = AiPolicy.choose_bid(strong, 135)
 	test.check(near_cap == GameEngine.BID_PASS or near_cap == 140,
@@ -137,11 +138,13 @@ func test_sweep_bid_cap_follows_prob(test) -> void:
 	test.eq(AiPolicy.choose_bid(strong19, 130), 135, "扫荡手同样 +5 平滑递进（不跳档）")
 	test.eq(AiPolicy.choose_bid(strong19, 165), 170, "扫荡上探：165 档跟叫 170")
 	test.eq(AiPolicy.choose_bid(strong19, 195), 200, "极端扫荡（P≈0.96）探顶 200")
-	test.eq(AiPolicy.choose_bid(strong19, 175, 0, ev200), 180, "对手已叫 200 → 概率 0.96→0.65 → 上探回落 180")
+	# 重训后 180 顶档 EV −2.01 跌出特批下限（−2.0）→ 概率 0.65 不再特批，及时收手（旧版跟 180）
+	test.eq(AiPolicy.choose_bid(strong19, 175, 0, ev200), GameEngine.BID_PASS,
+		"对手已叫 200 → 概率 0.65、EV −2.01 越特批下限 → 收手")
 	test.eq(AiPolicy.choose_bid(strong19, 195, 0, ev200), GameEngine.BID_PASS, "对手已叫 200 → 195 档及时收手")
 	test.eq(AiPolicy.choose_bid(loaded, 195, 0, ev200), 200, "满灌长主手（主牌 14 张）对加叫 200 免疫仍探顶")
 	test.eq(AiPolicy.choose_bid(thin, 165), GameEngine.BID_PASS, "强而主薄（P≈0.38）不上探 → 165 仍放弃")
-	test.eq(AiPolicy.choose_bid(mid_long, 130), 135, "长主无王牌（EV −1.8 弱负）扫荡特批参与")
+	test.eq(AiPolicy.choose_bid(mid_long, 130), 135, "长主无王牌（EV −1.6 弱负）扫荡特批参与")
 	test.eq(AiPolicy.choose_bid(long_suit, 195), 200, "长套无王但结构极强（P=1.0）极端探顶")
 
 
@@ -275,6 +278,50 @@ func test_defender_discard_clears_weak_suits_first(test) -> void:
 	test.eq(AiPlay.build_discard(hand, trump, 5), [hand[3], hand[2], hand[5], hand[4], hand[1]], "强门最后从小牌 ♦8 动起（♦A 压轴）")
 
 
+## 无主闲家垫牌：①5 与无分牌同档尽早甩出（无主时 5 无赢张价值，留 5 意义不大）；
+## ②聚焦门 = 队友已垫大牌（≥K）且本家顶 ≤Q 的花色整门先清（守门对该门失效）；
+## 有主闲家与 feed 喂分档位不变
+func test_defender_no_trump_demotes_five_and_focuses_suit(test) -> void:
+	var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	# ① 无主：♥5 降为无分档 → 牌力 5<7 反超 ♣7 先垫（旧行为垫 ♣7）
+	var hand1 := [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.CLUB, Card.RANK_7, 0)]
+	test.eq(AiPlay.build_discard(hand1, trump, 1), [hand1[0]], "无主：5 同档无分 → 牌力更低的 ♥5 先垫")
+	# 有主（手握 ♠7）：5 保护不变，仍先垫无分 ♥7
+	var hand2 := [C(Card.Suit.HEART, Card.RANK_7, 0), C(Card.Suit.CLUB, Card.RANK_5, 0),
+		C(Card.Suit.SPADE, Card.RANK_7, 0)]
+	test.eq(AiPlay.build_discard(hand2, trump, 1), [hand2[0]], "有主：先垫无分 ♥7（♣5 分牌保护照旧）")
+	# ② 聚焦：队友丁（座位 3）垫过 ♥A（大牌）→ 我 ♥ 顶 ≤Q → ♥ 为聚焦门
+	var history := [{plays = [
+		{seat = 2, cards = [C(Card.Suit.CLUB, Card.RANK_K, 0), C(Card.Suit.CLUB, Card.RANK_K, 1)], role = FollowRule.Role.LEAD},
+		{seat = 3, cards = [C(Card.Suit.HEART, Card.RANK_A, 0)], role = FollowRule.Role.DISCARD}], winner = 2}]
+	var hand3 := [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.CLUB, Card.RANK_7, 0),
+		C(Card.Suit.DIAMOND, Card.RANK_5, 0)]
+	test.eq(AiPlay._defender_focus_suit(history, trump, 1, 2, hand3), [Card.Suit.HEART],
+		"队友垫过 ♥A 且我 ♥ 无赢张 → 聚焦 ♥")
+	# 领出用大王（无人能压 → 提前下分判定关闭，feed=false 才测普通垫牌档）
+	var plays_void := [{seat = 2, cards = [C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0)], role = FollowRule.Role.LEAD}]
+	var play3 := AiPlay.choose_play(hand3, trump, plays_void, 1, 2, history)
+	test.eq(play3, [hand3[0]], "聚焦 ♥ → 垫 ♥5（旧行为垫 ♦5）")
+	# 我自己握 ♥K（赢张）→ ♥ 不聚焦（保留捕获门），先垫无分的 ♣7
+	var hand4 := [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_K, 0),
+		C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)]
+	test.eq(AiPlay._defender_focus_suit(history, trump, 1, 2, hand4), [],
+		"我握 ♥K → ♥ 不聚焦")
+	var play4 := AiPlay.choose_play(hand4, trump, plays_void, 1, 2, history)
+	test.eq(play4, [hand4[2]], "不聚焦 → 先垫 ♣7（♥5/K 整门保留）")
+	# 队友只垫过小牌（<K）不构成聚焦证据
+	var history2 := [{plays = [
+		{seat = 2, cards = [C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0)], role = FollowRule.Role.LEAD},
+		{seat = 3, cards = [C(Card.Suit.HEART, Card.RANK_J, 0)], role = FollowRule.Role.DISCARD}], winner = 2}]
+	test.eq(AiPlay._defender_focus_suit(history2, trump, 1, 2, hand3), [],
+		"队友只垫 ♥J（<K）→ 无聚焦门")
+	# feed 喂分档位不变：队友领先时仍 10 先于 5
+	var hand6 := [C(Card.Suit.HEART, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_10, 0)]
+	var plays_feed := [{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_A, 0)], role = FollowRule.Role.LEAD}]
+	var play6 := AiPlay.choose_play(hand6, trump, plays_feed, 1, 2)
+	test.eq(play6, [hand6[1]], "喂分档位不变：♥10 先于 ♥5")
+
+
 ## ============================= 自动对局不变量 =============================
 
 func _run_auto_game(test, engine: GameEngine) -> void:
@@ -374,7 +421,9 @@ func test_choose_play_dump_follow_no_feed(test) -> void:
 	var plays := [{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)], role = FollowRule.Role.LEAD}]
 	var play := AiPlay.choose_play(hand, trump, plays, 1, 2)  # 自己 1 = 闲家，领出者 2 = 庄家
 	test.eq(play.size(), 2, "垫牌张数 = 甩打张数")
-	test.check(not play.has(hand[0]), "庄家甩打时不喂分（♥5 保留）")
+	# 无主闲家 5 降权：♥5 不再受「无分牌先行」保护，随首批垫出（留 5 无赢张价值）
+	test.check(play.has(hand[0]), "无主 5 降权：庄家甩打轮 ♥5 也随首批垫出")
+	test.check(not play.has(hand[3]), "♦8 牌力最高垫在最后")
 
 
 ## 常主对子领出（非主花色）+ 无任何主牌 → AI 自由垫最低散张，无对子/花色强制（7.2）
@@ -388,7 +437,7 @@ func test_choose_play_permanent_pair_lead_no_trump(test) -> void:
 	test.eq(lead.suit, TrumpInfo.CLASS_TRUMP, "大王对为常主对（主牌类）")
 	var plays := [{seat = 2, cards = lead_cards, role = FollowRule.Role.LEAD}]
 	var play := AiPlay.choose_play(hand, trump, plays, 1, 2, [])
-	test.eq(play, [hand[1], hand[2]], "垫最低两张散张 ♥7♦8（保留分牌 ♥5；垫牌不成对亦合法）")
+	test.eq(play, [hand[0], hand[1]], "无主 5 降权：♥5 与 ♥7 随首批垫出（♦10 分牌保留；垫牌不成对亦合法）")
 	var v := FollowRule.is_legal(hand, play, lead, trump)
 	test.check(v.legal, "AI 垫牌通过引擎校验")
 	test.eq(v.role, FollowRule.Role.DISCARD, "角色 = 自由垫牌")
