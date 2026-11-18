@@ -10,7 +10,7 @@
 |---|---|
 | 游戏框架 | **Godot 4.7.2**（gl_compatibility 渲染，兼容桌面/移动/Web 导出） |
 | 脚本语言 | **GDScript**（2026-11-16 确认；蒙特卡洛性能瓶颈出现时再评估迁移） |
-| 架构 | 纯逻辑层（`core/`，不依赖场景节点，联机可复用）/ 表现层（`scene/` + `script/`）严格分离；完整编码/UI/测试/推送规范见 [AGENTS.md](../AGENTS.md) |
+| 架构 | 纯逻辑层（`core/`，不依赖场景节点，联机可复用）/ 表现层（`scene/` + `script/`）严格分离；完整编码/UI/测试规范见 [doc/coding.md](./coding.md)，总体规范与推送约定见 [AGENTS.md](../AGENTS.md) |
 | 目录结构 | `core/`（规则引擎）`net/`（联机客户端）`server/`（联机服务端）`script/`+`scene/`（表现层，2026-11-18 起分 `table/` 牌桌与 `menu/` 界面流程子模块）`test/` `doc/` `static/`（目录名单数，详见 AGENTS.md 第 3 章） |
 | 测试方案 | 自研轻量框架（`test/run_tests.gd` headless 入口，支持 async 用例，失败退出码非 0）；套件 = 规则/剧本/AI 不变量/组件/主流程/UI 回归；主菜单「自检」按钮复用同一套用例 |
 | AI 叫分 | **期望收益查表 + 扫荡概率上探**（2026-11-16 查表，2026-11-18 增扫荡因子）：蒙特卡洛校准（`test/calibrate_bidding.gd`）产出「叫分档 × 强度桶」收益表 `AiBidding.BID_CALIB` 定愿叫上限档；`AiBidding.sweep_prob` 假想定主估「以对/拖抽干闲家主牌」概率抬升上限档（165/180/200）并放宽参与；对手加叫折算常主证据即时压低概率；出牌策略迭代后重跑校准更新 |
@@ -73,7 +73,7 @@
 ### Web 验收闭环与规则 7.3（2026-11-17）
 
 - **Web 导出验收闭环**（接续 2026-11-16 阶段 5 收尾）：
-  - 根治「导出后主菜单按钮全部失灵」：`main_menu.gd` 顶部遗留 `const TestFramework := preload("res://test/test_framework.gd")`——test/ 已被导出过滤排除，静态 preload 使**整份脚本**在 Web 环境解析失败（_ready 不执行、按钮无处理器、无报错线索）。修复：test/ 一律运行时 `load()`（AGENTS.md §6 已固化为强约束）
+  - 根治「导出后主菜单按钮全部失灵」：`main_menu.gd` 顶部遗留 `const TestFramework := preload("res://test/test_framework.gd")`——test/ 已被导出过滤排除，静态 preload 使**整份脚本**在 Web 环境解析失败（_ready 不执行、按钮无处理器、无报错线索）。修复：test/ 一律运行时 `load()`（doc/coding.md §3 已固化为强约束）
   - 导出过滤器补 `build/*`（完整字体源与导出图标曾被误打进包，pck 7.9MB→301KB）
   - 导出模板安装位置（2026-11-17 起）：`S:\Program\Godot\editor_data\export_templates\4.7.2.stable`——编辑器启用 **self-contained 模式**（exe 旁 `._sc_` 标记文件），编辑器数据目录从 `%APPDATA%\Godot` 改为安装目录 `editor_data/`；editor_settings / projects.cfg（项目列表）/ recent_dirs 一并迁移，shader_cache 等可再生缓存与空目录已删（工程内 build/_templates 缓存已删；注意 4.7.x 数据目录是 `editor_data/` 子目录；`app_userdata/` 为项目 `user://` 运行时数据不受 self-contained 影响，仍留在 AppData）
   - 验收方法学沉淀：IAB 隐藏页面（document.hidden）会停摆 rAF → Godot 主循环冻结、计时器不走、CDP 输入注入失效；验收 harness 用 setTimeout 垫片驱动 rAF + 引擎启动前固定 canvas 尺寸 + CDP 截图页面内解码，实现隐藏页内的完整对局验收（主菜单守卫/全分区渲染/整局推进均通过）

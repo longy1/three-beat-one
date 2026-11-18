@@ -10,7 +10,7 @@ signal select_capped                  ## 扣底模式点选触顶（8 张，控�
 signal play_requested                 ## 出牌模式下右键直接提交（牌取自当前选择）
 
 
-const SELECT_LIFT_RATIO := 0.2  ## 选中牌上浮 = 牌高 20%（AGENTS.md 第 6 章交互规范）
+const SELECT_LIFT_RATIO := 0.2  ## 选中牌上浮 = 牌高 20%（doc/coding.md §4 手牌交互）
 const HAND_BASE_Y := 16.0       ## 手牌基准 y（虚线框 frame_y 6 + 内边距 10）
 const LAYOUT_PAD := 10.0        ## 框内左右留空
 const LAYOUT_GAP := 16.0        ## 主副框间距

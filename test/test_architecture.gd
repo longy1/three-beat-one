@@ -1,9 +1,9 @@
 extends TestBase
-## 架构守护（规范固化为可执行检查，AGENTS.md 第 4 章 + doc/重构规范.md）：
+## 架构守护（规范固化为可执行检查，doc/coding.md §1 + doc/重构规范.md）：
 ## - core/ 纯逻辑约束：不得出现 Node/场景/时序/文件系统依赖——这是
 ##   「联机服务端可直接复用 core」的机器检查（M4 预留）
 ## - AI 纯策略模块不依赖引擎类型（数据进/决策出）
-## - 代码零日期戳/史志类注记（迁 doc/update.md，规范见 AGENTS.md §5）
+## - 代码零日期戳/史志类注记（迁 doc/update.md，规范见 doc/coding.md §2）
 
 
 ## core 纯逻辑：剥离注释后扫描禁用依赖
@@ -49,7 +49,7 @@ func test_ai_modules_do_not_reference_engine(test) -> void:
 		test.check(not joined.contains("GameEngine"), "%s 不依赖引擎类型（数据进/决策出）" % path)
 
 
-## 代码零史志类注记（规范见 AGENTS.md §5 / doc/update.md）：注释只描述当前行为与
+## 代码零史志类注记（规范见 doc/coding.md §2 / doc/update.md）：注释只描述当前行为与
 ## 规则出处，日期戳与「变更/更新」类记录一律迁 doc/update.md。扫描全部 .gd（注释与
 ## 字符串都算）；关键词拆串、命中文案避开关键词本身——本文件不触发自匹配。
 func _collect_gd_files(path: String, out: Array) -> void:

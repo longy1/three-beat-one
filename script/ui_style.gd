@@ -1,6 +1,6 @@
 class_name UiStyle
 extends RefCounted
-## UI 规范工具（AGENTS.md 第 6 章）：布局锚点常量 + 半字号留空。
+## UI 规范工具（doc/coding.md §4）：布局锚点常量 + 半字号留空。
 ## - 按钮：按其字号设置四向 content margin（ UiStyle.pad_button ）
 ## - 面板：在 tscn 中用 StyleBoxFlat content_margin_* 落实（InfoSidebar 8 / SeatPanel 9 /
 ##   ResultPanel 15，均 ≈ 各自最大字号的一半）

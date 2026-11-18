@@ -1,6 +1,6 @@
 extends UiTestBase
 ## UI 层回归用例：headless 实例化场景 + 方法级驱动 + 节点状态断言。
-## 纪律（AGENTS.md 第 7 章）：**每个用户报告的 UI bug，修复时必须在本套件补一个回归用例。**
+## 纪律（doc/coding.md §5）：**每个用户报告的 UI bug，修复时必须在本套件补一个回归用例。**
 ##
 ## 已覆盖回归：
 ## - 扣底卡死：提交叫主后「确认扣底」按钮被 _clear_action_bar 误删
