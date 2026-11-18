@@ -1,5 +1,5 @@
 extends Node
-## 联机服务端中枢（M4）：WebSocket 监听、peer↔昵称注册、房间表、消息分发、掉线扫描。
+## 联机服务端中枢（M4）：WebSocket 监听、peer↔昵称映射（在线占用制）、房间表、消息分发、掉线扫描。
 ## 传输：独立 WebSocketMultiplayerPeer（不挂高层 multiplayer API）+ JSON 文本包；
 ## 发送方识别：消息自带 pid（客户端 unique_id，协议层约定）；定向发送用
 ## set_target_peer + put_packet。
@@ -127,7 +127,7 @@ func _on_hello(peer_id: int, msg: Dictionary) -> void:
 	if _peer_nick.get(peer_id, "") == nick:
 		_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick})
 		return
-	# 断线重连：昵称命中存活房间的离线成员 → 直接回房（不占新注册名额）
+	# 断线重连：昵称命中存活房间的离线成员 → 直接回房（宽限期内昵称仍视为被该成员占用）
 	for room in _rooms.values():
 		var m = room.member_by_name(nick)
 		if m != null and not m.is_ai and m.offline:
@@ -135,11 +135,11 @@ func _on_hello(peer_id: int, msg: Dictionary) -> void:
 			_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick})
 			room.reconnect(peer_id, nick)
 			return
-	# 全局注册制：昵称已注册（含历史）→ 拒绝
-	if _store.has_player(nick) or _peer_nick.values().has(nick):
+	# 在线占用制：昵称只与「同时在线」互斥（活跃 peer；存活房间的在线成员必已 hello 占用）。
+	# 掉线经扫描清理即释放，可复用；不落任何历史注册表。
+	if _peer_nick.values().has(nick):
 		_send(peer_id, {"t": NetProto.ERR, "msg": "昵称「%s」已被占用" % nick})
 		return
-	_store.register_player(nick)
 	_peer_nick[peer_id] = nick
 	_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick})
 

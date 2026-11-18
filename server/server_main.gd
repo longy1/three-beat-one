@@ -1,7 +1,7 @@
 extends Node
 ## 联机服务器入口（M4）：无头 Godot 进程跑本场景，承载 WebSocket 监听与房间逻辑。
 ## 启动：Godot --headless --path . res://server/server_main.tscn [-- --port 9080]
-## 数据：user://sanhax_server/store.json（昵称注册表/房间留档/房间累计分，重启不丢）；
+## 数据：user://sanhax_server/store.json（房间留档/房间累计分，重启不丢；昵称在线占用不落盘）；
 ## 进行中的房间随进程消亡（重启即解散，分数已持久）。
 
 
@@ -20,11 +20,16 @@ func _ready() -> void:
 	print("三打哈联机服务器已启动")
 	print("监听端口：%d（客户端地址 ws://<本机IP>:%d）" % [port, port])
 	print("数据文件：%s" % store._path)
-	print("按 Ctrl+C / 关闭窗口停止服务器（退出时的引擎清理告警属正常噪音，分数与注册表已实时落盘）")
+	print("按 Ctrl+C / 关闭窗口停止服务器（退出时的引擎清理告警属正常噪音，分数与房间留档已实时落盘）")
 	print("==============================================")
 
 
 func _parse_port() -> int:
+	# 环境变量优先：云端部署（导出模板二进制）经 node 子进程传递 GODOT_PORT，
+	# 模板二进制（disable_path_overrides 编译项）的用户参数 `--` 路径在部分环境不可靠。
+	var env_port := OS.get_environment("GODOT_PORT")
+	if env_port.is_valid_int():
+		return int(env_port)
 	var args := OS.get_cmdline_user_args()
 	for i in args.size():
 		if args[i] == "--port" and i + 1 < args.size():

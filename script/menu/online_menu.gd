@@ -7,6 +7,7 @@ extends Control
 
 const CFG_PATH := "user://online.cfg"
 const LOBBY_SCENE := "res://scene/menu/room_lobby.tscn"
+const DEFAULT_LOCAL_ADDR := "ws://127.0.0.1:9080"  ## 与场景 AddrEdit 默认值一致（本地调试）
 
 var _net: NetClient = null
 var _pending_join := ""  ## ""=建房；否则为要加入的房间码
@@ -32,6 +33,22 @@ func _load_cfg() -> void:
 		var addr := str(cfg.get_value("online", "addr", ""))
 		if addr != "":
 			addr_edit.text = addr
+	_prefill_web_addr()
+
+
+## Web 平台地址预填：未记忆自定义地址（仍为场景默认本地值）时，改填当前页面站点
+## （wss:// 同域，443 由 scheme 隐含）——公网部署（ZCode Sites 单 HTTPS 端口）下
+## wss 经同端口 Upgrade 分流到服务器，玩家免输地址开箱即连；
+## 桌面无 web 特性不生效，手动输入 host[:端口] / ws:// / wss:// 地址照常可用。
+func _prefill_web_addr() -> void:
+	if not OS.has_feature("web"):
+		return
+	var cur := addr_edit.text.strip_edges()
+	if cur != "" and cur != DEFAULT_LOCAL_ADDR:
+		return
+	var host: Variant = JavaScriptBridge.eval("window.location.host", false)
+	if host is String and str(host) != "":
+		addr_edit.text = "wss://" + str(host)
 
 
 func _save_cfg() -> void:

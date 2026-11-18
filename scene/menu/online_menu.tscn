@@ -44,7 +44,7 @@ horizontal_alignment = 1
 [node name="NickLabel" type="Label" parent="Center/Panel/VBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
-text = "昵称（全局唯一，注册后不可改）"
+text = "昵称（同时在线唯一，掉线后可复用）"
 
 [node name="NickEdit" type="LineEdit" parent="Center/Panel/VBox"]
 custom_minimum_size = Vector2(360, 40)
@@ -61,6 +61,7 @@ text = "服务器地址"
 custom_minimum_size = Vector2(360, 40)
 layout_mode = 2
 text = "ws://127.0.0.1:9080"
+placeholder_text = "host[:端口] 或 ws://、wss:// 开头的完整地址"
 
 [node name="CreateButton" type="Button" parent="Center/Panel/VBox"]
 custom_minimum_size = Vector2(360, 44)

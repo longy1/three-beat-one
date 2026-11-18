@@ -1,11 +1,11 @@
 extends RefCounted
 ## 联机服务端持久存储（M4 先顶方案）：本地 JSON 文件。
 ## 接口形状对齐后续 SQLite 落地（换存储时仅替换本文件，调用方不动——见 [划5]）。
-## 三张「表」：
-##   players     昵称 → 注册信息（全局注册制：昵称永久唯一）
+## 两张「表」：
 ##   rooms       房间码 → 房主/建档时间（房间解散后留档）
 ##   room_scores 房间码 → 昵称 → { score 累计收益, games 局数 }
-## 每次变更即整文件原子落盘（临时文件 + rename），服务端重启数据不丢。
+## 昵称不持久化（在线占用制，见 room_manager._on_hello）；每次变更即整文件原子落盘
+## （临时文件 + rename），服务端重启数据不丢。
 
 
 var _path: String
@@ -15,15 +15,6 @@ var _data: Dictionary = {}
 func _init(path: String = "user://sanhax_server/store.json") -> void:
 	_path = path
 	_load()
-
-
-func has_player(nick: String) -> bool:
-	return _data.players.has(nick)
-
-
-func register_player(nick: String) -> void:
-	_data.players[nick] = {"created_at": Time.get_datetime_string_from_system()}
-	_save()
 
 
 func record_room(code: String, owner_name: String) -> void:
@@ -61,7 +52,9 @@ func _load() -> void:
 		var parsed: Variant = JSON.parse_string(raw)
 		if parsed is Dictionary:
 			_data = parsed
-	for key in ["players", "rooms", "room_scores"]:
+	# 旧版玩家注册表（已废弃的在线占用制前身）：载入即丢弃
+	_data.erase("players")
+	for key in ["rooms", "room_scores"]:
 		if not (_data.get(key) is Dictionary):
 			_data[key] = {}
 

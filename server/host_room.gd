@@ -500,7 +500,7 @@ func _on_trick_settled(_info: Dictionary) -> void:
 
 
 func _on_game_over(result: Dictionary) -> void:
-	# 房间累计分入库并广播（分数与注册表持久化，服务端重启不丢）
+	# 房间累计分入库并广播（分数持久化，服务端重启不丢）
 	var rows: Array = []
 	for s in GameEngine.PLAYER_COUNT:
 		var m = members[s]

@@ -1,6 +1,6 @@
 extends UiTestBase
 ## 联机功能测试（M4）：真实 WebSocket 回环（同进程服务端 + 客户端）。
-## 覆盖：存储持久化/昵称全局唯一（含 trim 归一）、房间守卫（重复建房/加入/满员/对局中/
+## 覆盖：存储持久化/昵称在线占用制（含 trim 归一与掉线释放复用）、房间守卫（重复建房/加入/满员/对局中/
 ## 非房主开局等错误路径）、房间生命周期（不满开局拒绝→补 AI→完整对局→分数落盘广播→
 ## 退出关房）、可见性（回放消息不含他人牌面/底牌）、超时托管、断线重连与宽限、
 ## 多局累计（庄位轮换/下一局重建/跨局累计分）、注入强牌局的确定性旋转与人类操作路径、
@@ -221,18 +221,17 @@ func _check_view_matches_server(a, nc: NetClient, room: Node) -> void:
 
 ## ============================= 用例 =============================
 
-## 存储层：注册唯一性、分数累计、跨实例持久化
+## 存储层：分数累计、房间留档与跨实例持久化（昵称不落盘，见在线占用制）
 func test_store_persistence(a) -> void:
 	var path := "user://test_online_store_unit.json"
 	if FileAccess.file_exists(path):
 		DirAccess.remove_absolute(path)
 	var store: RefCounted = load("res://server/store.gd").new(path)
-	store.register_player("测试玩家甲")
+	store.record_room("ROOM01", "测试玩家甲")
 	store.add_scores("ROOM01", [{"name": "测试玩家甲", "delta": 30}, {"name": "电脑·乙", "delta": -10}])
 	store.add_scores("ROOM01", [{"name": "测试玩家甲", "delta": -15}, {"name": "电脑·乙", "delta": 5}])
 	# 重开实例：落盘数据完整（重启不丢）
 	var store2: RefCounted = load("res://server/store.gd").new(path)
-	a.check(store2.has_player("测试玩家甲"), "昵称注册表持久化")
 	var rows: Array = store2.room_scores("ROOM01")
 	a.eq(rows.size(), 2, "两行累计分")
 	var by_name := {}
@@ -244,19 +243,20 @@ func test_store_persistence(a) -> void:
 	DirAccess.remove_absolute(path)
 
 
-## 昵称全局唯一（注册制）、trim 归一与非法昵称拒绝
+## 昵称在线占用制（同时在线唯一；掉线释放后可复用）、trim 归一与非法昵称拒绝
 func test_nick_uniqueness(a) -> void:
 	_ensure_server()
 	var first := _make_client("测甲唯一", "C_uniq_a")
 	a.check(await _wait_hello(first), "首登成功")
+	# 同时在线：第二人用同昵称被拒
 	var dup := _make_client("测甲唯一", "C_uniq_dup")
 	var err := await _wait_error(dup)
-	a.check(err.contains("已被占用"), "同昵称再注册被拒：%s" % err)
-	# trim 归一：带首尾空格的昵称注册为去空格形态（占用判定一致）
-	var spaced := _make_client("  测甲空格  ", "C_uniq_sp")
+	a.check(err.contains("已被占用"), "在线同昵称被拒：%s" % err)
+	# trim 归一：带首尾空格的昵称按去空格形态做占用判定
+	var spaced := _make_client("  测乙空格  ", "C_uniq_sp")
 	a.check(await _wait_hello(spaced), "带空格昵称注册成功")
-	a.eq(spaced.my_name, "测甲空格", "hello_ok 回执为 trim 后昵称")
-	var dup2 := _make_client("测甲空格", "C_uniq_sp2")
+	a.eq(spaced.my_name, "测乙空格", "hello_ok 回执为 trim 后昵称")
+	var dup2 := _make_client("测乙空格", "C_uniq_sp2")
 	err = await _wait_error(dup2)
 	a.check(err.contains("已被占用"), "trim 后同昵称被拒：%s" % err)
 	var ai := _make_client(NetProto.AI_NAME_PREFIX + "甲", "C_uniq_ai")
@@ -265,6 +265,12 @@ func test_nick_uniqueness(a) -> void:
 	var blank := _make_client("   ", "C_uniq_blank")
 	err = await _wait_error(blank)
 	a.check(err != "", "空白昵称被拒")
+	# 掉线释放：首登者断连 → 扫描清理（≤sweep_interval）→ 同昵称可被复用
+	first.drop_connection()
+	var freed := await _until(func(): return not _manager._peer_nick.values().has("测甲唯一"), 2.0)
+	a.check(freed, "掉线后昵称占用被释放")
+	var reuser := _make_client("测甲唯一", "C_uniq_re")
+	a.check(await _wait_hello(reuser), "释放后同昵称复用成功")
 	await _free_clients()
 
 
