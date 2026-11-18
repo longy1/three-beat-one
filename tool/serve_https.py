@@ -49,7 +49,9 @@ font:12px/1.5 monospace;padding:8px;box-sizing:border-box;}
 </style></head><body>
 <div style="padding:14px 10px;">
 <div id="count">0</div>
-<div id="sec">次有效点按事件</div>
+<div id="sec">事件条数（一次点触通常 4 条属正常：Safari 同时上报
+touch 触摸流 + pointer 指针流，两条流各一对按下/抬起）</div>
+<div id="types" style="font-size:13px;color:#7fdc9a;text-align:center;min-height:1.5em;"></div>
 <div id="last">（在页面任意位置点按，此处显示最近事件；下方滚动区为完整序列）</div>
 <div style="text-align:center;opacity:.7;font-size:12px;margin-top:10px;">
 isSecureContext: <b id="sc">?</b><br>UA: <span id="ua"></span><br>innerW/H: <span id="wh"></span></div>
@@ -57,14 +59,22 @@ isSecureContext: <b id="sc">?</b><br>UA: <span id="ua"></span><br>innerW/H: <spa
 <div id="log"></div>
 <script>
 var n = 0;
+var byType = {};
 document.getElementById('sc').textContent = window.isSecureContext;
 document.getElementById('ua').textContent = navigator.userAgent.slice(0, 90);
 document.getElementById('wh').textContent = innerWidth + 'x' + innerHeight + ' dpr:' + devicePixelRatio;
 var log = document.getElementById('log');
-function add(msg){
+function renderTypes(){
+  var parts = [];
+  for (var k in byType) parts.push(k + '×' + byType[k]);
+  document.getElementById('types').textContent = '按类型统计：' + parts.join(' ｜ ');
+}
+function add(msg, type){
   n++;
+  byType[type] = (byType[type] || 0) + 1;
   document.getElementById('count').textContent = n;
   document.getElementById('last').textContent = msg;
+  renderTypes();
   var d = document.createElement('div');
   d.className = 'ev';
   d.textContent = n + '. ' + (performance.now() | 0) + 'ms ' + msg;
@@ -77,7 +87,7 @@ function add(msg){
     var y = (evt.clientY !== undefined) ? Math.round(evt.clientY) : '-';
     var pt = evt.pointerType || '';
     add(type + ' x=' + x + ' y=' + y + (pt ? ' type=' + pt : '') +
-        (evt.touches ? ' touches=' + evt.touches.length : ''), 'ev');
+        (evt.touches ? ' touches=' + evt.touches.length : ''), type);
   }, true);
 });
 </script></body></html>
