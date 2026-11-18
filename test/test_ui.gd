@@ -10,6 +10,7 @@ extends UiTestBase
 ## - 座位悬停历史弹层路径整体移除：悬停座位不再弹出任何面板
 ## - 出牌历史面板：十字摆位一轮四家出牌、翻轮次四按钮
 ##   边界禁用、✕/点击窗口外关闭、打开期间轮次增长就地收敛
+## - 底牌浮层不遮挡弹层：底牌 z=1 只比桌面高一层，历史/牌堆弹层 z=10
 
 
 ## AI 代打：走完当前阶段的全部引擎交互（不模拟鼠标）
@@ -277,6 +278,28 @@ func test_kitty_preselected_after_flip(test) -> void:
 		if b is Button and not b.is_queued_for_deletion():
 			counter_text = b.text
 	test.check("8/8" in counter_text, "扣底按钮计数 8/8（实际：%s）" % counter_text)
+	await _release_table(table)
+
+
+## 回归：底牌浮层不遮挡其它弹层——底牌只比桌面高一层（z=1），
+## 历史/牌堆弹层（z=10）压在底牌之上（用户报告：扣底阶段打开历史被底牌盖住）
+func test_bottom_cards_z_order_below_popups(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)  # 人类 130 坐庄
+	table._pending_trump_suit = Card.Suit.SPADE
+	table._submit_human_trump(Card.RANK_9)  # 真实 UI 提交路径 → 扣底阶段 + 底牌展示
+	await tree_pause()
+	test.eq(eng.phase, Phase.DISCARD, "进入扣底阶段")
+	var bottom = table.trick_area.get_node_or_null("BottomCards")
+	test.check(bottom != null, "扣底阶段底牌展示存在")
+	test.eq(bottom.z_index, 1, "底牌只比桌面高一层（z=1）")
+	test.eq(table._trick_history.popup.z_index, 10, "历史弹层在底牌之上（z=10）")
+	test.eq(table._trick_history.backdrop.z_index, 10, "历史遮罩在底牌之上（z=10）")
+	test.eq(table._piles.bottom_popup.z_index, 10, "牌堆弹层在底牌之上（z=10）")
 	await _release_table(table)
 
 

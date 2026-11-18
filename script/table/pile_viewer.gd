@@ -77,12 +77,14 @@ func hide_all() -> void:
 
 
 ## 居中弹层骨架：点锚 = 主牌桌十字中心，grow 向四周自适应（尺寸随内容）。
+## z_index=10：桌面级弹层（盖过扣底阶段底牌展示 z=1，见 game_table 层级约定）。
 ## 移出弹层走 request_hide（0.1s 粘滞延迟）
 func _build_popup(root: Control, popup_name: String) -> PanelContainer:
 	var popup := PanelContainer.new()
 	popup.name = popup_name
 	popup.visible = false
 	popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup.z_index = 10
 	popup.mouse_entered.connect(hide_timer.stop)
 	popup.mouse_exited.connect(request_hide)
 	popup.anchor_left = UiStyle.MAIN_TABLE_CENTER.x

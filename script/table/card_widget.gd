@@ -6,9 +6,12 @@ const RED_COLOR := Color(0.78, 0.15, 0.15)
 const BLACK_COLOR := Color(0.15, 0.15, 0.2)
 const BACK_COLOR := Color(0.15, 0.24, 0.46)
 const SELECTED_COLOR := Color(1.0, 0.85, 0.3)
-const SIZE_NORMAL := Vector2(60, 86)
-const SIZE_MEDIUM := Vector2(50, 72)
-const SIZE_SMALL := Vector2(44, 64)
+## 三档尺寸（移动端触控口径）：NORMAL=手牌/出牌区≤2 张/揭主飞牌，
+## MEDIUM=出牌区 3+ 张（拖拉机不遮挡姓名版），SMALL=历史面板/牌堆弹层/信息栏/底牌展示。
+## iPhone 横屏（844×390pt，逻辑 1280×720 letterbox 缩放 ≈0.54）下手牌 ≈39×54pt 触摸目标。
+const SIZE_NORMAL := Vector2(72, 100)
+const SIZE_MEDIUM := Vector2(60, 86)
+const SIZE_SMALL := Vector2(52, 76)
 
 var card: Card = null
 var face_up := true
@@ -69,7 +72,7 @@ func _refresh() -> void:
 			back.set_anchors_preset(Control.PRESET_FULL_RECT)
 			back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			back.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			back.add_theme_font_size_override("font_size", [32, 24, 28][2 if medium else (1 if small else 0)])
+			back.add_theme_font_size_override("font_size", [36, 28, 32][2 if medium else (1 if small else 0)])
 			back.modulate = Color(0.72, 0.8, 0.95)
 			back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			add_child(back)
@@ -81,10 +84,13 @@ func _refresh() -> void:
 	style.bg_color = Color(0.98, 0.97, 0.93)
 
 	var size_kind := 2 if medium else (1 if small else 0)  # 0 normal / 1 small / 2 medium
+	# 角标竖排（移动端适配）：点数上、花色下（王无花色仅单字）——收窄卡宽以压缩相邻牌间距
 	var corner := Label.new()
-	corner.text = card.label()
-	corner.position = Vector2(4, 3)
-	corner.add_theme_font_size_override("font_size", [14, 12, 13][size_kind])
+	corner.text = card.rank_label() if card.is_joker() \
+			else card.rank_label() + "\n" + card.suit_label()
+	corner.position = Vector2(4, 2)
+	corner.add_theme_constant_override("line_spacing", 0)
+	corner.add_theme_font_size_override("font_size", [15, 13, 14][size_kind])
 	corner.modulate = color
 	corner.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(corner)
@@ -94,7 +100,7 @@ func _refresh() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	center.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	center.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	center.add_theme_font_size_override("font_size", [30, 22, 26][size_kind])
+	center.add_theme_font_size_override("font_size", [34, 26, 30][size_kind])
 	center.modulate = color
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(center)

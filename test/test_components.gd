@@ -10,7 +10,7 @@ func test_card_widget_face(test) -> void:
 	for c in spade_k.get_children():
 		if c is Label:
 			texts.append(c.text)
-	test.check("♠K" in texts, "角标显示花色+点数")
+	test.check("K\n♠" in texts, "角标竖排显示点数+花色（点数上、花色下）")
 	test.check("♠" in texts, "中心显示花色符号")
 	# 黑桃着黑色、红桃着红色（label modulate）
 	var black_ok := true

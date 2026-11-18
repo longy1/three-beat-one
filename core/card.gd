@@ -110,6 +110,16 @@ func label() -> String:
 	return _SUIT_CHARS[suit] + _RANK_CHARS[rank]
 
 
+## 点数字符（如 A、10、大）；卡牌角标竖排用（点数上、花色下）
+func rank_label() -> String:
+	return _RANK_CHARS[rank]
+
+
+## 花色字符（♠♥♣♦）；王无花色返回空串
+func suit_label() -> String:
+	return "" if is_joker() else _SUIT_CHARS[suit]
+
+
 static func cards_to_string(cards: Array) -> String:
 	var parts: Array[String] = []
 	for c in cards:

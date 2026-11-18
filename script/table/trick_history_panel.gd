@@ -7,7 +7,7 @@ extends RefCounted
 ## 打开期间新轮次结算由控制器经 refresh() 状态驱动收敛页码（非定时轮询）。
 ## 数据由控制器注入（open/refresh），组件不持有引擎引用。
 
-const CARD_SIZE := CardWidget.SIZE_SMALL  ## 44×64
+const CARD_SIZE := CardWidget.SIZE_SMALL  ## 52×76
 const CROSS_AREA := Vector2(520, 280)     ## 十字摆位区尺寸（弹层内容主体）
 const NAME_FONT := 13                     ## 座位名字号（赢家 ✓ 金标同款）
 ## 弹层内十字摆位（相对比例 × 十字区尺寸）：你=下、丙=上、乙=右、丁=左，
@@ -34,13 +34,15 @@ var _page := 0                    ## 当前轮次页（0 = 第 1 轮 … size-1 
 
 
 func setup(root: Control) -> void:
-	# 全屏遮罩：透明拦截点击（MOUSE_FILTER_STOP 不依赖可见色），点击即关
+	# 全屏遮罩：透明拦截点击（MOUSE_FILTER_STOP 不依赖可见色），点击即关；
+	# z_index=10：盖过桌面级浮层（如扣底阶段的底牌展示 z=1），见 game_table 层级约定
 	backdrop = ColorRect.new()
 	backdrop.name = "HistoryBackdrop"
 	backdrop.color = Color(0, 0, 0, 0.12)
 	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	backdrop.visible = false
+	backdrop.z_index = 10
 	backdrop.gui_input.connect(_on_backdrop_input)
 	root.add_child(backdrop)
 	# 弹层本体：点锚主牌桌十字中心 + grow BOTH（居中规范，与各弹层同口径）
@@ -48,6 +50,7 @@ func setup(root: Control) -> void:
 	popup.name = "TrickHistoryPopup"
 	popup.visible = false
 	popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	popup.z_index = 10
 	popup.anchor_left = UiStyle.MAIN_TABLE_CENTER.x
 	popup.anchor_right = UiStyle.MAIN_TABLE_CENTER.x
 	popup.anchor_top = UiStyle.MAIN_TABLE_CENTER.y
