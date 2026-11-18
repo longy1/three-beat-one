@@ -8,6 +8,17 @@
 
 ## 2026-11-18
 
+- Web 壳清理与主菜单文案：移除导出壳注入的左上角诊断角标 #sbd-diag（墙钟/rAF/分辨率
+  统计，CSS 规则、DOM 创建与计数循环整体删除，一并清掉历史遗留的残串行；全屏按钮与
+  iOS 提示保留）；主菜单标题「三打一单机版」改「三打一」——原 export_presets.cfg
+  （html/head_include）、scene/menu/main_menu.tscn
+- 昵称改在线占用制：只与同时在线的玩家互斥（活跃 peer；存活房间成员含离线宽限期经
+  重连分支承接），掉线经扫描清理即释放、可随时复用；废除全局永久注册表（store.gd 删
+  players 表与 has_player/register_player，载入旧文件即丢弃遗留 players 键；房间留档
+  与累计分持久化不变）——原 server/room_manager.gd（_on_hello 拒绝条件）、
+  server/store.gd、server/server_main.gd 与 server/host_room.gd 注记、
+  scene/menu/online_menu.tscn（标签文案）、test/test_online.gd（存储用例去注册断言、
+  昵称用例改在线占用语义并新增掉线释放复用断言）
 - 队友无主后垫牌迭代：闲家有主但队友已公示无主时，主牌分（带分主牌）降为可垫档、
   无分大牌主照旧保留（主牌集中在我与庄家手中，小分主守不住）——原 core/ai_play.gd
   垫牌排序新增 mate_void 通道

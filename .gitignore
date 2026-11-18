@@ -7,6 +7,10 @@ build/
 # ZCode 本地工作区配置
 .zcode/
 
+# ZCode Sites 部署产物（stage 与站点链接记录）
+.zcode-site/
+.zcode-site.json
+
 # 操作系统杂项
 .DS_Store
 Thumbs.db

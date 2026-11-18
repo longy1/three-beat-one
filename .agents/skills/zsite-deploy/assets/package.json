@@ -1,0 +1,7 @@
+{
+  "name": "sanhax-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "三打哈 ZCode Sites 部署包：游戏页面 + 只读文件浏览（server.mjs，零依赖）"
+}

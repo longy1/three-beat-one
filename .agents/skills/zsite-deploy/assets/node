@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# node shim：本机无独立 node 时，用 ZCode 桌面端自带的 Electron Node 运行时
+# （check 会 spawn `bash start.sh`，其内部 `node server.mjs` 依赖本 shim 在 PATH 中）。
+exec env ELECTRON_RUN_AS_NODE=1 "${ZCODE_EXE:-S:/Program/ZCode/ZCode.exe}" "$@"

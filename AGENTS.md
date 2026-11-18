@@ -42,8 +42,18 @@ S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . res:/
 # 导出 Web 版（视觉验收用；完整流程见 doc/重构规范.md 第 6 章）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . --export-release "Web"
 
+# 导出联机服务器 pck（preset "Server"；Linux 无头运行时经 gs/ 分片进部署 stage）
+S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . --export-release "Server" build/server/server.pck
+
 # 本地静态服务（导出后浏览器打开 http://127.0.0.1:8765 验收）
 cd build/web && python -m http.server 8765
+
+# 公网试玩站部署/重部署 + 云端验收：走 .agents/skills/zsite-deploy 技能（SKILL.md 全流程：
+# 导出/组包/本地 check/部署/云端探针；部署基建单源在技能 assets/，stage 是生成物；平台限制
+# 与导出模板二进制的坑见技能 references/gotchas.md；2026-11-18 上线 https://three-beat-one-v425.zai.site）
+.agents/skills/zsite-deploy/scripts/build-stage.sh                          # 导出 Web/Server + 组装 stage
+.agents/skills/zsite-deploy/scripts/zsite-cli.sh check .zcode-site/stage    # 本地全栈验证
+.agents/skills/zsite-deploy/scripts/zsite-cli.sh deploy .zcode-site/stage   # 部署（首建加 --new --name --prefix）
 ```
 
 **每次改动后的验证顺序**：`--import`（无脚本错误）→ `run_tests.gd`（全绿）→ `smoke_ui.gd`（若动了 UI/引擎流程）→ **Web 导出 + 浏览器截图验收**（若动了视觉/布局/字体）。
@@ -132,6 +142,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 | doc/重构规范.md | 兜底白名单/拆分原则/验收工作流的演进（重构任务结束后核对） |
 | README.md | 运行方式、玩法说明、目录结构、里程碑状态 |
 | static/ui-mockup.svg | 任何 UI 布局/区域变更（先改稿后施工） |
+| .agents/skills/zsite-deploy/ | 部署流程/部署基建（assets 单源）/平台与引擎坑（gotchas）演进 |
 
 ## 6. 已知简化与约束
 
@@ -181,5 +192,15 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
   庄家胜率 40%→37% 基本守恒；2026-11-18 复跑校准验证（4200 局满格）：出牌层自 83cb294
   换表后零改动、24 格差异均在采样噪声内 → 基线无漂移、表维持不动（详见工程计划复跑记录）
 - 推送依赖 gh API 复刻流程（见第 4 节）
-- Web 导出为验收工具（本地 serve），尚未部署公网（M5）；联机浏览器验收覆盖引导/入口/渲染/字体与客户端校验路径，**文本输入流程需真实键盘**（Godot Web 对合成输入免疫，见 doc/coding.md §3）——桌面双实例人工验收含完整联机流程
-- **联机（M4）已知简化**：反作弊止步于可见性裁剪（不下发隐藏信息；服务端逻辑仍可被逆向，定位为本地/可信小服）；服务端进程重启会解散进行中的房间（昵称注册表与房间累计分已持久化不丢）；无复盘、无观战、无操作时长配置化
+- Web 导出本地 serve 验收照旧；另有 ZCode Sites 公网试玩站（2026-11-18，命令见第 2 节）：
+  平台只暴露一个端口 → 单 Node 进程分流三服务（`/` 游戏；`/files/` 只读文件浏览/下载，
+  浏览根限部署包 `/app` 与运行数据 `/data`；WebSocket Upgrade 代理到同实例 Godot 无头联机
+  服务器 127.0.0.1:9080 子进程，server.mjs 守护重启）；`index.wasm` 预 gzip 成 `index.wasm.gz`
+  与 Linux 模板分片（gs/*.part）规避平台单文件 ≤25MB；客户端 Web 端联机地址自动预填
+  `wss://<当前站点>`（online_menu.gd，手动输入 host[:端口]/ws(s):// 照常可用）；
+  **链接公开、文件浏览无令牌**，任何人可浏览下载容器文件（容器为临时沙箱、不存机密，用户定夺）；
+  长连接实测 400s+ 稳定（应用层 5s 心跳保活；平台文档称请求 300s 超时，实测只作用于空闲连接）；
+  房间与累计分随实例 /data 存亡（实例回收即丢）；独立公网服务器部署仍归 M5。联机浏览器验收覆盖
+  引导/入口/渲染/字体与客户端校验路径，**文本输入流程需真实键盘**（Godot Web 对合成输入免疫，见
+  doc/coding.md §3）——桌面双实例人工验收含完整联机流程
+- **联机（M4）已知简化**：反作弊止步于可见性裁剪（不下发隐藏信息；服务端逻辑仍可被逆向，定位为本地/可信小服）；服务端进程重启会解散进行中的房间（房间累计分与房间留档已持久化不丢）；昵称为在线占用制（只与同时在线互斥，掉线即释放可复用，不持久化——旧版全局注册制已废）；无复盘、无观战、无操作时长配置化
