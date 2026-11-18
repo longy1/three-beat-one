@@ -220,9 +220,11 @@ UI 层曾因无用例而集中出 bug（信号时序竞态、引用遗漏、渲�
 
 - 提交信息：`类型: 中文摘要`，类型 ∈ feat/fix/ui/ai/docs/test/chore/refactor；一个主题一个提交。
 - **推送流程**（github.com 直连经常被重置，push 可能失败）：失败时改走 gh CLI 的 Git Data API **逐字节复刻提交**（树 → 提交 → PATCH refs/heads/main），保证远端 SHA 与本地一致：
-  1. `git ls-tree -r -z HEAD`（**必须 -z**，否则中文文件名被转义成乱码字面量——踩过坑）+ `git cat-file blob` 构造 tree payload
-  2. `POST /git/trees`、`POST /git/commits`（作者/时间戳取自 `git cat-file commit HEAD`）
-  3. `PATCH /git/refs/heads/main`，本地 `git update-ref refs/remotes/origin/main <sha>` 对齐
+  1. `git ls-tree -r -z HEAD`（**必须 -z**，否则中文文件名被转义成乱码字面量——踩过坑）+ `git cat-file blob` 构造 tree payload；**blob 一律 base64**（树里有字体/图标/GBK bat 等二进制）
+  2. `POST /git/trees`、`POST /git/commits`（作者/时间戳取自 `git cat-file commit HEAD`；**时区要 ISO 带冒号 `+08:00`**；**message 必须带尾随 `
+`**——git 规范，缺了 API 提交 sha 会与本地不一致）
+  3. **校验铁律（2026-11-18 踩坑）**：`POST /git/trees` 返回 sha 必须等于本地 `git rev-parse HEAD^{tree}`，`POST /git/commits` 返回 sha 必须等于本地 `git rev-parse HEAD`——任一不等**立即中止并报告**，禁止拿不一致的 sha 改引用（曾因 API 树与本地树不一致 + 盲目 `reset --hard` 把 main 回退一个提交，最终以 cherry-pick 恢复 + 直连重试收场）
+  4. 校验通过后 `PATCH /git/refs/heads/main`，本地 `git update-ref refs/remotes/origin/main <sha>` 对齐
 - 网络恢复后 `git push` 应显示无差异；若远端落后可随时用上述流程补推。
 
 ## 10. 文档同步要求（重要）
