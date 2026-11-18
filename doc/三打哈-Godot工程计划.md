@@ -223,9 +223,16 @@
 - 修复：iOS rAF 停摆垫片（setTimeout 16ms 驱动主循环，document.hidden 回退原生 rAF；
   iPad 默认 Mac UA 用 maxTouchPoints 判定）+ 画布 translateZ(0) 强制合成层；配套上一轮的
   touch_delay=0 / viewport 归一 / gesturestart 拦截 / visualViewport→resize 桥
-- 验证：Chromium 回归（桌面不受 UA 门控垫片影响，136/136 + smoke_ui + 浏览器对局推进正常）；
-  **iPhone 真机表现待用户复测**——若垫片后仍停帧，下一层排查为合成器呈现问题（备选：
-  每帧轻量 DOM 触碰强制合成 / 官方 issue 跟踪）
+- **真机复测：六项 DOM 手段全部无效，已整体回退到 2026-11-17 基线**（head_include 仅留
+  ⛶ 按钮 + touch-action）。复盘两处关键误判：①垫片反作用——emscripten WebGL 帧提交绑定
+  真实 rAF 回调，setTimeout 驱动主循环=逻辑跑、帧永不提交，制造了「点按有效画面冻结」的
+  表象；②恢复配置基线后**未重新导出**，用户复测的仍是含全部实验的旧包（产物 grep 验证
+  已补为流程铁律）。引擎审计（build/web/index.js）：webglcontextlost 有 alert（用户未见→
+  排除上下文丢失）、visibilitychange 暂停仅存在于 WebXR 分支（排除循环暂停）、
+  canvasResizePolicy=2 自适应正常
+- 后续单变量排查顺序：干净基线复测 → 仍冻结则移除 `html,body{position:fixed}`（iOS
+  Safari 固定定位全屏 canvas 呈现冻结，社区同例）→ 仍冻结则加诊断浮层（rAF 频率/
+  canvas 尺寸/hidden 状态）拿真机数据
 
 ## 4. 待定事项清单（联机前需定）
 
