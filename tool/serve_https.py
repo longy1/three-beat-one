@@ -83,8 +83,10 @@ function add(msg, type){
 ['touchstart', 'touchend', 'touchcancel', 'pointerdown', 'pointerup',
  'mousedown', 'mouseup', 'click'].forEach(function(type){
   window.addEventListener(type, function(evt){
-    var x = (evt.clientX !== undefined) ? Math.round(evt.clientX) : '-';
-    var y = (evt.clientY !== undefined) ? Math.round(evt.clientY) : '-';
+    var src = (evt.clientX === undefined && evt.changedTouches && evt.changedTouches[0])
+      ? evt.changedTouches[0] : evt;  // TouchEvent 坐标在 changedTouches[0] 上
+    var x = (src.clientX !== undefined) ? Math.round(src.clientX) : '-';
+    var y = (src.clientY !== undefined) ? Math.round(src.clientY) : '-';
     var pt = evt.pointerType || '';
     add(type + ' x=' + x + ' y=' + y + (pt ? ' type=' + pt : '') +
         (evt.touches ? ' touches=' + evt.touches.length : ''), type);
