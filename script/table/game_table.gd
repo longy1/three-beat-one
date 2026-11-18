@@ -10,7 +10,7 @@ extends Control
 
 const HUMAN_SEAT := 0
 const AI_DELAY := 0.7
-const AI_DISCARD_DELAY := 1.0  ## AI 庄家扣底节奏（2026-11-17）：关键决策点多停约 1 秒，太快看不清翻底
+const AI_DISCARD_DELAY := 1.0  ## AI 庄家扣底节奏：关键决策点多停约 1 秒，太快看不清翻底
 const TRICK_PAUSE := 1.5  ## 一轮结算后牌面停留时长；到期主动清空出牌桌
 
 const SEAT_NAMES := ["甲（你）", "乙（电脑）", "丙（电脑）", "丁（电脑）"]
@@ -224,7 +224,7 @@ func _on_trump_required(seat: int) -> void:
 
 
 func _on_discard_required(seat: int) -> void:
-	# 揭主双飞（2026-11-17）：叫主完成的此刻皇冠已飞向庄家，主 R 牌从中央飞向
+	# 揭主双飞：叫主完成的此刻皇冠已飞向庄家，主 R 牌从中央飞向
 	# 信息栏主牌展示位；信息栏在牌面落位后才显示主牌（_last_trump_shown 先行
 	# 标记，_refresh 跳过即时刷新，落位回调里 set_trump）
 	var trump_card := Card.new(engine.trump.suit, engine.trump.rank)

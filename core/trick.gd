@@ -23,7 +23,7 @@ static func settle(plays: Array, trump: TrumpInfo) -> Dictionary:
 
 	var lead := Combo.detect(plays[0].cards, trump)
 	if lead == null:
-		# 主牌甩打轮（规则 7.3，2026-11-17 增补）：领出为不成型的多张主牌，
+		# 主牌甩打轮（规则 7.3）：领出为不成型的多张主牌，
 		# 等同连续单张领出——领出者赢下全部，其余三家均为垫牌（不参与比较）
 		var dump_ok := true
 		for c in plays[0].cards:

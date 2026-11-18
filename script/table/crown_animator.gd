@@ -5,7 +5,7 @@ extends RefCounted
 ## 高度与名字字号一致；人类 0 号位无面板，落手牌上方按钮行（历史/牌堆按钮右侧，不随牌变动）。
 
 
-const CROWN_HUMAN_TARGET := Vector2(0.108, 0.749)  ## 相对窗口比例：手牌上方按钮行、牌堆按钮右侧（不遮挡手牌，2026-11-17 调整）
+const CROWN_HUMAN_TARGET := Vector2(0.108, 0.749)  ## 相对窗口比例：手牌上方按钮行、牌堆按钮右侧（不遮挡手牌）
 const CROWN_SIZE := Vector2(24, 18)  ## 高度 = NameLabel 字号（18）
 const FLY_DURATION := 1.0
 

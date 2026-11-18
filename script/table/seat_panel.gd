@@ -4,7 +4,6 @@ extends PanelContainer
 ## + 【无主】红印章（右下角，规则 7.3 公示）。
 ## 组件自带统一尺寸（tscn 内 custom_minimum_size = 180×100，720p 基准）；
 ## 实例只负责定位（anchor 锚定左上角，不拉伸），改尺寸只需改组件一处。
-## （2026-11-17 历史面板重做：悬停查看历史路径移除，出牌历史走 TrickHistoryPanel。）
 
 
 const STAMP_MARGIN := 6.0  ## 印章与面板右下角的留空

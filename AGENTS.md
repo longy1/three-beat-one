@@ -1,7 +1,7 @@
 # 三打哈（三打一）项目规范
 
 > 本文档是本仓库的开发规范与协作约定。**随实现演进及时更新**——任何行为、结构、流程变更后，须同步修订对应章节。
-> 规则依据：[doc/三打哈规则.md](./doc/三打哈规则.md)（唯一规则依据）；里程碑与技术决策：[doc/三打哈-Godot工程计划.md](./doc/三打哈-Godot工程计划.md)；**重构类任务执行 [doc/重构规范.md](./doc/重构规范.md)**（兜底代码根治协议、模块拆分原则、HTML 导出验收工作流、C/S 预留约定）。
+> 规则依据：[doc/三打哈规则.md](./doc/三打哈规则.md)（唯一规则依据）；里程碑与技术决策：[doc/三打哈-Godot工程计划.md](./doc/三打哈-Godot工程计划.md)；**重构类任务执行 [doc/重构规范.md](./doc/重构规范.md)**（兜底代码根治协议、模块拆分原则、HTML 导出验收工作流、C/S 预留约定）；代码变更史归档：[doc/update.md](./doc/update.md)（代码注释禁更新记录，§5）。
 
 ## 1. 项目概述
 
@@ -22,7 +22,7 @@
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（全部通过退出码 0；当前 13 套件 136 用例，含联机回环套件）
+# 单元/规则测试（全部通过退出码 0；当前 13 套件 137 用例，含联机回环套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
 
 # UI 冒烟（headless 自动打完一整局，约 1 分钟，退出码 0）
@@ -83,9 +83,9 @@ font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 too
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
 test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ suite_registry.gd（套件注册单一事实源）
-          + test_*.gd（13 套件 136 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 11 用例）+ run_tests.gd + smoke_ui.gd
+          + test_*.gd（13 套件 137 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 11 用例）+ run_tests.gd + smoke_ui.gd
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
-doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md
+doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md、update.md（代码变更史归档）
 static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新；含 .gdignore 不参与引擎导入）
 build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导出模板在编辑器安装目录 S:\Program\Godot\editor_data\export_templates\，self-contained 模式由 exe 旁 ._sc_ 标记启用）
 ```
@@ -118,6 +118,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 - 常量数组/实例：`const` 不能含 `Card.new()` 调用，用实例变量。
 - 静态工厂优先：`CardWidget.create()`、`Combo.detect()` 等静态构造；策略函数全部 `static`（AiPolicy 门面共享 `static var rng`，`_static_init` 中 randomize）。
 - 注释与文档字符串用中文，函数头 `##` 说明职责与规则依据。
+- **代码零更新记录（2026-11-18 起，机器守护）**：任何代码文件（`.gd` 等）内**禁止日期戳与变更记录式注释**（如「20XX-XX-XX 新增/改为/回退」「旧版如何现在如何」「用户定夺 20XX」）——代码注释只描述**当前行为与规则出处**；这类内容一律写进 `doc/update.md`（按日期倒序归档，`test_no_changelog_comments` 全 .gd 扫描违规即红）。不带日期的设计缘由/回归用例来源（§8）不在禁列。
 - 命名：类名 PascalName；私有成员 `_` 前缀；信号回调 `_on_<signal>`。
 - 跨组件共用常量放单一事实源（如 `UiStyle.MAIN_TABLE_CENTER`），禁止两份「应该相等」的数字。
 
@@ -185,7 +186,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 - 新增/修改规则行为**必须带用例**；规则类改动对照规则文档章节写正反例。
 - 套件注册**只改 `test/suite_registry.gd` 一处**（run_tests 与主菜单自检共用；主菜单运行时动态加载）。
 - 共享基类：`test/test_base.gd`（C() 造牌 / trump 基准 / Phase 别名）、`test/ui_test_base.gd`（_spawn_table 三件套 / tree_pause）——新套件 `extends TestBase` 或 `extends UiTestBase`，勿再复制助手。
-- **架构守护（test_architecture.gd）**：core 纯度（禁 Node/场景/时序/IO 依赖清单扫描）、AI 模块不引用引擎类型、submit_* 唯一写入口白名单——规范固化为可执行检查，违规即红。
+- **架构守护（test_architecture.gd）**：core 纯度（禁 Node/场景/时序/IO 依赖清单扫描）、AI 模块不引用引擎类型、submit_* 唯一写入口白名单、代码零日期戳/史志类注记（`test_no_changelog_comments` 全 .gd 扫描）——规范固化为可执行检查，违规即红。
 - AI 改动用两类测试守护：单项策略断言 + **30 局种子化自动对局不变量**（零非法着法、每局完整结束、捉分 ≤200+底牌分、收支守恒、Scoring.compute_outcome 互检）。
 - 特定规则路径优先用**注入迷你局剧本**（`start_session_with_deal`，如抠底 ×1/×2/庄赢不抠三剧本），不要写脆弱的整局剧本。规则 7.3（无主公示/主牌甩打）同样由迷你剧本确定性覆盖（甩打结算/条件拒绝/跟牌张数/末轮甩打抠底 ×1/公示触发与不触发六类）。
 - 叫分等概率策略的断言用固定 `AiPolicy.rng.seed` 的确定性断言（EV 档位断言）。
@@ -235,6 +236,7 @@ UI 层曾因无用例而集中出 bug（信号时序竞态、引用遗漏、渲�
 |---|---|
 | 本文档（AGENTS.md） | 目录结构、命令、编码/布局/测试/推送规范、AI 策略描述、UI 区域变化、最佳实践 |
 | doc/三打哈-Godot工程计划.md | 里程碑状态、技术决策、实施记录、规则文档笔误清单 |
+| doc/update.md | 任何原本会写进代码注释的日期戳/变更记录内容（新条目置顶；代码注释禁更新记录，§5） |
 | doc/重构规范.md | 兜底白名单/拆分原则/验收工作流的演进（重构任务结束后核对） |
 | README.md | 运行方式、玩法说明、目录结构、里程碑状态 |
 | static/ui-mockup.svg | 任何 UI 布局/区域变更（先改稿后施工） |

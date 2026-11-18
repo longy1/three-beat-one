@@ -80,7 +80,7 @@ static func _detect_tractor(cards: Array, trump: TrumpInfo) -> Combo:
 					and hi[0].rank == Card.RANK_BIG_JOKER and lo[0].rank == Card.RANK_SMALL_JOKER:
 				return _make(Type.TRACTOR, cards, trump)
 			return null  # 王对与花色对、或三张同王，均不构成拖拉机
-		# R=A 特例（规则修订 2026-11-16）：A 为常主，同花色的 A 对与 2 对相邻——
+		# R=A 特例（A 为常主）：同花色的 A 对与 2 对相邻——
 		# 副花色的 AA22（如 ♣AA♣22 且喊 ♠A）与主花色 AA22 同判合法
 		var a2_override: bool = trump.rank == Card.RANK_A \
 			and hi[0].suit == lo[0].suit \
@@ -113,7 +113,7 @@ static func pairs_adjacent(hi: Array, lo: Array, trump: TrumpInfo) -> bool:
 
 	var hi_rank: int = hi[0].rank
 	var lo_rank: int = lo[0].rank
-	# R=A 特例（规则修订 2026-11-16）：同花色的 A 对与 2 对相邻（A~2 连，含副花色）
+	# R=A 特例：同花色的 A 对与 2 对相邻（A~2 连，含副花色）
 	if trump.rank == Card.RANK_A and hi_rank == Card.RANK_2 and lo_rank == Card.RANK_A \
 			and hi[0].suit == lo[0].suit:
 		return true
@@ -146,7 +146,7 @@ static func pair_groups(cards: Array) -> Dictionary:
 ## 牌型比较用牌力（3.1 全序 + 6.3 拖拉机比较）。
 ## - 单/对：该牌（对子两张同点同力）的 card_power
 ## - 拖拉机：主牌类拖拉机(100000+) > 一切副牌拖拉机(50000+)；同类比"较大一组"在 3.1 全序中的位置
-## - 规则修订（2026-11-16）：AA22（A 对+2 对的拖拉机）在其花色的同类拖拉机中排最小
+## - R=A 时 AA22（A 对+2 对的拖拉机）在其花色的同类拖拉机中排最小
 ##   （如主牌 AA22 < 主牌 7788）；跨花色比较仍按大类（主牌类 > 副牌类）
 static func power(combo: Combo, trump: TrumpInfo) -> int:
 	match combo.type:

@@ -9,7 +9,7 @@ const BID_PASS := -1  ## 放弃标识（与 GameEngine.BID_PASS 同值；此处�
 const BASE_BID := 130  ## 抓牌庄家底叫（与 Auction.DEALER_BASE_BID 同值；自持解耦）
 
 
-## ── 扫荡概率模型（2026-11-18 叫分迭代；探 200 与放宽参与为用户定夺）──
+## ── 扫荡概率模型（探 200 与放宽参与为用户定夺）──
 ## 规则依据 7.2 跟牌强制：庄家连续领主牌对/拖拉机，闲家有主必须跟，每轮按领出
 ## 张数 1:1 抽干——扫荡成立 ⇔ 我方持主 ≥ 每家闲家持主。概率抬升愿叫上限档
 ## （≥0.30→165 / ≥0.60→180 / ≥0.85→200）并在 ≥0.5 时特批参与（EV 弱负也叫）。
@@ -63,13 +63,13 @@ static func hand_strength(hand: Array) -> int:
 	return score
 
 
-## ── 叫分校准模型（2026-11-17 重校准：test/calibrate_bidding.gd，守门协调 + 牌力分级 +
+## ── 叫分校准模型（test/calibrate_bidding.gd 产出，守门协调 + 牌力分级 +
 ## 下分门槛细化出牌策略下 ×2 轮加权均值）──
 ## 庄家平均收益（B=1）按「叫分档 × 手牌强度桶」查表；桶 [0,35)/[35,50)/[50,65)/[65,∞)，
 ## 插值中心近似 17.5/42.5/57.5/82.5。
-## 校准结论：强牌（≥65）在 130~150 弱正期望（+0.17/+0.15/+0.33，150 档最优）——下分门槛
-## 细化后闲家不再向庄家必赢轮白送分，庄家收益较上版整体回落；165 及以上明确负，
-## 愿叫上限档维持 150，实际叫分仍 最高+5 平滑递进。
+## 校准结论：强牌（≥65）在 130~150 弱正期望（+0.17/+0.15/+0.33，150 档最优）——闲家
+## 不再向庄家必赢轮白送分；165 及以上明确负，愿叫上限档维持 150，实际叫分仍 最高+5
+## 平滑递进。
 ## 校准值受出牌策略水平约束：出牌策略迭代后需重跑校准工具。
 const BID_CALIB := {
 	130: [-3.55, -3.13, -1.31, 0.17],
@@ -94,7 +94,7 @@ static func _calib_gain(b: int, s: float) -> float:
 	return row[3]
 
 
-## 扫荡对手主牌的概率估计（2026-11-18 叫分迭代）。
+## 扫荡对手主牌的概率估计。
 ## opponent_raises 为对手主动加叫值列表（>130，每座位取最新值，可空 = 无证据）。
 ## 流程：假想定主（复用 AiPlay.choose_trump，即拍后我会做的选择）→ 手中主牌 m →
 ## 底牌期望主（底牌 8 张来自未见牌，按比例取期望；加叫者常主「锁」在手不落底 →
@@ -163,7 +163,7 @@ static func _opponent_raises(my_seat: int, seat_bids: Array) -> Array:
 	return raises
 
 
-## 扫荡概率 → 愿叫上限上探档（用户定夺 2026-11-18：允许探至封顶 200）。
+## 扫荡概率 → 愿叫上限上探档（用户定夺：允许探至封顶 200）。
 ## 返回 0 表示不上探（maxi 后维持 EV 表选出的上限档）。
 static func _sweep_cap(p: float) -> int:
 	if p >= SWEEP_EXTREME_P:
@@ -176,11 +176,11 @@ static func _sweep_cap(p: float) -> int:
 
 
 ## 返回意向叫分或 BID_PASS。
-## 策略（2026-11-17 平滑化 + 2026-11-18 扫荡迭代）：校准 EV 只用来选出「愿叫上限档」
+## 策略：校准 EV 只用来选出「愿叫上限档」
 ## ——期望 > 0.2 才愿意叫；-0.6~0.2 噪声区 40% 概率参与；扫荡概率 ≥ SWEEP_GATE_P
 ## 且 EV 弱负（> SWEEP_GATE_FLOOR）时扫荡特批参与。实际叫分 = 当前最高 + 5，逐轮
 ## 平滑递进到上限档；扫荡概率按 _sweep_cap 抬升上限（对手加叫即时压低概率）。
-## my_seat/seat_bids 提供拍卖叫分证据（缺省无证据，行为同旧版）。
+## my_seat/seat_bids 提供拍卖叫分证据（缺省 = 无拍卖证据）。
 static func choose_bid(hand: Array, highest_bid: int, rng: RandomNumberGenerator,
 		my_seat := -1, seat_bids: Array = []) -> int:
 	var s: float = float(hand_strength(hand))
@@ -198,7 +198,7 @@ static func choose_bid(hand: Array, highest_bid: int, rng: RandomNumberGenerator
 	var sweep := sweep_prob(hand, _opponent_raises(my_seat, seat_bids))
 	var willing := best_gain > 0.2 or (best_gain > -0.6 and rng.randf() < 0.4)
 	if not willing and sweep >= SWEEP_EXTREME_P:
-		willing = true  # 极端扫荡：抽干对手主牌几成定局，放手一搏（用户定夺 2026-11-18）
+		willing = true  # 极端扫荡：抽干对手主牌几成定局，放手一搏（用户定夺）
 	if not willing and sweep >= SWEEP_GATE_P and best_gain > SWEEP_GATE_FLOOR:
 		willing = true  # 扫荡特批：抽干对手主牌的把握足以补偿弱负期望
 	if not willing:

@@ -38,9 +38,9 @@ font/     中文字体子集（Web 导出必需：浏览器无系统字体回退
 theme/    default.tres 默认字体主题
 tool/     subset_font.py 字体子集化脚本
 test/     测试框架 + 共享基类（test_base / ui_test_base）+ 套件注册（suite_registry）+
-          13 套件 136 用例（规则/剧本/AI 不变量/架构守护/组件/主流程/UI 回归/联机回环）
+          13 套件 137 用例（规则/剧本/AI 不变量/架构守护/组件/主流程/UI 回归/联机回环）
           + smoke_ui.gd 冒烟 + calibrate_bidding.gd 叫分校准工具
-doc/      三打哈规则（唯一规则依据）、三打哈-Godot工程计划、重构规范
+doc/      三打哈规则（唯一规则依据）、三打哈-Godot工程计划、重构规范、update（代码变更史归档）
 static/   ui-mockup.svg 界面区域图（含联机屏）
 AGENTS.md 项目规范
 启动联机服务器.bat  一键启动无头联机服务器（用 %GODOT_PATH%，端口 9080）

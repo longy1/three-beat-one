@@ -4,10 +4,9 @@ extends RefCounted
 ## 「历史」点击打开 TrickHistoryPanel（出牌历史面板，控制器接线，组件外持有）；
 ## 「牌堆」悬停查看所扣底牌（仅庄家是自己时显示），0.1s 延迟隐藏（防移出误隐）。
 ## 数据由控制器注入（show_bottom），组件不持有引擎引用。
-## （2026-11-17 重做：原按座位悬停/钉住的自身历史弹层移除，见 TrickHistoryPanel。）
 
 
-const HIDE_DELAY := 0.1  ## 移出入口后延迟隐藏秒数（粘滞；期间重新进入则取消。2026-11-17 用户定夺 0.1s）
+const HIDE_DELAY := 0.1  ## 移出入口后延迟隐藏秒数（粘滞；期间重新进入则取消。用户定夺 0.1s）
 
 var hide_timer: Timer
 var history_chip: Button        ## 人类玩家出牌历史入口（左下，始终显示）
@@ -32,7 +31,7 @@ func setup(root: Control) -> void:
 	history_chip.offset_top = -196
 	history_chip.offset_bottom = -166
 	root.add_child(history_chip)
-	# 庄家是自己时的「牌堆」入口：「历史」右侧同一行（2026-11-17 起，原皇冠下方会遮挡手牌）
+	# 庄家是自己时的「牌堆」入口：「历史」右侧同一行（放皇冠下方会遮挡手牌）
 	bottom_button = Button.new()
 	bottom_button.text = "牌堆"
 	bottom_button.add_theme_font_size_override("font_size", 14)

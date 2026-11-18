@@ -100,7 +100,7 @@ func test_tractor_side_suit(test) -> void:
 	]) != null, "♣KK♣QQ 合法")
 
 
-## 规则修订（2026-11-16）：R=A 时 A 为常主，同花色的 A 对与 2 对相邻（A~2 连）
+## R=A 特例：A 为常主，同花色的 A 对与 2 对相邻（A~2 连）
 func test_tractor_rank_equals_a(test) -> void:
 	var t_spade_a := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_A)
 	# 副花色 AA22（喊 ♠A）→ 合法（用户裁定的新解释）
@@ -232,7 +232,7 @@ func test_tractor_power_order(test) -> void:
 		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.CLUB, Card.RANK_Q, 1),
 	])
 	test.check(Combo.compare(four_jokers, main_a2, trump) > 0, "四王 > ♠AA♠22")
-	# 规则修订（2026-11-16）：AA22 在其花色的同类拖拉机中排最小
+	# R=A 时 AA22 在其花色的同类拖拉机中排最小
 	# ——主花色 AA22 < ♠1010♠99 < ♠7788（若存在）
 	var main_7_8 := detect([
 		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_7, 1),

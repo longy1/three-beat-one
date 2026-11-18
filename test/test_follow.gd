@@ -261,7 +261,7 @@ func test_four_jokers_optional_on_side_lead(test) -> void:
 	test.eq(verdict(hand, hand.duplicate(), lead).role, FollowRule.Role.KILL, "四王杀副牌拖拉机（可选）")
 
 
-## ============================= 主牌甩打判定（规则 7.3，2026-11-17 增补） =============================
+## ============================= 主牌甩打判定（规则 7.3） =============================
 
 func test_trump_dump_shape(test) -> void:
 	test.check(FollowRule.is_trump_dump([C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0)], trump), "两张主牌单张可甩")

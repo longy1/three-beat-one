@@ -170,8 +170,8 @@ func test_table_seat_wiring(test) -> void:
 
 
 ## VoidStamp：【无主】印章默认隐藏，set_void_trump 点亮；SeatPanel 集成锚定右下角
-## 回归（2026-11-17 用户报告）：印章曾是 PanelContainer 直接子件，容器整面填充布局
-## 把 position 重置回内容区原点——印章被拽到左上角压住姓名。修复用 top_level 脱离布局树
+## 回归（用户报告）：印章曾是 PanelContainer 直接子件，容器整面填充布局
+## 会把 position 重置回内容区原点——印章被拽到左上角压住姓名。修复用 top_level 脱离布局树
 func test_void_stamp_component(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	var panel: SeatPanel = load("res://scene/seat_panel.tscn").instantiate()
@@ -216,7 +216,7 @@ func test_hand_area_selection_retention(test) -> void:
 	ha._toggle_select(hand[0])
 	ha._toggle_select(hand[1])
 	test.eq(ha.selected.size(), 2, "选中 2 张")
-	ha.begin_select("play")  # 新一轮同模式：不重置（2026-11-17 需求）
+	ha.begin_select("play")  # 新一轮同模式：不重置（选牌跨轮保留需求）
 	test.eq(ha.selected.size(), 2, "同模式续轮保留选择")
 	ha.consume_selected([hand[0]])  # 打出 ♠A
 	test.eq(ha.selected.size(), 1, "已打出的牌从选择移除")
@@ -275,7 +275,7 @@ func test_hand_area_trump_side_suit_grouping(test) -> void:
 	ha.queue_free()
 
 
-## 回归（2026-11-17 用户报告「牌不在手中」整局卡死）：快速出牌+马上连打的渲染
+## 回归（用户报告「牌不在手中」整局卡死）：快速出牌+马上连打的渲染
 ## 竞争可在 selected 留下已打出牌的陈旧引用，此后所有提交都被引擎 NOT_IN_HAND 拒绝。
 ## 修复：render 以当前权威手牌为准自动剪除陈旧引用（结构性自愈，不依赖复现竞态）
 func test_hand_area_render_prunes_stale_selection(test) -> void:

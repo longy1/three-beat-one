@@ -7,8 +7,8 @@ extends UiTestBase
 ## - 牌堆悬停失效：SeatPanel.setup(seat) 被遗漏，座位号恒 -1
 ## - 叫主前手牌丢王/2：主牌组加入条件误写 trump != null
 ## - 捉分一致性：信息栏显示与引擎 captured_points 逐步一致
-## - （2026-11-17 历史面板重做）座位悬停历史弹层路径整体移除：悬停座位不再弹出任何面板
-## - （2026-11-17 历史面板重做）出牌历史面板：十字摆位一轮四家出牌、翻轮次四按钮
+## - 座位悬停历史弹层路径整体移除：悬停座位不再弹出任何面板
+## - 出牌历史面板：十字摆位一轮四家出牌、翻轮次四按钮
 ##   边界禁用、✕/点击窗口外关闭、打开期间轮次增长就地收敛
 
 
@@ -65,7 +65,7 @@ func test_hand_renders_all_cards_before_trump(test) -> void:
 	await _release_table(table)
 
 
-## 回归（2026-11-17 历史面板重做）：座位悬停不再弹出历史弹层（原悬停路径已移除）
+## 回归：座位悬停不再弹出历史弹层（悬停路径已移除，历史走 TrickHistoryPanel）
 func test_seat_hover_opens_no_popup(test) -> void:
 	var table = await _spawn_table()
 	_drive_step(table.engine)  # 走一步拍卖，保证有真实座位数据
@@ -250,7 +250,7 @@ func test_captured_label_matches_engine(test) -> void:
 	await _release_table(table)
 
 
-## 人类庄家翻底后：底牌 8 张入手即呈选中态（2026-11-17 需求，便于观察与直接扣回）
+## 人类庄家翻底后：底牌 8 张入手即呈选中态（便于观察与直接扣回）
 func test_kitty_preselected_after_flip(test) -> void:
 	var table = await _spawn_table()
 	var eng: GameEngine = table.engine
@@ -291,7 +291,7 @@ func test_void_stamp_wiring(test) -> void:
 	test.check(not table.seat_panels[2].get_node("VoidStamp").visible, "丙未公示 → 印章隐藏")
 	test.check(table.seat_panels[3].get_node("VoidStamp").visible, "丁公示无主 → 印章显示")
 	test.check(table.human_void_stamp.visible, "人类位公示无主 → 印章显示")
-	test.eq(table.human_void_stamp.position, Vector2(958, 488), "人类位印章固定槽位 = 手牌右上方（2026-11-17 需求）")
+	test.eq(table.human_void_stamp.position, Vector2(958, 488), "人类位印章固定槽位 = 手牌右上方")
 	eng.trump_void_seats = [false, false, false, false]
 	table._refresh()
 	test.check(not table.human_void_stamp.visible, "复位后隐藏")
@@ -299,7 +299,7 @@ func test_void_stamp_wiring(test) -> void:
 	await _release_table(table)
 
 
-## 出牌历史面板（2026-11-17 重做）：打开即定位最后一轮，十字摆位四家出牌、
+## 出牌历史面板：打开即定位最后一轮，十字摆位四家出牌、
 ## 赢家 ✓ 金标、页码文案与导航边界禁用态
 func test_trick_history_panel_layout(test) -> void:
 	var table = await _spawn_table()
@@ -349,7 +349,7 @@ func test_trick_history_panel_layout(test) -> void:
 	await _release_table(table)
 
 
-## 状态驱动刷新（2026-11-17 重做）：面板打开期间新轮次结算 → refresh 就地收敛页码并
+## 状态驱动刷新：面板打开期间新轮次结算 → refresh 就地收敛页码并
 ## 保持显示（trick_settled → _refresh → refresh）；关闭后刷新必须无效
 func test_trick_history_panel_refresh(test) -> void:
 	var table = await _spawn_table()
@@ -374,7 +374,7 @@ func test_trick_history_panel_refresh(test) -> void:
 	await _release_table(table)
 
 
-## 回归（2026-11-17 用户需求）：出牌提交成功后按钮立即隐藏——结算停留期
+## 回归（用户需求）：出牌提交成功后按钮立即隐藏——结算停留期
 ## 内下一个 *_required 处理器因 await 挂起，旧「出牌」按钮曾挂满整个停留期
 func test_play_bar_hidden_during_settle_pause(test) -> void:
 	var table = await _spawn_table()
@@ -435,7 +435,7 @@ func test_play_bar_hidden_during_settle_pause(test) -> void:
 	await _release_table(table)
 
 
-## 历史按钮打开出牌历史面板（2026-11-17 用户需求重做）：
+## 历史按钮打开出牌历史面板：
 ## 默认最后一轮；【<<】【<】【>】【>>】翻第一页/上一页/下一页/最后一轮；
 ## ✕ 或点击窗口外（遮罩）关闭
 func test_history_chip_opens_panel_nav_and_close(test) -> void:
@@ -519,7 +519,7 @@ func test_history_chip_opens_panel_nav_and_close(test) -> void:
 	await _release_table(table)
 
 
-## 揭主双飞（2026-11-17 用户需求）：主 R 牌与皇冠同现于中央，牌面飞至信息栏，
+## 揭主双飞（用户需求）：主 R 牌与皇冠同现于中央，牌面飞至信息栏，
 ## 飞行中信息栏不显示主牌，落位后才显示
 func test_trump_reveal_flies_to_sidebar(test) -> void:
 	var table = await _spawn_table()

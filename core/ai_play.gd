@@ -10,10 +10,10 @@ extends RefCounted
 ## - 领出：手中牌力最大的完整牌型（拖拉机 > 对子 > 单张）
 ## - 跟牌：有同型 → 队友领先就出最小（不拆台），否则能赢用最小，赢不了出最小
 ## - 下分：庄家当前领先且未现身牌中仍有同型能压过其当前牌（队友可能握有）→ 垫分进该轮；
-##   确定无人能压（如双大王已现身、庄家出小王）→ 保留分牌（2026-11-17 迭代）
+##   确定无人能压（如双大王已现身、庄家出小王）→ 保留分牌
 ## - 杀/垫：无领出花色时，桌面 ≥10 分或最后一手且能压过 → 最小杀；否则垫最差牌
 ##   （防守方在队友领先时垫分喂队友）；垫牌避开队友已清的副花色（每门留一家闲家守门），
-##   并按花色顶牌分级：顶 ≤10 无赢张的门尽早清理，含 K/A 的门更多保留（2026-11-17）
+##   并按花色顶牌分级：顶 ≤10 无赢张的门尽早清理，含 K/A 的门更多保留
 ## 全部输出交由 GameEngine 校验；自动对局测试（test_ai_policy.gd）即其正确性验证。
 
 
@@ -62,7 +62,7 @@ static func choose_trump(hand: Array) -> Dictionary:
 
 ## ============================= 扣底 =============================
 
-## 扣底（8.2 策略注记 + 2026-11-17 平衡细化）：
+## 扣底（8.2 策略注记，平衡细化）：
 ## - 保留一门副花色整门在手作赢张引擎：选顶牌牌力最强（平手取更长）且 ≥2 张的门，
 ##   其分牌随整门保留（顶张赢面大，不必白扣入底）
 ## - 其余副牌：分牌优先入底（底牌分闲家极难得），再按牌力补足
@@ -171,7 +171,7 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 	var last_seat := plays.size() >= 3
 	var s_class: int = lead.suit
 
-	# 提前下分（2026-11-17 迭代）：当前庄家领先、且未现身牌中仍存在能压过其当前牌的
+	# 提前下分：当前庄家领先、且未现身牌中仍存在能压过其当前牌的
 	# 同型牌（队友手里可能还握着）→ 把分牌垫进这轮；确定压不住（如双大王已现身、
 	# 庄家出小王）→ 保留分牌。判定见 _unseen_can_beat。
 	var teammate_may_beat: bool = i_am_defender and cur.seat == banker_seat and plays.size() <= 2 \
@@ -216,7 +216,7 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 		_teammate_shed_suits(history, trump, seat, banker_seat))
 
 
-## 未现身牌中是否仍存在能压过 beat_combo 的同型牌（2026-11-17 下分前置条件）。
+## 未现身牌中是否仍存在能压过 beat_combo 的同型牌（下分前置条件）。
 ## 未见 = 全副牌 − 历史已出 − 本轮已出 − 我的手牌（底牌不可知，按仍可能在队友手中计）。
 ## 单张：同类更高单牌；对子：同身份两张未见且更高；拖拉机：相邻两对未见且更高；
 ## 副牌轮另计主牌杀（未现身主牌同型即可压过一切副牌）。
@@ -294,7 +294,7 @@ static func _infer_suit_voids(history: Array, trump: TrumpInfo) -> Dictionary:
 	return voids
 
 
-## 领出策略（2026-11-17 角色化重写 + 甩牌与破坏副牌增补）：
+## 领出策略（角色化：甩牌与破坏副牌增补）：
 ## - 庄家：⓪三家均已公示无主 → 7.3 甩主牌（每次最多 4 张，逼三家各垫 n 张压缩闲家牌力）
 ##   ①握顶张（大王对/四王）先出最高常主对勾引（藏强牌诱闲家下分/耗牌）
 ##   ②弱主（无王 ≤5 张）且有副对 → 先出最小主牌单张逼闲家放主
@@ -349,10 +349,10 @@ static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: 
 		for pair in trump_pairs:
 			if not pair[0].is_joker() and trump.is_permanent_trump(pair[0]):
 				permanent_pairs.append(pair)
-		# ⓪ 7.3 甩牌（2026-11-17）：三家均已公示无主 → 甩主牌。
+		# ⓪ 7.3 甩牌：三家均已公示无主 → 甩主牌。
 		# 甩 n 张逼三家各垫 n 张（一轮挤压 3n 张），闲家手里的分牌会被强制垫出而作废；
 		# 闲家皆无主后我方余下的副牌组合本就稳赢，无须再留主配合。
-		# 每次最多甩 4 张（2026-11-17 用户定夺：太多看不清）；主牌更多时下一轮继续甩。
+		# 每次最多甩 4 张（用户定夺：太多看不清）；主牌更多时下一轮继续甩。
 		if defenders_void >= 3 and trump_count >= 2:
 			var dump: Array = []
 			for c in hand:
@@ -396,7 +396,7 @@ static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: 
 		if not trump_tractors.is_empty():
 			return best_trump
 	# 副牌组合评分：队友缺失花色加成（可放心喂分），庄家缺失花色减分（防小杀），
-	# 庄家还持有的花色加成（2026-11-17：持续消耗其副牌，直到底牌被磨干）
+	# 庄家还持有的花色加成（持续消耗其副牌，直到底牌被磨干）
 	if not side_combos.is_empty():
 		var voids := _infer_suit_voids(history, trump)
 		var banker_held: Dictionary = _banker_held_suits(history, trump, banker_seat, voids)
@@ -417,7 +417,7 @@ static func _choose_lead(hand: Array, trump: TrumpInfo, seat: int, banker_seat: 
 				best_score = score
 				best_side = sc
 		return best_side.cards
-	# 无副牌组合 → 单张试探破坏庄家副牌（2026-11-17）：
+	# 无副牌组合 → 单张试探破坏庄家副牌：
 	#   确定庄家剩某副花色 → 领该花色最大牌（带分即为出分试探，逼庄家杀分或持续跟牌减薄）
 	#   不确定庄家剩什么 → 领 A/Q 级大牌试探（庄家跟牌减薄，或被迫杀主消耗）
 	var probe_voids := _infer_suit_voids(history, trump)
@@ -617,7 +617,7 @@ static func _pair_power_asc(trump: TrumpInfo) -> Callable:
 
 
 ## 垫牌排序：非主牌在前 →（喂队友：分牌大者在前 / 普通：分牌小者在前）
-## → 花色强弱分级（弱门先清，2026-11-17 牌力细化）→ avoid_suits 花色靠后（守门协调）
+## → 花色强弱分级（弱门先清，按顶牌牌力细化）→ avoid_suits 花色靠后（守门协调）
 ## → 牌力低者在前
 static func _dump_key_asc(trump: TrumpInfo, feed: bool, avoid_suits: Array,
 		suit_classes: Dictionary = {}) -> Callable:
@@ -641,7 +641,7 @@ static func _dump_key_asc(trump: TrumpInfo, feed: bool, avoid_suits: Array,
 		return trump.card_power(a) < trump.card_power(b)
 
 
-## 垫牌的花色强弱分级（2026-11-17，按花色顶牌牌力三档）：
+## 垫牌的花色强弱分级（按花色顶牌牌力三档）：
 ## 0 = 顶 ≤10（无赢张，尽早清理）；1 = 顶 J/Q（中性）；2 = 顶 ≥K（有 K/A 级赢张，更多保留）。
 ## 副花色 card_power 即点数值（3.1），弱门留之无守门价值，分级优先于守门避让。
 static func _suit_classes(hand: Array, trump: TrumpInfo) -> Dictionary:
@@ -658,7 +658,7 @@ static func _suit_classes(hand: Array, trump: TrumpInfo) -> Dictionary:
 
 
 ## 队友（其余闲家，含人类 0 号位）垫牌清掉的副花色：以垫牌角色累计 ≥2 张视为在清该门。
-## 我方自由垫牌避开同门——每门副牌至少留一家闲家守门，末局庄家剩余副牌有人能压（2026-11-17）。
+## 我方自由垫牌避开同门——每门副牌至少留一家闲家守门，末局庄家剩余副牌有人能压。
 static func _teammate_shed_suits(history: Array, trump: TrumpInfo, seat: int, banker_seat: int) -> Array:
 	var counts := {}
 	for th in history:

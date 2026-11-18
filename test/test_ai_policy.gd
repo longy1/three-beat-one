@@ -9,7 +9,7 @@ func test_choose_bid_levels(test) -> void:
 	AiPolicy.rng.seed = 2026
 	# 极强牌（四王 + ♠2 对 + ♥A 对 + ♣K 对，strength=107 → 校准桶 [65,∞)）。
 	# 缩水手牌（10 张）假想定主 {♠, R=2}：主牌仅 6 张、扫荡概率 ≈0.45 → 上探档仅 165，
-	# 155 起即被 EV 门挡住——165/180 行为同旧版（满编 19 张的扫荡上探见 test_sweep_bid_cap）
+	# 155 起即被 EV 门挡住（满编 19 张的扫荡上探见 test_sweep_bid_cap）
 	var strong: Array = [
 		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1),
 		C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 1),
@@ -29,7 +29,7 @@ func test_choose_bid_levels(test) -> void:
 		C(Card.Suit.SPADE, Card.RANK_A, 1), C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1),
 		C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.DIAMOND, Card.RANK_2, 0),
 		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)]
-	# 2026-11-17 平滑化 + 2026-11-18 扫荡迭代：EV 定愿叫上限档、扫荡概率按档上探；
+	# 策略口径：EV 定愿叫上限档、扫荡概率按档上探；
 	# 叫分一律 最高+5 平滑递进，不跳档
 	test.eq(AiPolicy.choose_bid(strong, 130), 135, "极强牌从 130 一手只叫 +5（不跳档）")
 	# 有人已叫 135 且我极强 → 150 档正 EV（+0.33）→ 确定性 +5 参与（仍不越过愿叫上限）
@@ -45,7 +45,7 @@ func test_choose_bid_levels(test) -> void:
 		"中等牌噪声区：要么放弃要么 +5（实际 %s）" % str(medium_bid))
 
 
-## ── 扫荡模型 fixture（探针实测 2026-11-18；填充张不成对不计强度）──
+## ── 扫荡模型 fixture（探针实测值定格；填充张不成对不计强度）──
 
 func _filler9() -> Array:
 	return [
@@ -110,7 +110,7 @@ func _sweep_mid_long() -> Array:
 		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)]
 
 
-## 扫荡概率单调性（2026-11-18 扫荡模型）：主牌越多/结构越强概率越高；
+## 扫荡概率单调性：主牌越多/结构越强概率越高；
 ## 对手加叫即时压低——每次表态以最新叫分重算，即「及时更新预估概率」
 func test_sweep_prob_monotonic(test) -> void:
 	var strong19: Array = _sweep_strong19()
@@ -123,9 +123,8 @@ func test_sweep_prob_monotonic(test) -> void:
 	test.check(AiPolicy.sweep_prob(strong19, [200]) < AiPolicy.sweep_prob(strong19, [180]), "加叫 200 压得最低")
 
 
-## 扫荡概率 → 愿叫上限上探 + 对手加叫证据压回（2026-11-18 叫分迭代；
-## 探 200 与放宽参与为用户定夺）。165 档行为翻转：旧版全负 EV 一律放弃，
-## 扫荡概率高的手现在跟叫——满编四王手逐级跟至封顶 200
+## 扫荡概率 → 愿叫上限上探 + 对手加叫证据压回（探 200 与放宽参与为用户定夺）：
+## 扫荡概率高的手逐级跟叫——满编四王手跟至封顶 200
 func test_sweep_bid_cap_follows_prob(test) -> void:
 	AiPolicy.rng.seed = 2026
 	var strong19: Array = _sweep_strong19()
@@ -136,7 +135,7 @@ func test_sweep_bid_cap_follows_prob(test) -> void:
 	var ev200: Array = [{value = 130, passed = false}, {value = 200, passed = false},
 		{value = 0, passed = false}, {value = 0, passed = false}]
 	test.eq(AiPolicy.choose_bid(strong19, 130), 135, "扫荡手同样 +5 平滑递进（不跳档）")
-	test.eq(AiPolicy.choose_bid(strong19, 165), 170, "扫荡上探：165 档旧版放弃现跟叫 170")
+	test.eq(AiPolicy.choose_bid(strong19, 165), 170, "扫荡上探：165 档跟叫 170")
 	test.eq(AiPolicy.choose_bid(strong19, 195), 200, "极端扫荡（P≈0.96）探顶 200")
 	test.eq(AiPolicy.choose_bid(strong19, 175, 0, ev200), 180, "对手已叫 200 → 概率 0.96→0.65 → 上探回落 180")
 	test.eq(AiPolicy.choose_bid(strong19, 195, 0, ev200), GameEngine.BID_PASS, "对手已叫 200 → 195 档及时收手")
@@ -181,7 +180,7 @@ func test_choose_discard_prefers_side_points(test) -> void:
 		test.check(found, "分牌 %s 入底" % key[0])
 
 
-## 扣底保留一门（2026-11-17 平衡细化）：顶牌最强的副花色整门尽量保留，
+## 扣底保留一门（平衡细化）：顶牌最强的副花色整门尽量保留，
 ## 其余副牌分牌优先入底；保留门只在其余副牌凑不满时才从最弱处扣
 func test_choose_discard_keeps_strongest_side_suit(test) -> void:
 	var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
@@ -222,7 +221,7 @@ func test_choose_discard_keeps_strongest_side_suit(test) -> void:
 	test.check(discard2.has(hand2[0]), "无保留门时副牌 ♦A 顺手入底")
 
 
-## 垫牌守门协调（2026-11-17）：队友（含人类 0 号位）累计垫 ≥2 张的副花色 =「在清该门」，
+## 垫牌守门协调：队友（含人类 0 号位）累计垫 ≥2 张的副花色 =「在清该门」，
 ## 本家自由垫牌避开同门（分值打平时生效）——每门副牌至少留一家闲家，末局能压庄家剩牌
 func test_defender_discard_avoids_teammate_shed_suit(test) -> void:
 	var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
@@ -255,7 +254,7 @@ func test_defender_discard_avoids_teammate_shed_suit(test) -> void:
 	test.eq(play3, [hand3[1]], "队友领先喂分：分牌优先压过 avoid（♣5 照喂）")
 
 
-## 垫牌牌力分级（2026-11-17）：花色顶牌三档——≤10 尽早清理、J~Q 中性、K/A 级更多保留；
+## 垫牌牌力分级：花色顶牌三档——≤10 尽早清理、J~Q 中性、K/A 级更多保留；
 ## 分级优先于守门避让与逐张牌力（弱门无守门价值），分牌保护仍最优先
 func test_defender_discard_clears_weak_suits_first(test) -> void:
 	var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
@@ -395,7 +394,7 @@ func test_choose_play_permanent_pair_lead_no_trump(test) -> void:
 	test.eq(v.role, FollowRule.Role.DISCARD, "角色 = 自由垫牌")
 
 
-## ============================= 角色化领出策略（2026-11-17） =============================
+## ============================= 角色化领出策略 =============================
 
 ## 闲家不主动领主牌对：有副牌对 → 领副牌；庄家公示无主 / 无副牌 → 例外许可
 func test_defender_avoids_trump_pair_lead(test) -> void:
@@ -453,7 +452,7 @@ func test_banker_bleeds_low_trump_then_charges(test) -> void:
 		C(Card.Suit.DIAMOND, Card.RANK_7, 0)]
 	var lead := AiPlay.choose_play(hand, t, [], 2, 2)
 	test.eq(lead, [hand[0]], "弱主（无王 2 张）+ 有副对 → 先出最小主牌单张逼主")
-	# 2026-11-17：三家全公示无主 → 触发 7.3 甩牌（甩出全部主牌压缩闲家）
+	# 三家全公示无主 → 触发 7.3 甩牌（甩出全部主牌压缩闲家）
 	var dump := AiPlay.choose_play(hand, t, [], 2, 2, [], [true, true, false, true])
 	test.eq(dump, [hand[0], hand[1]], "三家公示无主 → 甩出全部主牌（7.3）")
 	# 仅逼空 2 家（尚有一家可能有主）→ 不甩牌，改闯最大副牌
@@ -484,7 +483,7 @@ func test_defender_feeds_points_when_teammate_may_beat(test) -> void:
 	var plays := [{seat = 2, cards = [C(Card.Suit.SPADE, Card.RANK_5, 0)], role = FollowRule.Role.LEAD}]
 	var feed := AiPlay.choose_play(hand, t, plays, 1, 2, [])
 	test.eq(feed, [hand[1]], "庄家领先 + 未见牌仍可能压过 → 提前垫 ♦K 下分")
-	# 用户示例（2026-11-17）：双大王已现身、庄家出小王 → 未现身牌无一能压过 → 不下分
+	# 用户示例：双大王已现身、庄家出小王 → 未现身牌无一能压过 → 不下分
 	var jokers_out := [{plays = [
 		{seat = 0, cards = [
 			C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0), C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 1)],
@@ -494,7 +493,7 @@ func test_defender_feeds_points_when_teammate_may_beat(test) -> void:
 	test.eq(hold, [hand[0]], "双大王已现身、庄家出小王 → 无人能压 → 垫无分 ♥7 保留分牌")
 
 
-## 下分门槛的对子/杀主维度（2026-11-17）：未现身牌能压过庄家当前对子才下分——
+## 下分门槛的对子/杀主维度：未现身牌能压过庄家当前对子才下分——
 ## 副R对领出时未现身的正R对可压（下分）；正R对已全部现身则无人能压（保留）
 func test_defender_feed_gate_pair_and_kill(test) -> void:
 	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
@@ -563,7 +562,7 @@ func test_defender_no_probe_with_low_cards(test) -> void:
 	test.eq(lead, [hand[1]], "无 A/Q 试探资本 → 回退默认最强单张 ♣8")
 
 
-## 甩牌上限（2026-11-17 用户定夺）：一次最多甩 4 张，主牌更多时分多轮甩
+## 甩牌上限（用户定夺）：一次最多甩 4 张，主牌更多时分多轮甩
 func test_banker_dump_capped_at_four(test) -> void:
 	var t := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
 	var hand := [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.SPADE, Card.RANK_7, 0),
