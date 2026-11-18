@@ -24,7 +24,7 @@
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（全部通过退出码 0；当前 13 套件 139 用例，含联机回环套件）
+# 单元/规则测试（全部通过退出码 0；当前 13 套件 140 用例，含联机回环套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
 
 # UI 冒烟（headless 自动打完一整局，约 1 分钟，退出码 0）
@@ -85,7 +85,7 @@ font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 too
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
 test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ suite_registry.gd（套件注册单一事实源）
-          + test_*.gd（13 套件 139 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 11 用例）+ run_tests.gd + smoke_ui.gd
+          + test_*.gd（13 套件 140 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 11 用例）+ run_tests.gd + smoke_ui.gd
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
 doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md、coding.md（编码规范，编码时查阅）、update.md（代码变更史归档）
 static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新；含 .gdignore 不参与引擎导入）
@@ -159,6 +159,10 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
     留 5 意义不大；有主闲家与 feed 喂分档位不变）；**聚焦清一门** `_defender_focus_suit`——
     选队友已垫大牌（≥K）且本家顶 ≤Q（自己握赢张的门保留作捕获门）的副花色整门最先清，
     守门避让对该门失效（无主守门不成立），此后该门领出全是自由垫牌机会
+  - 队友无主后的垫牌（2026-11-18 迭代）：闲家有主但队友已公示无主时，主牌集中在我与
+    庄家手中——庄家领主逼牌必抽走小分主、拿分主杀也会被更大的主盖掉 → **主牌分降为
+    可垫档**（`build_discard` mate_void 通道），无分大牌主（A/2/王等）照旧最后保留；
+    feed 喂分档位不变
   - 庄家扣底（2026-11-17 平衡细化）：保留顶牌最强（平手取更长）且 ≥2 张的副花色整门作赢张引擎，
     其分牌随门保留在手；其余副牌分牌优先入底（8.2 策略注记）；保留门仅在凑不满 8 张时
     才从最弱处扣起；常主不扣

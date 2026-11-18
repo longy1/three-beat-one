@@ -31,9 +31,12 @@ func test_choose_bid_levels(test) -> void:
 		C(Card.Suit.SPADE, Card.RANK_7, 0), C(Card.Suit.SPADE, Card.RANK_8, 0)]
 	# 策略口径：EV 定愿叫上限档、扫荡概率按档上探；
 	# 叫分一律 最高+5 平滑递进，不跳档
-	test.eq(AiPolicy.choose_bid(strong, 130), 135, "极强牌从 130 一手只叫 +5（不跳档）")
-	# 有人已叫 135 且我极强 → 150 档 EV −0.01 落噪声区（重训后 135 为唯一正期望档）
-	# → 40% 概率参与或放弃（两可断言）
+	# 重训后 135 顶档翻负（−0.51 落噪声区）→ 40% 概率参与或放弃（两可断言）
+	AiPolicy.rng.seed = 2026
+	var open_bid: int = AiPolicy.choose_bid(strong, 130)
+	test.check(open_bid == GameEngine.BID_PASS or open_bid == 135,
+		"强牌开叫：噪声区两可（实际 %s）" % str(open_bid))
+	# 有人已叫 135 且我极强 → 150 顶档 EV −0.61 出噪声区 → 放弃（无扫荡特批）
 	AiPolicy.rng.seed = 7
 	var near_cap: int = AiPolicy.choose_bid(strong, 135)
 	test.check(near_cap == GameEngine.BID_PASS or near_cap == 140,
@@ -138,13 +141,13 @@ func test_sweep_bid_cap_follows_prob(test) -> void:
 	test.eq(AiPolicy.choose_bid(strong19, 130), 135, "扫荡手同样 +5 平滑递进（不跳档）")
 	test.eq(AiPolicy.choose_bid(strong19, 165), 170, "扫荡上探：165 档跟叫 170")
 	test.eq(AiPolicy.choose_bid(strong19, 195), 200, "极端扫荡（P≈0.96）探顶 200")
-	# 重训后 180 顶档 EV −2.01 跌出特批下限（−2.0）→ 概率 0.65 不再特批，及时收手（旧版跟 180）
-	test.eq(AiPolicy.choose_bid(strong19, 175, 0, ev200), GameEngine.BID_PASS,
-		"对手已叫 200 → 概率 0.65、EV −2.01 越特批下限 → 收手")
+	# 重训后 180 顶档回到特批下限内（−1.47 > −2.0）→ 概率 0.65 特批参与 → 跟 180
+	test.eq(AiPolicy.choose_bid(strong19, 175, 0, ev200), 180,
+		"对手已叫 200 → 概率 0.65、EV −1.47 在特批下限内 → 跟 180")
 	test.eq(AiPolicy.choose_bid(strong19, 195, 0, ev200), GameEngine.BID_PASS, "对手已叫 200 → 195 档及时收手")
 	test.eq(AiPolicy.choose_bid(loaded, 195, 0, ev200), 200, "满灌长主手（主牌 14 张）对加叫 200 免疫仍探顶")
 	test.eq(AiPolicy.choose_bid(thin, 165), GameEngine.BID_PASS, "强而主薄（P≈0.38）不上探 → 165 仍放弃")
-	test.eq(AiPolicy.choose_bid(mid_long, 130), 135, "长主无王牌（EV −1.6 弱负）扫荡特批参与")
+	test.eq(AiPolicy.choose_bid(mid_long, 130), 135, "长主无王牌（EV −1.2 弱负）扫荡特批参与")
 	test.eq(AiPolicy.choose_bid(long_suit, 195), 200, "长套无王但结构极强（P=1.0）极端探顶")
 
 
@@ -320,6 +323,28 @@ func test_defender_no_trump_demotes_five_and_focuses_suit(test) -> void:
 	var plays_feed := [{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_A, 0)], role = FollowRule.Role.LEAD}]
 	var play6 := AiPlay.choose_play(hand6, trump, plays_feed, 1, 2)
 	test.eq(play6, [hand6[1]], "喂分档位不变：♥10 先于 ♥5")
+
+
+## 队友已公示无主：主牌集中在我与庄家手中，庄家领主逼牌必抽走小分主、杀分也会被
+## 更大的主盖掉——主牌分降为可垫档，无分大牌主与副牌大牌照旧保留；feed 档位不变
+func test_defender_mate_void_demotes_trump_points(test) -> void:
+	var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	# 垫牌档位：主5 降为可垫档先出（旧行为垫 ♥5），♥K 大牌压轴
+	var hand9 := [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_5, 0),
+		C(Card.Suit.HEART, Card.RANK_K, 0)]
+	var d9 := AiPlay.build_discard(hand9, trump, 2, false, [], [], true)
+	test.eq(d9, [hand9[0], hand9[1]], "队友无主：主5 降为可垫档先出，♥K 大牌压轴")
+	# 无分大牌主不降档：♠A 照旧最后保留
+	var hand10 := [C(Card.Suit.SPADE, Card.RANK_A, 0), C(Card.Suit.HEART, Card.RANK_5, 0),
+		C(Card.Suit.CLUB, Card.RANK_7, 0)]
+	var d10 := AiPlay.build_discard(hand10, trump, 2, false, [], [], true)
+	test.eq(d10, [hand10[2], hand10[1]], "无分大牌主 ♠A 照旧最后保留（♣7、♥5 先垫）")
+	# feed 档位不变：队友领先时主牌分仍靠后，先喂 ♥10
+	var hand11 := [C(Card.Suit.SPADE, Card.RANK_5, 0), C(Card.Suit.HEART, Card.RANK_10, 0)]
+	var d11 := AiPlay.build_discard(hand11, trump, 1, true, [], [], true)
+	test.eq(d11, [hand11[1]], "feed 档位不变：♥10 先喂（主5 靠后）")
+	# choose_play 层的 trump_void 传参管线由甩牌用例与自动对局覆盖；
+	# 此处垫牌末手会被杀牌分支拦截（末手必以最小主杀），mate_void 档位以直测为准
 
 
 ## ============================= 自动对局不变量 =============================

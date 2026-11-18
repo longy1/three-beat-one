@@ -213,9 +213,13 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 				if opt.power > beat_power:
 					return opt.cards
 	var feed: bool = (winner_is_teammate and i_am_defender) or teammate_may_beat
+	var mate_void := false
+	for s in 4:
+		if s != seat and s != banker_seat and trump_void[s]:
+			mate_void = true
 	return build_discard(hand, trump, lead.cards.size(), feed,
 		_teammate_shed_suits(history, trump, seat, banker_seat),
-		_defender_focus_suit(history, trump, seat, banker_seat, hand))
+		_defender_focus_suit(history, trump, seat, banker_seat, hand), mate_void)
 
 
 ## 未现身牌中是否仍存在能压过 beat_combo 的同型牌（下分前置条件）。
@@ -597,9 +601,10 @@ static func build_exhaust_play(class_cards: Array, hand: Array, n: int, suit_cla
 
 ## 垫牌：优先非主牌、非分牌；花色按顶牌牌力分级（弱门先清、K/A 强门留）；
 ## feed_teammate 时优先垫分牌喂队友；avoid_suits 的花色最后才垫（守门协调）；
-## focus_suits 为无主闲家的聚焦门（整门最先清，见 _defender_focus_suit）
+## focus_suits 为无主闲家的聚焦门（整门最先清，见 _defender_focus_suit）；
+## mate_void = 队友已公示无主（主牌分降为可垫档，见 _dump_key_asc）
 static func build_discard(hand: Array, trump: TrumpInfo, n: int, feed_teammate := false,
-		avoid_suits: Array = [], focus_suits: Array = []) -> Array:
+		avoid_suits: Array = [], focus_suits: Array = [], mate_void := false) -> Array:
 	var has_trump := false
 	for c in hand:
 		if trump.is_trump(c):
@@ -607,7 +612,7 @@ static func build_discard(hand: Array, trump: TrumpInfo, n: int, feed_teammate :
 			break
 	var dump: Array = hand.duplicate()
 	dump.sort_custom(_dump_key_asc(trump, feed_teammate, avoid_suits,
-		_suit_classes(hand, trump), focus_suits, not has_trump))
+		_suit_classes(hand, trump), focus_suits, not has_trump, mate_void))
 	return dump.slice(0, n)
 
 
@@ -627,13 +632,21 @@ static func _pair_power_asc(trump: TrumpInfo) -> Callable:
 
 ## 垫牌排序：非主牌在前 →（喂队友：分牌大者在前 / 普通：分牌小者在前）
 ## → 无主闲家特例：5 与无分牌同档（留 5 无赢张价值，尽早甩出）、聚焦门最先清
-## → 花色强弱分级（弱门先清，按顶牌牌力细化）→ avoid_suits 花色靠后（守门协调）
-## → 牌力低者在前
+## → 队友已无主特例：主牌分（带分主牌）降为可垫档——此时主牌集中在我与庄家手中，
+##   庄家领主逼牌必抽走小分主、拿去杀也会被更大的主盖掉，留分不如留大牌
+##   （无分大牌主照旧最后保留）→ 花色强弱分级（弱门先清，按顶牌牌力细化）
+## → avoid_suits 花色靠后（守门协调）→ 牌力低者在前
 static func _dump_key_asc(trump: TrumpInfo, feed: bool, avoid_suits: Array,
-		suit_classes: Dictionary = {}, focus_suits: Array = [], no_trump := false) -> Callable:
+		suit_classes: Dictionary = {}, focus_suits: Array = [], no_trump := false,
+		mate_void := false) -> Callable:
 	return func(a: Card, b: Card) -> bool:
 		var at := 1 if trump.is_trump(a) else 0
 		var bt := 1 if trump.is_trump(b) else 0
+		if mate_void and not feed:
+			if at == 1 and a.points() > 0:
+				at = 0
+			if bt == 1 and b.points() > 0:
+				bt = 0
 		if at != bt:
 			return at < bt
 		var ap: int = a.points()
