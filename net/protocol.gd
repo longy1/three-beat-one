@@ -10,8 +10,14 @@ extends RefCounted
 ##
 ## 客户端 → 服务器：
 ##   hello   { nick }                          连接后首条；重连同昵称且房间存活时自动重连回房
+##                                             （前台复活也走 hello：后台标签页恢复后补发）。
+##                                             昵称即重连身份键：掉线后昵称随房间宽限保留
+##                                             （重连窗口内同昵称 hello 即回房，含对静默
+##                                             在线成员的立即接管），窗口外才释放复用
 ##   create  { }                               新建房间（建者为房主，0 号位）
 ##   join    { code }                          凭房间码加入
+##   sit     { seat }                          大厅落座：空位挪入、他人占座互换（房主身份跟人走）；
+##                                             对局中拒绝。座位变更经 room_state 广播
 ##   leave   { }                               主动退出（房间立即结算关闭）
 ##   start   { fill_ai }                       房主开始对局；人数不满时 fill_ai=true 电脑补位
 ##   next    { }                               房主开下一局
@@ -20,7 +26,8 @@ extends RefCounted
 ##   ping    { }                               心跳（服务器回 pong）
 ##
 ## 服务器 → 客户端：
-##   hello_ok      { nick }
+##   hello_ok      { nick, rejoined }                                        rejoined=true 表示已重连回存活房间
+##                                                                           （客户端自动重连的成功判定依据）
 ##   room_state    { code, members[{seat,name,is_ai,offline}], owner_seat, status, rejoined }
 ##   game_start    { round, dealer, my_hand, counts, members, cumulative }   真座位空间，客户端旋转
 ##   snapshot      { ...game_start 全量公开状态（重连恢复） }                 真座位空间
@@ -30,7 +37,7 @@ extends RefCounted
 ##   kitty         { cards }                                                 仅发给出牌庄家（翻底，规则 2）
 ##   game_over     { result }                                                引擎结算全量（终局底牌公开）
 ##   scores        { rows[{name,score,games}] }                              房间累计分（按座位序）
-##   member_offline { seat, name }                                           成员掉线（宽限期开始）
+##   member_offline { seat, name, grace }                                    成员掉线（宽限期开始，grace=宽限秒数）
 ##   err           { msg }
 ##   room_closed   { reason, rows }                                          房间解散（附带累计分）
 ##   pong          { }
@@ -42,6 +49,7 @@ const HELLO := "hello"
 const HELLO_OK := "hello_ok"
 const CREATE := "create"
 const JOIN := "join"
+const SIT := "sit"
 const LEAVE := "leave"
 const START := "start"
 const NEXT := "next"

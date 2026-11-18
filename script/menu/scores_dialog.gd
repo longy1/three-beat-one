@@ -26,10 +26,12 @@ static func create(parent: Node, rows: Array, my_name: String, reason: String, o
 
 
 func _build(rows: Array, my_name: String, reason: String, on_ok: Callable) -> void:
-	anchor_left = UiStyle.MAIN_TABLE_CENTER.x
-	anchor_right = UiStyle.MAIN_TABLE_CENTER.x
-	anchor_top = UiStyle.MAIN_TABLE_CENTER.y
-	anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
+	# 锚点按当前场景取（UiStyle.center_anchor）：牌桌内=桌面十字中心，菜单/大厅=屏幕正中
+	var anchor_pt: Vector2 = UiStyle.center_anchor(self)
+	anchor_left = anchor_pt.x
+	anchor_right = anchor_pt.x
+	anchor_top = anchor_pt.y
+	anchor_bottom = anchor_pt.y
 	grow_horizontal = Control.GROW_DIRECTION_BOTH
 	grow_vertical = Control.GROW_DIRECTION_BOTH
 	var style := StyleBoxFlat.new()

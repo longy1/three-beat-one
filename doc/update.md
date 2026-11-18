@@ -6,8 +6,76 @@
 > 里程碑级决策仍归《三打哈-Godot工程计划.md》，本文档只收代码注释层的历史注记。
 > 条目按日期倒序，新条目置顶；每条注明迁出前所在的文件。
 
+## 2026-11-19
+
+- 卡牌移动端触控调整（用户需求：①花色点数同行改竖排以缩短牌间距；②适当加大牌尺寸，
+  兼顾画面与主流移动设备触摸目标）：三档尺寸上调——NORMAL 60×86→72×100、MEDIUM
+  50×72→60×86、SMALL 44×64→52×76（iPhone 横屏 letterbox 缩放 ≈0.54 下手牌 ≈39×54pt）；
+  角标改竖排（点数上、花色下；王无花色仅单字），`Card` 拆出 `rank_label()`/`suit_label()`
+  供角标取值；字号随牌放大（中心 30/22/26→34/26/30、背面哈 32/24/28→36/28/32）；
+  连锁同步：信息栏 TrumpSlot 场景 min size 44×64→52×76、出牌区/手牌/揭主飞牌均经
+  SIZE_* 常量自动跟随；手牌区布局数学复核（HandRow 高 118px 容纳 NORMAL+BASE_Y，
+  27 张扣底阶段最小间距仍可行）——原 core/card.gd、script/table/card_widget.gd、
+  script/table/info_sidebar.gd 关联场景 info_sidebar.tscn、
+  script/table/trick_history_panel.gd 注记、test/test_components.gd（竖排角标断言）
+- iOS 视口看门狗（用户报告：iOS Safari 转屏/回前台后画布偏移黑边——Safari 视口在地址栏
+  收合/转屏后分多帧才稳定甚至不触发 resize，Godot 画布按旧视口定格）：export_presets.cfg
+  的 html/head_include 追加 iOS UA 门控脚本——orientationchange/visualViewport resize/
+  visibilitychange(可见) 触发 scrollTo(0,0) 复位页面偏移并合成 window resize（250/700/
+  1500ms 三拍补发），让引擎按稳定后的视口重算画布；仅补发引擎自身监听的事件，无此前
+  rAF 垫片的反作用风险；桌面/安卓路径被 UA 门控跳过零影响；产物 grep 验证注入生效——
+  原 export_presets.cfg、README.md 移动端节、doc/coding.md §3 ⑥、TODO.md iOS 项
+- 居中弹层锚点按场景取（用户报告：房间界面退出时累计分数弹窗歪斜——硬编码桌面十字锚点
+  在菜单/大厅场景无意义）：新增 `UiStyle.center_anchor(node)` 统一规则——当前场景为联机
+  牌桌（挂 `_net`）用桌面十字中心、非牌桌场景（主菜单/联机菜单/房间大厅）用屏幕正中；
+  ScoresDialog/ReconnectOverlay/大厅补电脑确认框三处改走该规则；回归用例补进
+  test_ui_online_table（牌桌内=桌面锚点、主菜单下=屏幕正中两断言）——原 script/ui_style.gd、
+  script/menu/scores_dialog.gd、script/menu/reconnect_overlay.gd、script/menu/room_lobby.gd、
+  doc/coding.md §4、test/test_online.gd
+- 换行符统一（用户需求：审查中反复出现换行符修改，保持 AI 写盘与仓库一致）：根因是 Windows
+  默认 `core.autocrlf=true`（Git 安装器写入系统级配置）在 checkout 时把仓库 LF 注入成 CRLF
+  ——仓库 blob 本就全 LF，工作区却 57 个 CRLF 与 AI 写盘的 LF 混杂；新增 `.gitattributes`
+  （`* text=auto eol=lf` 强制 LF；`*.bat -text` 保持仓库原样；otf/png 等显式 binary）+
+  本仓库 local `core.autocrlf=false`/`core.eol=lf`（不动全局配置）+ 工作区 55 个文本文件
+  CRLF→LF 原地归一（内容零变化仅行尾；bat 保持仓库原样不动；git checkout 类命令对内容
+  等价文件不写盘，故用 sed 原地转换）+ `git add --renormalize` 重归一 index 消除假 M——
+  原 .gitattributes（新增）、.git/config（local）、55 个工作区文件（仅行尾）
+- 大厅选座（用户需求：座位旁加落座按钮，点击挪到那个位置）：协议新增 `sit { seat }`（大厅
+  内落座——空位挪入、他人占座互换，成员字典整体对调、昵称/离线态随人走，对局中拒绝）；
+  房主座位跟人不跟座（owner_seat 按房主昵称推导，开局/下一局权限校验本就按昵称不受影响）；
+  大厅成员行右侧加【落座】按钮（自己所在行不显示、对局中不显示，room_state 广播驱动刷新；
+  视觉稿大厅区域同步）——原 net/protocol.gd、server/room_manager.gd（_on_sit）、
+  server/host_room.gd（sit/owner_seat）、net/net_client.gd（request_sit）、
+  script/menu/room_lobby.gd（_member_row 行改造）、static/ui-mockup.svg、
+  test/test_online.gd（test_seat_sit）
+- 同昵称快速接管与昵称保留口径（用户需求：断连后凭昵称重建连接，昵称为其保留重连窗口）：
+  服务端 `_on_hello` 增加「静默在线成员接管」分支——同昵称 hello 命中在线成员且其 peer
+  静默超阈（TAKEOVER_STALE=15s，客户端 5s 心跳 ×3）时释放旧 peer 映射并立即回房，覆盖
+  「断连未被扫描判出（半开 TCP 发送不报错）」窗口期内重连首试被「昵称已被占用」阻塞约
+  60s 的问题；昵称保留口径明确为「保留窗口 = 重连窗口」（宽限期内随房间保留，重连分支
+  先于占用拒绝；房间解散/主动退出或未进房连接静默清理后才释放复用）——原
+  server/room_manager.gd（_on_hello/_peer_stale/_release_peer）、net/protocol.gd 注释、
+  test/test_online.gd（test_nick_takeover_on_stale）、doc/coding.md §1.12/§5、
+  AGENTS.md §6、README.md 联机段
+
 ## 2026-11-18
 
+- 联机断线重连闭环（用户需求三项）：①服务端心跳判定阈值 15s→60s（Web 后台标签页暂停
+  主循环、心跳停发但连接由浏览器维持，真断连靠探测发送失败即时判定）；掉线成员经旧连接
+  发来的任意消息按 pid 匹配离线成员直接复活回房（room_manager._try_revive，无需重新
+  hello）；②客户端自动重连：NetClient 掉线（在房间/对局中）不再直接弹窗回菜单，改进
+  等待重连弹层（script/menu/reconnect_overlay.gd 新增）+ 3s 定时重试（窗口 150s 与服务端
+  宽限对齐），成功依据 hello_ok 新增 rejoined 字段；回前台补发 hello（FOCUS_IN）为 Web
+  后台恢复的复活入口；期间 ERR 视为「服务端尚未扫出掉线」留待下轮重试（昵称占用未释放
+  的竞态窗口自愈）；服务端离线宽限 120s→180s（用户定夺 3 分钟）、member_offline 附带
+  grace 秒数、离线座位回合 5s 快托管（他人不必干等）、回连时在走的回合计时重挂满正常
+  时长；牌桌/大厅新增掉线等待与重连提示（member_presence 信号）；③底牌浮层遮挡修复：
+  扣底阶段底牌展示 z_index 50→1（只比桌面高一层），出牌历史面板/牌堆弹层显式 z=10
+  ——原 server/room_manager.gd、server/host_room.gd、net/protocol.gd、net/net_client.gd、
+  script/menu/reconnect_overlay.gd（新增）、script/menu/room_lobby.gd、
+  script/table/game_table.gd、script/table/trick_history_panel.gd、script/table/pile_viewer.gd、
+  test/test_online.gd（自动重连/复活/快托管三用例；既有 drop 用例经 auto_reconnect=false
+  保持旧路径）、test/test_ui.gd（底牌层级回归用例）
 - Web 壳清理与主菜单文案：移除导出壳注入的左上角诊断角标 #sbd-diag（墙钟/rAF/分辨率
   统计，CSS 规则、DOM 创建与计数循环整体删除，一并清掉历史遗留的残串行；全屏按钮与
   iOS 提示保留）；主菜单标题「三打一单机版」改「三打一」——原 export_presets.cfg

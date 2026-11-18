@@ -184,12 +184,19 @@
   <text x="770" y="976" font-size="15" fill="#e8f0ea">2 号位 乙：朋友B</text>
   <text x="770" y="1004" font-size="15" fill="#5a7a68">3 号位 丙：（空位）</text>
   <text x="770" y="1032" font-size="15" fill="#5a7a68">4 号位 丁：（空位）</text>
+  <rect x="1088" y="960" width="72" height="22" rx="5" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1124" y="975" font-size="12" fill="#d8e5dd" text-anchor="middle">落座</text>
+  <rect x="1088" y="988" width="72" height="22" rx="5" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1124" y="1003" font-size="12" fill="#d8e5dd" text-anchor="middle">落座</text>
+  <rect x="1088" y="1016" width="72" height="22" rx="5" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1124" y="1031" font-size="12" fill="#d8e5dd" text-anchor="middle">落座</text>
   <text x="960" y="1072" font-size="13" fill="#e8b84a" text-anchor="middle">你是房主：成员到齐可直接开局；人数不满可补电脑</text>
   <rect x="800" y="1092" width="150" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
   <text x="875" y="1118" font-size="15" fill="#d8e5dd" text-anchor="middle">开始游戏</text>
   <rect x="970" y="1092" width="150" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
   <text x="1045" y="1118" font-size="15" fill="#d8e5dd" text-anchor="middle">退出房间</text>
   <text x="960" y="1180" font-size="12" fill="#5a7a68" text-anchor="middle">非房主不显示【开始游戏】；成员标注（房主/你/电脑/离线）；成员变更信号驱动重渲染</text>
+  <text x="960" y="1196" font-size="12" fill="#5a7a68" text-anchor="middle">每行右侧【落座】按钮（自己所在行不显示）：点空位挪入、点他人占座互换；对局中不显示；房主身份跟人不跟座</text>
   <text x="960" y="1208" font-size="12" fill="#e8b84a" text-anchor="middle">人数不满开局 → 居中确认弹层：「人数不满（X/4），是否自动补充电脑玩家？」是/否</text>
   <text x="960" y="1236" font-size="12" fill="#e8b84a" text-anchor="middle">AI 补位名「电脑·乙/丙/丁」按座位定；任意成员退出/关房 → 全员弹累计分窗（见联机屏 2）</text>
 

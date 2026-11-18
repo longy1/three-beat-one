@@ -9,7 +9,7 @@
 
 湘西扑克**三打哈（三打一）**的 Godot 单机版：1 名人类玩家（甲，座位 0，牌桌下方）对 3 名电脑玩家（乙/丙/丁）。
 
-- **已完成**：M1 规则引擎（牌/牌型/跟杀垫/一轮结算）、M2 单机完整对局（拍卖→叫主→翻底扣底→逐轮出牌→抠底→分级收益→庄位轮换）+ 贪心 AI + 牌桌 UI；2026-11-16 完成全项目重构（死代码清理、兜底根治、core/UI 模块拆分、Web 导出与浏览器验收工作流）；2026-11-17 Web 验收闭环（根治静态 preload 致导出脚本失效）+ 规则 7.3（无主公示/主牌甩打）+ 交互改进（底牌入手即选中、选牌跨轮保留、主牌副花色分组排序）；2026-11-18 完成 M4 联机对战（C/S 架构：无头 Godot 服务器 + WebSocket + 可见性裁剪同步 + 超时托管 + 断线重连，见 doc/coding.md §1.10~12）
+- **已完成**：M1 规则引擎（牌/牌型/跟杀垫/一轮结算）、M2 单机完整对局（拍卖→叫主→翻底扣底→逐轮出牌→抠底→分级收益→庄位轮换）+ 贪心 AI + 牌桌 UI；2026-11-16 完成全项目重构（死代码清理、兜底根治、core/UI 模块拆分、Web 导出与浏览器验收工作流）；2026-11-17 Web 验收闭环（根治静态 preload 致导出脚本失效）+ 规则 7.3（无主公示/主牌甩打）+ 交互改进（底牌入手即选中、选牌跨轮保留、主牌副花色分组排序）；2026-11-18 完成 M4 联机对战（C/S 架构：无头 Godot 服务器 + WebSocket + 可见性裁剪同步 + 超时托管 + 断线重连，见 doc/coding.md §1.10~12）+ 同日断线重连闭环（客户端自动重连等待弹层、服务端 180s 宽限 + 旧连接复活 + 离线快托管、底牌浮层层级修正）
 - **待启动**：M3 AI 强化与胜率分析（蒙特卡洛）、M5 部署上线（联机服务器公网部署）
 
 ## 2. 技术栈与环境
@@ -24,7 +24,7 @@
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（全部通过退出码 0；当前 13 套件 140 用例，含联机回环套件）
+# 单元/规则测试（全部通过退出码 0；当前 13 套件 146 用例，含联机回环套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
 
 # UI 冒烟（headless 自动打完一整局，约 1 分钟，退出码 0）
@@ -56,6 +56,9 @@ cd build/web && python -m http.server 8765
 .agents/skills/zsite-deploy/scripts/zsite-cli.sh deploy .zcode-site/stage   # 部署（首建加 --new --name --prefix）
 ```
 
+> **部署须用户明确要求才执行**（「部署/上线/重新发布/更新站点」等指令）：本地 `--export-release "Web"` +
+> 本地 serve 的浏览器验收只是验证环节，**不等于部署**，验证流程照常做，但绝不自动触发 deploy。
+
 **每次改动后的验证顺序**：`--import`（无脚本错误）→ `run_tests.gd`（全绿）→ `smoke_ui.gd`（若动了 UI/引擎流程）→ **Web 导出 + 浏览器截图验收**（若动了视觉/布局/字体）。
 
 ## 3. 目录结构
@@ -86,7 +89,7 @@ script/   表现层脚本（按模块划分子目录；ui_style.gd 为跨模块�
                crown_animator 皇冠动画 / trump_reveal 揭主双飞 / card_widget 卡牌 / crown_badge 皇冠 /
                void_stamp 无主印章 / dashed_frame 虚线框 / seat_panel 座位面板 / info_sidebar 信息栏
   menu/        界面流程模块：main_menu 主菜单 / online_menu 联机入口 / room_lobby 房间大厅 /
-               scores_dialog 累计分数弹层
+               scores_dialog 累计分数弹层 / reconnect_overlay 断线等待重连弹层
   ui_style.gd  UiStyle：跨模块共享的布局锚点常量（MAIN_TABLE_CENTER）与半字号按钮留空
 scene/    场景（与 script/ 子模块一一对应）
   table/       game_table.tscn（内引 seat_panel/info_sidebar 子场景与牌桌组件脚本）
@@ -95,14 +98,14 @@ font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 too
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
 test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ suite_registry.gd（套件注册单一事实源）
-          + test_*.gd（13 套件 140 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 11 用例）+ run_tests.gd + smoke_ui.gd
+          + test_*.gd（13 套件 146 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 16 用例）+ run_tests.gd + smoke_ui.gd
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
 doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md、coding.md（编码规范，编码时查阅）、update.md（代码变更史归档）
 static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新；含 .gdignore 不参与引擎导入）
 build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导出模板在编辑器安装目录 S:\Program\Godot\editor_data\export_templates\，self-contained 模式由 exe 旁 ._sc_ 标记启用）
 ```
 
-`.uid` 文件由 Godot 生成，**必须与对应 `.gd`/`.tscn` 一同提交**；`.godot/`、`.zcode/`、`build/` 已忽略；`export_presets.cfg` **入库**。
+`.uid` 文件由 Godot 生成，**必须与对应 `.gd`/`.tscn` 一同提交**；`.godot/`、`.zcode/`、`build/` 已忽略；`export_presets.cfg` **入库**。根目录 `TODO.md` 为迭代想法 backlog（按模块分节、复选框管理，使用约定见文件头；负向结论/失败迭代不走这里，归工程计划与 update.md）。**换行符约定**：仓库与工作区一律 LF，由 `.gitattributes` 强制（`* text=auto eol=lf`；bat 按 `-text` 保持仓库原样、字体/二进制显式标记），本仓库本地 `core.autocrlf=false`/`core.eol=lf`——Windows 默认 autocrlf=true 会在 checkout 注入 CRLF 与 AI 写盘的 LF 打架，禁止改回。
 
 **命名规范：目录名一律用单数**（core / doc / font / scene / script / static / test / theme / tool），不用复数；新增目录同样遵守。静态设计资产放 static/（含 .gdignore，不参与引擎导入）。
 
@@ -141,6 +144,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 | doc/update.md | 任何原本会写进代码注释的日期戳/变更记录内容（新条目置顶；代码注释禁更新记录，doc/coding.md §2） |
 | doc/重构规范.md | 兜底白名单/拆分原则/验收工作流的演进（重构任务结束后核对） |
 | README.md | 运行方式、玩法说明、目录结构、里程碑状态 |
+| TODO.md | 迭代想法随手记录（backlog，无实现同步义务；负向结论/失败迭代不走这里，归工程计划与 update.md） |
 | static/ui-mockup.svg | 任何 UI 布局/区域变更（先改稿后施工） |
 | .agents/skills/zsite-deploy/ | 部署流程/部署基建（assets 单源）/平台与引擎坑（gotchas）演进 |
 
@@ -203,4 +207,4 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
   房间与累计分随实例 /data 存亡（实例回收即丢）；独立公网服务器部署仍归 M5。联机浏览器验收覆盖
   引导/入口/渲染/字体与客户端校验路径，**文本输入流程需真实键盘**（Godot Web 对合成输入免疫，见
   doc/coding.md §3）——桌面双实例人工验收含完整联机流程
-- **联机（M4）已知简化**：反作弊止步于可见性裁剪（不下发隐藏信息；服务端逻辑仍可被逆向，定位为本地/可信小服）；服务端进程重启会解散进行中的房间（房间累计分与房间留档已持久化不丢）；昵称为在线占用制（只与同时在线互斥，掉线即释放可复用，不持久化——旧版全局注册制已废）；无复盘、无观战、无操作时长配置化
+- **联机（M4）已知简化**：反作弊止步于可见性裁剪（不下发隐藏信息；服务端逻辑仍可被逆向，定位为本地/可信小服）；服务端进程重启会解散进行中的房间（房间累计分与房间留档已持久化不丢；客户端自动重连会重试到窗口截止后交回主菜单）；昵称即重连身份键（不另发 token，定位同上），**掉线不立即释放**：宽限期内随房间保留（同昵称 hello 即回房，静默超阈的在线成员可被同昵称立即接管——覆盖断连未被扫出的窗口期），房间解散/主动退出或未进房连接静默清理后才释放复用，不持久化（旧版全局注册制已废）；断线重连闭环参数：心跳判定 60s / 同昵称接管静默阈 15s / 离线宽限 180s / 离线座位回合 5s 快托管 / 客户端重试 3s × 150s 窗口；无复盘、无观战、无操作时长配置化

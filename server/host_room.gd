@@ -7,8 +7,10 @@ extends Node
 ## 可见性纪律：他人手牌、底牌牌面、所扣之牌面永不出现在广播消息里；
 ## 扣底广播只发座位与新张数；底牌仅在其庄家叫主成交后私有下发（规则 2）。
 ## 超时托管：人类轮次倒计时，超时由 AI 纯模块按该座位手牌代打（auto=true 广播）。
+## 离线快托管：掉线座位的回合改用短超时（OFFLINE_TURN_TIMEOUT），他人不必干等。
 ## 断线宽限：成员掉线标 offline 并开宽限计时，期间其回合由托管代打、对局继续；
-## 宽限内同昵称 hello 重连即回房（对局中发公开状态快照）；逾期按退出关房。
+## 宽限内同昵称 hello（或旧连接任意消息复活）即回房（对局中发公开状态快照），
+## 回合计时若在走则重挂满正常时长给足决策窗口；逾期按退出关房。
 ## 主动 leave 立即关房（所有成员收到 room_closed → 结算弹窗 → 主菜单）。
 
 
@@ -22,8 +24,10 @@ const TIMEOUT_BID := 20.0
 const TIMEOUT_TRUMP := 30.0
 const TIMEOUT_DISCARD := 60.0
 const TIMEOUT_PLAY := 30.0
-## 掉线宽限（秒）：逾期按退出处理
-const OFFLINE_GRACE := 120.0
+## 掉线宽限（秒）：逾期按退出处理（口径与客户端自动重连窗口对齐，见 [史]）
+const OFFLINE_GRACE := 180.0
+## 离线座位回合的托管超时（秒）：比正常回合超时短，他人不必干等
+const OFFLINE_TURN_TIMEOUT := 5.0
 
 const AI_NAMES := {1: "电脑·乙", 2: "电脑·丙", 3: "电脑·丁"}
 
@@ -86,8 +90,12 @@ func human_count() -> int:
 	return n
 
 
+## 房主座位跟人不跟座（大厅可落座/换座）：按房主昵称找当前座位，缺省 0 号位
 func owner_seat() -> int:
-	return 0  ## 建房者固定 0 号位（甲）
+	for m in members:
+		if m != null and not m.is_ai and m.name == owner_name:
+			return m.seat
+	return 0
 
 
 func add_member(nick: String, peer_id: int) -> int:
@@ -110,6 +118,30 @@ func member_by_peer(peer_id: int):
 		if m != null and m.peer_id == peer_id:
 			return m
 	return null
+
+
+## 大厅落座：空位挪入、他人占座互换（成员字典整体对调，昵称/离线态随人走）。
+## 返回 "" 或错误信息；座位变更经 room_state 广播（manager 落地后广播）。
+func sit(nick: String, seat: int) -> String:
+	if status != STATUS_LOBBY:
+		return "对局进行中，无法换座"
+	if seat < 0 or seat >= members.size():
+		return "座位无效"
+	var mine = member_by_name(nick)
+	if mine == null:
+		return "你不在房间中"
+	var my_seat: int = mine.seat
+	if seat == my_seat:
+		return ""
+	var target = members[seat]
+	if target != null and target.is_ai:
+		return "该座位不可用"
+	if target != null:
+		target.seat = my_seat  # 互换：对方整体挪到我原来的座位
+	members[my_seat] = target
+	mine.seat = seat
+	members[seat] = mine
+	return ""
 
 
 func seat_names() -> Array:
@@ -212,17 +244,22 @@ func _counts() -> Array:
 
 ## ============================= 重连与离线 =============================
 
-## 成员掉线（manager 扫描判定）：标记 + 广播 + 开宽限计时
+## 成员掉线（manager 扫描判定）：标记 + 广播（附宽限秒数供倒计时显示）+ 开宽限计时；
+## 其回合计时若在走则缩短为快托管超时
 func mark_offline(seat: int) -> void:
 	var m = members[seat]
 	if m == null or m.is_ai or m.offline:
 		return
 	m.offline = true
-	broadcast({"t": NetProto.MEMBER_OFFLINE, "seat": seat, "name": m.name})
+	broadcast({"t": NetProto.MEMBER_OFFLINE, "seat": seat, "name": m.name, "grace": OFFLINE_GRACE})
+	if _turn_seat == seat and _turn_timer.time_left > OFFLINE_TURN_TIMEOUT * time_scale:
+		_turn_timer.wait_time = OFFLINE_TURN_TIMEOUT * time_scale
+		_turn_timer.start()
 	_arm_grace_timer(seat)
 
 
-## 宽限内同昵称重连：解除离线、广播房间状态、对局中补发公开快照
+## 宽限内重连（同昵称 hello 或旧连接消息复活）：解除离线、广播房间状态、
+## 对局中补发公开快照；其回合计时若在走则重挂满正常时长（给足决策窗口）
 func reconnect(peer_id: int, nick: String) -> void:
 	var m = member_by_name(nick)
 	if m == null:
@@ -231,6 +268,9 @@ func reconnect(peer_id: int, nick: String) -> void:
 	m.offline = false
 	_cancel_grace_timer(m.seat)
 	broadcast_room_state(true)
+	if _turn_seat == m.seat:
+		_turn_timer.wait_time = _turn_timeout_for(_turn_kind) * time_scale
+		_turn_timer.start()
 	if status == STATUS_GAME:
 		_manager.send_to(peer_id, _snapshot_for(m.seat))
 
@@ -363,7 +403,7 @@ func broadcast(msg: Dictionary) -> void:
 func _on_auction_required(seat: int) -> void:
 	var m = members[seat]
 	if m != null and not m.is_ai:
-		_arm_turn_timer(seat, TIMEOUT_BID, NetProto.KIND_BID)
+		_arm_turn_timer(seat, _human_timeout(TIMEOUT_BID, m), NetProto.KIND_BID)
 	else:
 		_schedule_ai(AI_DELAY, func(): _ai_bid(seat))
 
@@ -381,7 +421,7 @@ func _ai_bid(seat: int) -> void:
 func _on_trump_required(seat: int) -> void:
 	var m = members[seat]
 	if m != null and not m.is_ai:
-		_arm_turn_timer(seat, TIMEOUT_TRUMP, NetProto.KIND_TRUMP)
+		_arm_turn_timer(seat, _human_timeout(TIMEOUT_TRUMP, m), NetProto.KIND_TRUMP)
 	else:
 		_schedule_ai(AI_DELAY, func(): _ai_trump(seat))
 
@@ -396,7 +436,7 @@ func _ai_trump(seat: int) -> void:
 func _on_discard_required(seat: int) -> void:
 	var m = members[seat]
 	if m != null and not m.is_ai:
-		_arm_turn_timer(seat, TIMEOUT_DISCARD, NetProto.KIND_DISCARD)
+		_arm_turn_timer(seat, _human_timeout(TIMEOUT_DISCARD, m), NetProto.KIND_DISCARD)
 	else:
 		_schedule_ai(AI_DISCARD_DELAY, func(): _ai_discard(seat))
 
@@ -415,7 +455,7 @@ func _on_play_required(seat: int) -> void:
 		_after_settle = false
 	var m = members[seat]
 	if m != null and not m.is_ai:
-		_arm_turn_timer(seat, TIMEOUT_PLAY, NetProto.KIND_PLAY)
+		_arm_turn_timer(seat, _human_timeout(TIMEOUT_PLAY, m), NetProto.KIND_PLAY)
 	else:
 		_schedule_ai(delay, func(): _ai_play(seat))
 
@@ -462,6 +502,23 @@ func _arm_turn_timer(seat: int, timeout: float, kind: String) -> void:
 	_turn_kind = kind
 	_turn_timer.wait_time = timeout * time_scale
 	_turn_timer.start()
+
+
+## 人类回合超时：离线座位用快托管短超时（他人不必干等），在线座位用正常时长
+func _human_timeout(base: float, m) -> float:
+	return OFFLINE_TURN_TIMEOUT if bool(m.get("offline", false)) else base
+
+
+## 回合种类 → 正常超时（重连重挂计时用）
+func _turn_timeout_for(kind: String) -> float:
+	match kind:
+		NetProto.KIND_BID:
+			return TIMEOUT_BID
+		NetProto.KIND_TRUMP:
+			return TIMEOUT_TRUMP
+		NetProto.KIND_DISCARD:
+			return TIMEOUT_DISCARD
+	return TIMEOUT_PLAY
 
 
 func _disarm_turn_timer() -> void:

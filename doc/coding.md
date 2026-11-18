@@ -16,8 +16,8 @@
 8. **显性报障**：引擎内部一致性破坏走 `engine_fault` 信号 + `faulted` 标记 + `push_error`（如 settle 失败），禁止静默哨兵值（seat=-1）死锁。
 9. **多局会话**：`start_session(seed)` 种子化发牌；`start_session_with_deal()` 为测试钩子（注入手牌+底牌，按值匹配可传副本）；庄位轮换规则 4 在 `start_next_game()` 内实现。
 10. **联机 C/S（M4 落地，2026-11-18）**：服务端（`server/`，无头 Godot 进程）权威运行 GameEngine 并直调 AiBidding/AiPlay 纯模块（数据进/决策出）；客户端**不跑引擎**——`net/table_view.gd` 以可见性裁剪的视图状态 + 与引擎同构的信号/查询面驱动 game_table（重构规范 §7.3 预留形态的落地）。服务器只下发本人手牌（庄家另加翻底底牌）与公开回放（叫分/亮牌/轮次/捉分/无主公示/终局结算）；**他人手牌、所扣牌面永不出现在广播里**（扣底广播只发座位与新张数），动作回放附带权威 `counts` 张数。座位旋转 `rot(s)=(s-my+4)%4` 在 NetClient 摄取层对 game_start/snapshot 统一完成——本地玩家恒为 0 号位，game_table 的 HUMAN_SEAT=0 语义零改动。
-11. **联机路由**：独立 `WebSocketMultiplayerPeer` + JSON 文本包（不挂高层 multiplayer API，避免跨进程节点路径耦合）；**每条客户端消息自带 `pid`（unique_id）**——服务端 `get_packet_peer()` 实测不返回真实来源 id（恒 1），路由信息由协议层携带（`net/protocol.gd` 契约，踩坑记录）。传输可靠有序 = 回放无需额外排序；客户端 5s 心跳，服务端 15s 无消息或探测发送失败判离线。
-12. **联机托管与宽限**：人类回合超时（叫分 20s/叫主 30s/扣底 60s/出牌 30s）由 AI 纯模块按其手牌代打并以 `auto=true` 广播（客户端 toast「超时托管」），人类出招即重置计时；掉线成员进入**离线宽限期**（120s，回合由托管代打、对局继续），宽限内同昵称 hello 重连并收**公开状态快照**恢复视图，逾期按退出关房；**主动 leave 立即关房**并广播累计分（各端弹分数窗→确定→主菜单）。
+11. **联机路由**：独立 `WebSocketMultiplayerPeer` + JSON 文本包（不挂高层 multiplayer API，避免跨进程节点路径耦合）；**每条客户端消息自带 `pid`（unique_id）**——服务端 `get_packet_peer()` 实测不返回真实来源 id（恒 1），路由信息由协议层携带（`net/protocol.gd` 契约，踩坑记录）。传输可靠有序 = 回放无需额外排序；客户端 5s 心跳，服务端 **60s** 无消息或探测发送失败判离线（阈值取大值容忍 Web 后台标签页暂停主循环——连接由浏览器维持，真断连靠探测发送失败即时判定）。
+12. **联机托管与宽限**：人类回合超时（叫分 20s/叫主 30s/扣底 60s/出牌 30s）由 AI 纯模块按其手牌代打并以 `auto=true` 广播（客户端 toast「超时托管」），人类出招即重置计时；**离线座位回合改用 5s 快托管**（他人不必干等）。掉线成员进入**离线宽限期**（180s，`member_offline` 附带宽限秒数供客户端倒计时显示），宽限内回房三条路：同昵称 hello 重连 / **旧连接任意消息复活**（服务端 `_try_revive` 按 pid 匹配离线成员）/ **客户端自动重连**（NetClient 等待弹层 + 3s 定时重试，窗口 150s，成功依据 `hello_ok.rejoined`）；同昵称 hello 对**静默超阈（15s）的在线成员**立即接管座位——断连未被扫描判出的窗口期（半开 TCP 发送不报错）里重连首试即回房。**昵称保留窗口 = 重连窗口**：宽限期内昵称随房间保留（重连分支先于占用拒绝），房间解散/主动退出或未进房连接静默清理后才释放复用。回房统一收**公开状态快照**恢复视图，掉线时在走的回合计时重挂满正常时长（回连者获得完整决策窗口）。回前台补发 hello（`NOTIFICATION_APPLICATION_FOCUS_IN`）是 Web 后台标签页恢复的复活入口。**主动 leave 立即关房**并广播累计分（各端弹分数窗→确定→主菜单）。
 
 ## 2. GDScript 编码规范（本仓库实践）
 
@@ -38,14 +38,14 @@
 **工程配置**
 - `project.godot` 用编辑器/直接编辑均可，但须保持分区有序（application/display/gui/rendering）；新增系统级设置（字体主题等）登记在 AGENTS.md §2/§3。
 - `export_presets.cfg` 入库；导出过滤排除非运行时目录（`test/*,doc/*,tool/*,build/*,server/*`，2026-11-18 增 server/——服务端仅桌面源码运行且引用面与客户端隔离）；`net/` 必须进包（Web 客户端联网）；`build/` 忽略。
-- `html/head_include` 注入移动端壳层适配（2026-11-17 起；**2026-11-18 Safari 排雷后回退到基线**）：`canvas#canvas{touch-action:none}`、右上角 ⛶ 全屏按钮（DOM 覆盖层，webkit 前缀；iPhone 无该 API 降级提示添加到主屏幕）。**iOS 排雷结论（真机实测）**：①触控输入层无问题（探针页证实事件全达、坐标准）；②曾叠加 rAF 停摆垫片/合成扰动/display 切换/viewport 归一/手势拦截/visualViewport 桥六项，**真机全部无效已回退**——其中 rAF→setTimeout 垫片有反作用：emscripten WebGL 的帧提交绑定真实 rAF 回调（`explicitSwapControl=false`），setTimeout 驱动主循环会让逻辑全速跑而帧永不提交（恰似「点按有效画面冻结」，干扰了排查）；③**流程教训：改 head_include 后必须 `--export-release` 并对产物 grep 验证注入生效**（曾恢复配置未重新导出，用户测到旧包污染判断）；④工程设置 `touch_delay=0.0`/`emulate_mouse_from_touch=true` 保留（移动端正确设定）；⑤原冻结真凶待单变量排查，首选嫌疑=`html,body{position:fixed}`（iOS Safari 固定定位全屏 canvas 呈现冻结，社区有同例报告）——干净基线复测仍冻结时移除该项再验证。
+- `html/head_include` 注入移动端壳层适配（2026-11-17 起；**2026-11-18 Safari 排雷后回退到基线**）：`canvas#canvas{touch-action:none}`、右上角 ⛶ 全屏按钮（DOM 覆盖层，webkit 前缀；iPhone 无该 API 降级提示添加到主屏幕）。**iOS 排雷结论（真机实测）**：①触控输入层无问题（探针页证实事件全达、坐标准）；②曾叠加 rAF 停摆垫片/合成扰动/display 切换/viewport 归一/手势拦截/visualViewport 桥六项，**真机全部无效已回退**——其中 rAF→setTimeout 垫片有反作用：emscripten WebGL 的帧提交绑定真实 rAF 回调（`explicitSwapControl=false`），setTimeout 驱动主循环会让逻辑全速跑而帧永不提交（恰似「点按有效画面冻结」，干扰了排查）；③**流程教训：改 head_include 后必须 `--export-release` 并对产物 grep 验证注入生效**（曾恢复配置未重新导出，用户测到旧包污染判断）；④工程设置 `touch_delay=0.0`/`emulate_mouse_from_touch=true` 保留（移动端正确设定）；⑤原冻结真凶待单变量排查，首选嫌疑=`html,body{position:fixed}`（iOS Safari 固定定位全屏 canvas 呈现冻结，社区有同例报告）——干净基线复测仍冻结时移除该项再验证。⑥**视口看门狗（2026-11-19 起，用户报告转屏/回前台后画布偏移黑边）**：head_include 追加 iOS UA 门控脚本——`orientationchange`/`visualViewport` resize/回前台时 `scrollTo(0,0)` 复位页面偏移并**合成 window resize**（250/700/1500ms 三拍补发，Safari 视口常分多帧才稳定），让引擎按新视口重算画布尺寸；与②的六个冻结垫片不同，本项只补发引擎自身监听的 resize 事件，无 rAF 垫片反作用风险；产物注入验证照 ③ 流程（grep index.html）；**真机效果待用户验证**。
 - `html/experimental_virtual_keyboard=true`（2026-11-18 联机昵称输入）：触屏 UA 下 LineEdit 聚焦弹系统键盘；桌面浏览器走物理键盘直接输入。
 - **Godot Web 对合成输入免疫（2026-11-18 验收实测）**：自动化注入的合成 KeyboardEvent/ClipboardEvent/CDP 文本均不进引擎（仅受信任的真实输入生效）——浏览器验收能覆盖引导/渲染/按钮路径，**文本输入类流程须真实键盘**（桌面双实例人工步骤）。
 - `.gitignore` 只忽略生成物（`.godot/`、`build/`）；`.uid` 与源文件成对提交。
 
 **场景结构**
 - 组件自带统一尺寸（`custom_minimum_size`），实例只锚定位置不拉伸（SeatPanel 模式）；「组件一处改、实例全部生效」。
-- 居中展示组件一律点锚 `UiStyle.MAIN_TABLE_CENTER` + `grow BOTH`（TrumpRankPicker/PileViewer 弹层/ResultPanel 均如此），禁止四角拉伸锚点承载弹层。
+- 居中展示组件一律点锚 `UiStyle.MAIN_TABLE_CENTER` + `grow BOTH`（TrumpRankPicker/PileViewer 弹层/ResultPanel 均如此），禁止四角拉伸锚点承载弹层。**锚点按场景取（2026-11-19 起，用户报告退出弹窗歪斜的修正）**：桌面对齐只在牌桌内才有意义——`UiStyle.center_anchor(node)` 统一取值：当前场景为联机牌桌（挂 `_net`）→ 桌面十字中心；主菜单/联机菜单/房间大厅等非牌桌场景 → 屏幕正中 `SCREEN_CENTER`（ScoresDialog/ReconnectOverlay/大厅补电脑确认框均走此规则；这些弹层由 NetClient 或大厅创建、跨场景显示，不能硬编码桌面锚点）。
 - 节点语义命名，禁止编辑器自动编号名（如曾经的 MenuButton2）残留。
 - 可编辑结构优先落 tscn；纯动态内容程序化构建——两者边界：容器/槽位在场景，内容在脚本。
 
@@ -73,6 +73,7 @@
 - **两大区域（2026-11-16 确立）**：画面分为**主牌桌区域**（x 0~82.8%）与**侧信息板区域**（82.8%~100%，InfoSidebar）。区域名称标注于视觉稿。
 - **居中规范（2026-11-16 确立）**：所有居中展示组件（弹层/面板/皇冠出现点）统一锚定**主牌桌十字中心** `UiStyle.MAIN_TABLE_CENTER`=(0.419, 0.408)——左右对齐丙面板中轴、上下对齐乙/丁面板中轴；实现为点锚 + grow BOTH（尺寸随内容向四周自适应），禁止固定 offsets 尺寸（内容不满时视觉偏置）。翻底阶段的中央「底牌（仅你可见）」面板（2026-11-17 起程序化 PanelContainer）同属此列。
 - **半字号留空原则（2026-11-16 确立）**：所有文字与其最近的边框（面板边、按钮边）四向留空 **≥ 字号的一半**。落实方式：按钮统一走 `UiStyle.pad_button()`（content margin = 字号/2）；面板在 tscn 中用 StyleBoxFlat `content_margin_*` 落实（InfoSidebar 8 / SeatPanel 9 / ResultPanel 15，≈ 各自最大字号的一半）。豁免：无边框裸文字（Toast/提示行/顶栏标签）、卡牌角标（扑克角标贴角为惯例设计）。
+- **卡牌尺寸与角标（2026-11-19 移动端触控调整）**：三档尺寸单一事实源在 `CardWidget`——NORMAL 72×100（手牌/出牌区≤2 张/揭主飞牌）、MEDIUM 60×86（出牌区 3+ 张）、SMALL 52×76（历史面板/牌堆弹层/信息栏/底牌展示；信息栏 `TrumpSlot` 场景 min size 与之同步）；角标**竖排**（点数上、花色下，取 `Card.rank_label()`/`suit_label()`；王无花色仅单字），收窄卡宽以压缩相邻牌间距。移动端触摸目标依据：iPhone 横屏（844×390pt）下逻辑 1280×720 letterbox 缩放 ≈0.54，手牌 ≈39×54pt。改尺寸后须核对：手牌区高度（HandRow 118px，NORMAL 高 +BASE_Y 16 ≤118）、27 张扣底阶段最小间距、信息栏槽位、历史面板十字区宽度。
 - **组件复用**：三家电庄信息框复用 `SeatPanel`；右侧信息栏 `InfoSidebar`；手牌区 `HandArea`；牌堆弹层 `PileViewer`；操作按钮 `ActionBar`——实例只锚定/挂载，不各自拉伸改尺寸。
 - **对称十字出牌位**：四家出牌围绕牌桌中心对称——你=下方（0.419,0.55）、丙=信息板正下方（0.419,0.28）、丁=面板右侧（0.234,0.408）、乙=面板左侧（0.604,0.408）。
 - 设计分辨率 1280×720（stretch canvas_items / keep），统一 12px 边距；桌面窗口默认 1920×1080（`window/size/window_*_override`，内容仍按 720p 基准等比放大 1.5×，控件像素常量不随窗口变大——2026-11-17 用户设定）。
@@ -89,7 +90,7 @@
 - **【无主】印章（规则 7.3，2026-11-17）**：主牌轮垫牌公示——`VoidStamp` 圆形红章（斜置半透明红、程序化绘制）：乙/丙/丁盖在 SeatPanel 右下角（`set_void_trump`；印章 `top_level=true` 脱离容器布局树用全局坐标定位——PanelContainer 会对直接子件整面填充布局，曾把印章拽到左上角压住姓名）；人类 0 号位盖在**手牌区右上方固定槽位**（HumanVoidStamp，tscn 锚点 (958,488)，2026-11-17 调整）。
 - **左下按钮区（不随牌变动）**：【历史】= 点击打开**出牌历史面板**（`TrickHistoryPanel`，2026-11-17 重做）：居中弹层以**十字形**展示一轮四家出牌（与牌桌出牌摆位座位方位同构、窗口更小，赢家 ✓ 金标），默认**最后一轮**；中央下方 【<<】【<】【>】【>>】 四按钮翻第一页/上一页/下一页/最后一轮（边界禁用）；右上角 ✕ 或**点击窗口外**（全屏微暗遮罩，`MOUSE_FILTER_STOP` 透明拦截）关闭；打开期间新轮结算由 `trick_settled → _refresh → refresh` 状态驱动就地收敛页码；【牌堆】= 仅庄家是自己且进入出牌阶段后显示（「历史」右侧同一行），悬停弹出**底牌堆 2 行 × 4 张**（`engine.buried`，仅自己可见；弹层归 `PileViewer`）。**悬停弹层机制（2026-11-17 历史面板重做后仅剩【牌堆】按钮悬停路径；座位面板悬停路径已移除）**：事件驱动 + 粘滞——显示随 `mouse_entered` 一次调用，隐藏靠 0.1s 延迟计时器（粘滞时长 2026-11-17 用户定夺为 0.1s；弹层悬停仍保持打开，重悬停即可再次查看），**不用周期轮询**（`mouse_entered/exited` 本就是引擎逐帧悬停判定的结果，自建轮询属 §1 禁止的定时兜底）。
 - 一轮结算后牌面（含 ✓赢家）停留 **1.5 秒后主动清空出牌桌**（TRICK_PAUSE 由 `_trick_timer.timeout` 统一触发清空，不依赖下一手替换）；末轮停留后才弹结算面板。
-- **联机界面（2026-11-18，M4）**：主菜单新增【联机对战】→ `scene/menu/online_menu.tscn`（昵称/服务器地址默认 ws://127.0.0.1:9080/新建房间/房间码+加入/返回；状态行报错；昵称 ConfigFile 记忆）→ `scene/menu/room_lobby.tscn`（房间码大字、四座位成员列表——房主/你/电脑/离线标注、开始游戏仅房主可见、退出房间）。**人数不满开局流程**：房主点开始 → 居中确认弹层「人数不满（X/4），是否自动补充电脑玩家？」——是 → `start{fill_ai:true}` 补满即开；否 → 仅关闭弹层留在房间页；满 4 人直接开。**累计分数弹层** `script/menu/scores_dialog.gd`（MAIN_TABLE_CENTER 居中 + 全屏遮罩）：主动退出（本地立即弹）、他人退出/离线超时/服务器失联（`room_closed`/`connection_lost` 数据弹出），确定 → 主菜单。牌桌联机态复用单机布局：座位名 = 成员昵称（本地座位序，0 号位带（你）），AI 补位名「电脑·乙/丙/丁」；结算面板【下一局】仅房主可见（其余等待）。布局注记见 static/ui-mockup.svg 联机屏。
+- **联机界面（2026-11-18，M4）**：主菜单新增【联机对战】→ `scene/menu/online_menu.tscn`（昵称/服务器地址默认 ws://127.0.0.1:9080/新建房间/房间码+加入/返回；状态行报错；昵称 ConfigFile 记忆）→ `scene/menu/room_lobby.tscn`（房间码大字、四座位成员列表——房主/你/电脑/离线标注、开始游戏仅房主可见、退出房间）。**人数不满开局流程**：房主点开始 → 居中确认弹层「人数不满（X/4），是否自动补充电脑玩家？」——是 → `start{fill_ai:true}` 补满即开；否 → 仅关闭弹层留在房间页；满 4 人直接开。**累计分数弹层** `script/menu/scores_dialog.gd`（居中锚点按场景取 `UiStyle.center_anchor` + 全屏遮罩）：主动退出（本地立即弹）、他人退出/离线超时/服务器失联（`room_closed`/`connection_lost` 数据弹出），确定 → 主菜单。牌桌联机态复用单机布局：座位名 = 成员昵称（本地座位序，0 号位带（你）），AI 补位名「电脑·乙/丙/丁」；结算面板【下一局】仅房主可见（其余等待）。布局注记见 static/ui-mockup.svg 联机屏。
 - 新增控件一律程序化绘制（参照 CardWidget/CrownBadge/DashedRoundedFrame），不引入图片素材。
 
 ## 5. 测试规范
@@ -116,10 +117,10 @@ UI 层曾因无用例而集中出 bug（信号时序竞态、引用遗漏、渲�
 
 ### 联机用例（test/test_online.gd，2026-11-18）
 
-- **真实 WebSocket 回环**：同进程跑 server 栈（store/room_manager/host_room）+ 真 NetClient 客户端，服务端计时全部按 `time_scale=0.02` 缩放（AI 节拍 ~14ms、人类托管 ~0.4s、离线宽限 ~2.4s）。测试夹具注意：`heartbeat_timeout` 须放大到远大于客户端心跳间隔（5s），否则空闲客户端被误判离线触发关房。
-- **覆盖（11 用例）**：store 持久化与昵称全局唯一（重开实例不丢、占用拒绝、trim 归一、AI 前缀拒绝）；房间操作守卫（在房重复建房/加入、满员、对局中加入、非房主开局、重复开局、未开局 next）；房间全生命周期（建房→凭码加入→人数不满拒绝开局→补 AI 开局→完整对局→分数落盘与广播一致→退出关房广播）；可见性断言（`debug_record` 录制回放：扣底无牌面、开局无底牌、game_start 仅本人 19 张、非庄家无 kitty）；超时托管（auto 标记 + 服务端状态推进核对）；断线重连与宽限超时；多局累计（下一局重灌/庄位轮换/跨局累计分/非房主 next 被拒）；注入强牌局的确定性旋转校验与人类操作路径（叫分值/叫主/扣底/非法出牌拒绝+重试）；四阶段重连快照矩阵（叫主/扣底/出牌/终局）；UI 级联机牌桌（真实场景接管、人类走 UI 提交方法、退出弹层回主菜单）。
+- **真实 WebSocket 回环**：同进程跑 server 栈（store/room_manager/host_room）+ 真 NetClient 客户端，服务端计时全部按 `time_scale=0.02` 缩放（AI 节拍 ~14ms、人类托管 ~0.4s、离线快托管 ~0.1s、离线宽限 180s→~3.6s）。夹具 `heartbeat_timeout=60` 与服务端默认一致（远大于客户端心跳间隔 5s，空闲客户端不会误判离线）；复用例的掉线检测靠 `drop_connection` 后的定向发送失败即时生效。
+- **覆盖（16 用例）**：store 持久化与昵称全局唯一（重开实例不丢、占用拒绝、trim 归一、AI 前缀拒绝）；房间操作守卫（在房重复建房/加入、满员、对局中加入、非房主开局、重复开局、未开局 next）；房间全生命周期（建房→凭码加入→人数不满拒绝开局→补 AI 开局→完整对局→分数落盘与广播一致→退出关房广播）；可见性断言（`debug_record` 录制回放：扣底无牌面、开局无底牌、game_start 仅本人 19 张、非庄家无 kitty）；超时托管（auto 标记 + 服务端状态推进核对）；断线重连与宽限超时；客户端自动重连（等待弹层→重试回房→快照恢复→打完）；后台标签页复活（旧连接消息 `_try_revive` 回房、宽限取消）；离线快托管与重连重挂计时；同昵称快速接管（静默在线成员被同昵称 hello 立即回房、旧映射释放、扫描不误判）；大厅选座（空位挪入/占座互换/房主身份跟人走/新成员填首个空位/对局中拒绝）；多局累计（下一局重灌/庄位轮换/跨局累计分/非房主 next 被拒）；注入强牌局的确定性旋转校验与人类操作路径（叫分值/叫主/扣底/非法出牌拒绝+重试）；四阶段重连快照矩阵（叫主/扣底/出牌/终局）；UI 级联机牌桌（真实场景接管、人类走 UI 提交方法、退出弹层回主菜单）。
 - **客户端代打驱动 `_drive_until`**：读本地视图状态 + 状态指纹防重发 + `send_act` 提交（人类决策复用 AiPlay 纯模块）；服务端引擎与客户端视图的公开字段（捉分/轮数）逐局互检。
-- **测试钩子**：`NetClient.standalone`（game_start/snapshot 直接灌视图、不切场景）、`NetClient.debug_record`（录全部入站消息）、`host_room.time_scale`、`manager.sweep_interval/heartbeat_timeout`。
+- **测试钩子**：`NetClient.standalone`（game_start/snapshot 直接灌视图、不切场景）、`NetClient.debug_record`（录全部入站消息）、`NetClient.auto_reconnect`（默认 false：既有 drop 用例保持旧的断线即弹窗路径，自动重连用例显式开启）、`host_room.time_scale`、`manager.sweep_interval/heartbeat_timeout/takeover_stale`。
 
 ### 组件用例（test/test_components.gd）与主流程用例（test/test_flow.gd）
 

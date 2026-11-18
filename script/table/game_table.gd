@@ -138,6 +138,17 @@ func _setup_online() -> void:
 	_net.remote_action.connect(_on_remote_action)
 	_net.net_error.connect(_on_net_error)
 	_net.room_state_changed.connect(_on_net_room_state)
+	_net.member_presence.connect(_on_member_presence)
+
+
+## 成员离线/重连回房提示（等待重连口径：掉线者回合由服务器托管，宽限内可随时回房）
+func _on_member_presence(name: String, online: bool, grace: int) -> void:
+	if online:
+		_toast("「%s」已重连" % name)
+	elif grace > 0:
+		_toast("「%s」掉线，等待重连（%d 秒内未归房间解散）" % [name, grace])
+	else:
+		_toast("「%s」掉线，等待重连" % name)
 
 
 ## 房间状态变化（成员掉线/重连）：刷新座位名（离线标注）与面板
@@ -186,6 +197,7 @@ func _on_net_game_started(data: Dictionary) -> void:
 	hand_area.end_select()
 	if str(data.t) == NetProto.SNAPSHOT:
 		engine.restore(data)
+		_toast("已重连，对局状态已恢复")
 	else:
 		engine.load_game(data)
 
@@ -614,6 +626,8 @@ func _clear_trick_area() -> void:
 ## 人类庄家翻底阶段：中央展示 8 张底牌（仅本人可见，规则 2）。
 ## 居中规范：点锚主牌桌十字中心 + grow BOTH（尺寸随内容向四周自适应），
 ## 与 PileViewer 弹层/ResultPanel 同口径；StyleBoxFlat 半字号留空（最大字号 14 → 8）。
+## 层级约定：z_index=1 只比桌面（出牌区 z=0）高一层，不遮历史/牌堆弹层（z=10）
+## 与结算面板——z_index 只影响绘制不影响输入命中，弹层靠树序后置天然优先接收点击。
 func _show_bottom_cards() -> void:
 	_clear_bottom_cards()
 	var panel := PanelContainer.new()
@@ -624,7 +638,7 @@ func _show_bottom_cards() -> void:
 	panel.anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
-	panel.z_index = 50
+	panel.z_index = 1
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.13, 0.24, 0.17)
 	style.set_corner_radius_all(10)

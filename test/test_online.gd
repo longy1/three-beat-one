@@ -3,9 +3,12 @@ extends UiTestBase
 ## 覆盖：存储持久化/昵称在线占用制（含 trim 归一与掉线释放复用）、房间守卫（重复建房/加入/满员/对局中/
 ## 非房主开局等错误路径）、房间生命周期（不满开局拒绝→补 AI→完整对局→分数落盘广播→
 ## 退出关房）、可见性（回放消息不含他人牌面/底牌）、超时托管、断线重连与宽限、
-## 多局累计（庄位轮换/下一局重建/跨局累计分）、注入强牌局的确定性旋转与人类操作路径、
-## 各阶段重连快照矩阵、UI 级联机牌桌（真实场景接管 + 人类经 UI 提交 + 退出弹层回主菜单）。
-## 服务端计时按 time_scale=0.02 缩放（AI 节拍 ~0.014s、人类托管 ~0.4s、离线宽限 ~2.4s）。
+## 客户端自动重连（等待弹层→同昵称回房恢复）、后台标签页复活（旧连接消息原路回房）、
+## 离线座位快托管与重连重挂计时、多局累计（庄位轮换/下一局重建/跨局累计分）、
+## 注入强牌局的确定性旋转与人类操作路径、各阶段重连快照矩阵、
+## UI 级联机牌桌（真实场景接管 + 人类经 UI 提交 + 退出弹层回主菜单）。
+## 服务端计时按 time_scale=0.02 缩放（AI 节拍 ~0.014s、人类托管 ~0.4s、
+## 离线快托管 ~0.1s、离线宽限 180s→~3.6s）；心跳判定阈值默认 60s（后台标签页容忍）。
 
 
 const PORT := 9811
@@ -30,8 +33,8 @@ func _ensure_server() -> void:
 	_manager.name = "OnlineTestServer"
 	Engine.get_main_loop().root.add_child(_manager)
 	_manager.sweep_interval = 0.05
-	# 心跳超时放大：测试里客户端心跳间隔（5s）远大于服务端判定阈值会误判离线
-	# （离线检测在本套件靠 drop_connection 后的定向发送失败，仍即时生效）
+	# 心跳判定阈值与服务端默认一致（60s）：客户端心跳间隔（5s）远小于阈值不会误判离线；
+	# 离线检测在本套件靠 drop_connection 后的定向发送失败即时生效，复活用例临时调小本值
 	_manager.heartbeat_timeout = 60.0
 	_manager.time_scale = 0.02
 	var err: Error = _manager.start(PORT, _store)
@@ -43,6 +46,7 @@ func _make_client(nick: String, node_name: String, standalone := true) -> NetCli
 	var nc := NetClient.new()
 	nc.name = node_name
 	nc.standalone = standalone
+	nc.auto_reconnect = false  # 既有 drop 类用例保持旧的断线即弹窗路径；自动重连用例显式开启
 	Engine.get_main_loop().root.add_child(nc)
 	nc.connect_to(URL, nick)
 	var errs: Array = []
@@ -796,6 +800,9 @@ func test_ui_online_table(a) -> void:
 	a.check(await _until(func(): return tree.root.get_node_or_null("ScoresDialog") != null, 5.0),
 		"主动退出弹累计分窗")
 	var dialog := tree.root.get_node("ScoresDialog")
+	# 回归（用户报告：退出弹窗歪斜）：锚点规则——牌桌内对齐桌面十字中心
+	a.eq(dialog.anchor_left, UiStyle.MAIN_TABLE_CENTER.x, "牌桌内弹层对齐桌面十字中心")
+	a.eq(dialog.anchor_top, UiStyle.MAIN_TABLE_CENTER.y, "牌桌内弹层对齐桌面十字中心（纵）")
 	var ok_button := _find_button(dialog)
 	a.check(ok_button != null, "弹层含确定按钮")
 	if ok_button != null:
@@ -803,6 +810,241 @@ func test_ui_online_table(a) -> void:
 	a.check(await _until(func():
 		var cs = tree.current_scene
 		return cs != null and cs.name == "MainMenu", 5.0), "确定后回主菜单")
+	# 回归（同源）：非牌桌场景（主菜单）弹层应屏幕正中而非桌面锚点
+	var probe := ScoresDialog.create(tree.root, [], "", "锚点探测", func(): pass)
+	a.eq(probe.anchor_left, UiStyle.SCREEN_CENTER.x, "非牌桌场景弹层屏幕正中")
+	a.eq(probe.anchor_top, UiStyle.SCREEN_CENTER.y, "非牌桌场景弹层屏幕正中（纵）")
+	var probe_ok := _find_button(probe)
+	if probe_ok != null:
+		probe_ok.pressed.emit()  # 释放遮罩与面板
+	else:
+		probe.queue_free()
+	await _cleanup_room()
+	await _free_clients()
+
+
+## 客户端自动重连：掉线（auto_reconnect 开启）→ 等待重连弹层 → 定时重试同昵称回房
+## → 快照恢复继续打完；对方收到 离线→上线 的 presence 提示
+func test_client_auto_reconnect(a) -> void:
+	_ensure_server()
+	var host := _make_client("测甲自连", "C_ar_a")
+	host.auto_reconnect = true  # 本用例显式开启：掉线进等待重连流程而非直接弹窗
+	var guest := _make_client("测乙自连", "C_ar_b")
+	a.check(await _wait_hello(host), "房主 hello")
+	a.check(await _wait_hello(guest), "客人 hello")
+	var code := await _create_room(host)
+	a.check(code != "", "建房")
+	a.check(await _join_room(guest, code), "入座")
+	a.check(await _start_fill(host), "开局")
+	a.check(await _drive_until(host, func(): return host.view != null and host.view.phase == GameEngine.Phase.TRICKS, 30.0),
+		"进入出牌阶段")
+	var room := _room_by_code(code)
+	var hist_before: int = room.engine.trick_history.size()
+	var presence := {"offline": 0, "online": 0}
+	guest.member_presence.connect(func(_name: String, online: bool, _grace: int):
+		if online:
+			presence.online += 1
+		else:
+			presence.offline += 1)
+
+	# 掉线：进入等待重连（弹层出现），对方收到离线提示
+	host.drop_connection()
+	a.check(await _until(func(): return _any_offline(guest), 5.0), "对方收到 member_offline")
+	var tree: SceneTree = Engine.get_main_loop()
+	a.check(await _until(func(): return tree.root.get_node_or_null("ReconnectOverlay") != null, 5.0),
+		"等待重连弹层出现")
+
+	# 自动重试回房：rejoined、弹层关闭、快照恢复；服务端掉线标记未及扫出时首试收到
+	# 「昵称已被占用」类错误会被留待下轮重试（窗口内自愈）
+	a.check(await _until(func():
+		return bool(host.room_state.get("rejoined", false)) and presence.online > 0, 20.0),
+		"自动重连回房且对方收到上线提示")
+	a.check(await _until(func(): return tree.root.get_node_or_null("ReconnectOverlay") == null, 5.0),
+		"回房后等待弹层关闭")
+	a.check(host.view != null and host.view.phase == GameEngine.Phase.TRICKS, "快照恢复到出牌阶段")
+	a.eq(host.view.get_hand(0).size(), host.view.counts[0], "恢复手牌与张数一致")
+	a.check(host.view.trick_history.size() >= hist_before, "快照含掉线前的出牌历史")
+
+	# 重连后对局打完（宽限取消，房间不散）
+	var finished := {"done": false}
+	host.game_finished.connect(func(_r: Dictionary): finished.done = true, CONNECT_ONE_SHOT)
+	a.check(await _drive_until(host, func(): return bool(finished.done), 90.0), "重连后对局打完")
+	a.check(_room_by_code(code) != null, "对局打完房间仍存活")
+	await _cleanup_room()
+	await _free_clients()
+
+
+## 后台标签页复活：连接保持但心跳停发 → 服务端判离线（同 _on_sweep 死亡处理）→
+## 恢复后补发 hello 经 _try_revive 原连接复活（rejoined + 快照），宽限取消房间不散
+func test_hidden_tab_revival(a) -> void:
+	_ensure_server()
+	var host := _make_client("测甲复活", "C_rv_a")
+	var guest := _make_client("测乙复活", "C_rv_b")
+	a.check(await _wait_hello(host), "房主 hello")
+	a.check(await _wait_hello(guest), "客人 hello")
+	var code := await _create_room(host)
+	a.check(code != "", "建房")
+	a.check(await _join_room(guest, code), "入座")
+	a.check(await _start_fill(host), "开局")
+	a.check(await _drive_until(host, func(): return host.view != null and host.view.phase == GameEngine.Phase.TRICKS, 30.0),
+		"进入出牌阶段")
+	var room := _room_by_code(code)
+	var presence := {"offline": false, "online": false}
+	guest.member_presence.connect(func(_name: String, online: bool, _grace: int):
+		if online:
+			presence.online = true
+		else:
+			presence.offline = true)
+
+	# 模拟后台标签页：心跳停发但连接保持；触发服务端掉线判定（与 _on_sweep 死亡
+	# 处理等价：抹除 peer 映射 + 标离线——计时算术平凡，聚焦被测的复活路径）
+	host._hb.stop()
+	var pid: int = room.members[0].peer_id
+	_manager._peer_nick.erase(pid)
+	_manager._peer_last_seen.erase(pid)
+	room.mark_offline(0)
+	a.check(await _until(func(): return _any_offline(guest), 5.0), "服务端判离线，对方收到通知")
+	a.check(presence.offline, "对方收到离线 presence（含宽限提示）")
+
+	# 标签页切回：前台复活补发 hello → 服务端复活 + 广播 rejoined + 补发快照
+	host.send_msg({"t": NetProto.HELLO, "nick": host.my_name})
+	a.check(await _until(func(): return not _any_offline(guest), 5.0), "对方看到重连恢复")
+	a.check(presence.online, "对方收到上线 presence")
+	a.check(bool(host.room_state.get("rejoined", false)), "复活回房（rejoined）")
+	a.check(host.view != null and host.view.get_hand(0).size() == host.view.counts[0],
+		"复活补发快照恢复视图")
+	a.check(room.members[0].offline == false, "在线标记解除")
+
+	# 宽限已取消：等超过缩放宽限（180s × 0.02 = 3.6s）房间仍存活
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.create_timer(4.5).timeout
+	a.check(_room_by_code(code) != null, "复活后宽限取消，房间不散")
+	await _cleanup_room()
+	await _free_clients()
+
+
+## 离线快托管与重连重挂：离线座位回合 5s（缩放 0.1s）内被托管代打；
+## 宽限内回连则回合计时重挂满正常时长，给足决策窗口
+func test_offline_turn_fast_and_rearm(a) -> void:
+	_ensure_server()
+	var host := _make_client("测甲快托管", "C_ft_a")
+	var guest := _make_client("测乙快托管", "C_ft_b")
+	guest.debug_record = true
+	a.check(await _wait_hello(host), "房主 hello")
+	a.check(await _wait_hello(guest), "客人 hello")
+	var code := await _create_room(host)
+	a.check(code != "", "建房")
+	a.check(await _join_room(guest, code), "入座")
+	var deal := _strong_deal()
+	var room := _room_by_code(code)
+	if room == null:
+		a.check(false, "服务端房间存在")
+		await _free_clients()
+		return
+	room._test_start_with_deal(0, deal[0], deal[1])  # dealer=0 → 首个表态座位 = 1 号（guest）
+	a.check(await _until(func(): return guest.view != null, 8.0), "开局建视图")
+	a.eq(int(room.engine.auction.turn), 1, "轮到 guest 表态（0.4s 正常计时已挂）")
+
+	# 掉线 → 回合计时缩短为快托管（5s × 0.02 = 0.1s）；随即宽限内回连 → 重挂满正常时长
+	room.mark_offline(1)
+	room.reconnect(room.members[1].peer_id, "测乙快托管")
+	a.check(room.members[1].offline == false, "回连解除离线")
+	await Engine.get_main_loop().create_timer(0.25).timeout
+	a.check(int(room.engine.auction.turn) == 1 and not _has_auto_bid(guest.recorded),
+		"重挂后不再 0.1s 抢答（正常时长计时中）")
+
+	# 再次掉线：快托管代打（广播带 auto 标记 + 宽限秒数）
+	room.mark_offline(1)
+	a.check(await _until(func(): return _has_auto_bid(guest.recorded), 5.0), "离线座位表态被快托管代打")
+	a.check(bool(room.engine.auction.bids[1].passed), "代打为 PASS")
+	var grace_seen := 0
+	for msg in guest.recorded:
+		if str(msg.get("t", "")) == NetProto.MEMBER_OFFLINE:
+			grace_seen = int(msg.get("grace", 0))
+	a.eq(grace_seen, 180, "member_offline 附带宽限秒数（客户端倒计时显示用）")
+	await _cleanup_room()
+	await _free_clients()
+
+
+## 同昵称快速接管：在线成员的 peer 静默超阈（断连未被扫描判出的窗口期，半开 TCP
+## 发送不报错只能等静默超时）时，同昵称 hello 立即接管座位回房——昵称保留窗口内
+## 重连首试即成功，不必等服务端判离线
+func test_nick_takeover_on_stale(a) -> void:
+	_ensure_server()
+	var first := _make_client("测甲接管", "C_tk_a")
+	a.check(await _wait_hello(first), "首次 hello")
+	var code := await _create_room(first)
+	a.check(code != "", "建房")
+	var room := _room_by_code(code)
+	var old_pid: int = room.members[0].peer_id
+	# 接管阈值置 0：任何在线成员的同昵称 hello 都走接管分支（确定性触发，
+	# 避开 sweep 判离线的竞态；sweep 自身判死阈值 60s 不受影响）
+	_manager.takeover_stale = 0.0
+	var second := _make_client("测甲接管", "C_tk_b")
+	a.check(await _wait_hello(second), "同昵称 hello")
+	a.check(await _until(func(): return bool(second.room_state.get("rejoined", false)), 5.0),
+		"静默在线成员被同昵称立即接管回房")
+	a.check(room.members[0].offline == false, "接管后成员保持在线（无离线闪烁）")
+	var holders := 0
+	for pid in _manager._peer_nick:
+		if _manager._peer_nick[pid] == "测甲接管":
+			holders += 1
+	a.eq(holders, 1, "旧 peer 昵称映射已释放（无双重占用）")
+	_manager.takeover_stale = _manager.TAKEOVER_STALE
+	# 多个扫描周期后房间仍存活、成员不误标离线（旧 peer 映射已释放，不再被探测判死）
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.create_timer(0.3).timeout
+	a.check(_room_by_code(code) != null, "接管后房间存活")
+	a.check(room.members[0].offline == false, "扫描不误判接管后成员离线")
+	await _cleanup_room()
+	await _free_clients()
+
+
+## 选座：大厅内落座——空位挪入、他人占座互换；房主身份跟人不跟座；对局中拒绝
+func test_seat_sit(a) -> void:
+	_ensure_server()
+	var host := _make_client("测甲选座", "C_st_a")
+	var guest := _make_client("测乙选座", "C_st_b")
+	a.check(await _wait_hello(host), "房主 hello")
+	a.check(await _wait_hello(guest), "客人 hello")
+	var code := await _create_room(host)
+	a.check(code != "", "建房")
+	a.check(await _join_room(guest, code), "客人入座")
+	a.eq(int(guest.my_seat), 1, "客人默认落 1 号位")
+	var room := _room_by_code(code)
+
+	# 空位挪入：乙 1 → 2 号位，原座位空出
+	guest.request_sit(2)
+	a.check(await _until(func(): return int(guest.my_seat) == 2, 5.0), "空位挪入 2 号位")
+	a.check(room.members[1] == null, "原座位空出")
+	a.eq(str(room.members[2].name), "测乙选座", "2 号位为乙")
+	# 房主换座：甲 0 → 1 号位，房主身份跟人走
+	host.request_sit(1)
+	a.check(await _until(func(): return int(host.my_seat) == 1, 5.0), "房主挪入 1 号位")
+	a.eq(int(host.room_state.get("owner_seat", -1)), 1, "房主座位跟人走（owner_seat=1）")
+	a.check(host.am_i_owner(), "甲仍为房主")
+	# 新成员入座：填第一个空位（0 号位）
+	var third := _make_client("测丙选座", "C_st_c")
+	a.check(await _wait_hello(third), "丙 hello")
+	a.check(await _join_room(third, code), "丙入座")
+	a.eq(int(third.my_seat), 0, "丙填第一个空位 0 号位")
+	# 占座互换：乙 2 → 1（与甲互换），房主身份仍跟甲
+	guest.request_sit(1)
+	a.check(await _until(func(): return int(guest.my_seat) == 1 and int(host.my_seat) == 2, 5.0),
+		"占座互换（乙 1、甲 2）")
+	a.eq(str(room.members[1].name), "测乙选座", "互换后 1 号位为乙")
+	a.eq(str(room.members[2].name), "测甲选座", "互换后 2 号位为甲")
+	a.eq(int(host.room_state.get("owner_seat", -1)), 2, "互换后房主座位跟甲（owner_seat=2）")
+	a.check(host.am_i_owner(), "互换后甲仍为房主")
+	# 非法座位被拒
+	guest.request_sit(9)
+	var err := await _wait_error(guest)
+	a.check(err.contains("座位无效"), "越界座位被拒：%s" % err)
+	# 对局中拒绝换座
+	a.check(await _start_fill(host), "开局")
+	host.request_sit(3)
+	err = await _wait_error(host)
+	a.check(err.contains("对局进行中"), "对局中换座被拒：%s" % err)
 	await _cleanup_room()
 	await _free_clients()
 
@@ -810,6 +1052,15 @@ func test_ui_online_table(a) -> void:
 func _any_offline(nc: NetClient) -> bool:
 	for m in nc.room_state.get("members", []):
 		if bool(m.get("offline", false)):
+			return true
+	return false
+
+
+## 录制消息中是否已出现「bid 自动托管代打」回放（离线快托管断言用）
+func _has_auto_bid(recorded: Array) -> bool:
+	for msg in recorded:
+		if str(msg.get("t", "")) == NetProto.ACT and str(msg.get("kind", "")) == NetProto.KIND_BID \
+				and bool(msg.get("auto", false)):
 			return true
 	return false
 

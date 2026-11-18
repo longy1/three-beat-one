@@ -5,11 +5,18 @@ extends Node
 ## set_target_peer + put_packet。
 ## 掉线判定：周期向所有已知 peer 发探测 ping（客户端回 pong 刷新活跃时间）；
 ## 发送失败或超过 heartbeat_timeout 无任何消息 → 判掉线 → 房间成员进入宽限期。
+## heartbeat_timeout 取大值（60s）：Web 端标签页切后台时浏览器暂停主循环、
+## 心跳停发但 WebSocket 连接本身仍由浏览器维持——真断连靠「探测发送失败」即时判定，
+## 超时阈值只为容忍后台暂停；恢复后任意消息经 _try_revive 原连接复活（无需重连）。
 
 
 const PORT_DEFAULT := 9080
 const SWEEP_INTERVAL := 5.0        ## 掉线扫描周期（秒）
-const HEARTBEAT_TIMEOUT := 15.0    ## 无任何消息判掉线的阈值（秒）
+const HEARTBEAT_TIMEOUT := 60.0    ## 无任何消息判掉线的阈值（秒；容忍 Web 后台标签页暂停主循环）
+## 同昵称接管阈值（秒）：在线成员的 peer 静默超此值即视为断连，同昵称 hello 可立即
+## 接管其座位（无需等扫描判离线）——断连瞬间服务端未必察觉（半开 TCP 发送不报错），
+## 该阈值保证「昵称保留窗口内重连首试即回房」。客户端 5s 心跳 ×3 余量。
+const TAKEOVER_STALE := 15.0
 const CODE_LEN := 4
 ## 房间码字符集：去混淆（无 I/L/O/0/1）
 const CODE_CHARS := "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -17,6 +24,7 @@ const CODE_CHARS := "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 ## 测试可调
 var sweep_interval := SWEEP_INTERVAL
 var heartbeat_timeout := HEARTBEAT_TIMEOUT
+var takeover_stale := TAKEOVER_STALE
 ## 传导给房间的计时缩放（超时托管/离线宽限/AI 节拍）
 var time_scale := 1.0
 
@@ -91,6 +99,8 @@ func _dispatch(msg: Dictionary) -> void:
 	if peer_id <= 0:
 		return  # 无来源标识的消息忽略
 	_peer_last_seen[peer_id] = _now_ms()
+	if not _peer_nick.has(peer_id):
+		_try_revive(peer_id)
 	var t: String = msg.get("t", "")
 	match t:
 		NetProto.PING:
@@ -101,6 +111,8 @@ func _dispatch(msg: Dictionary) -> void:
 			_on_create(peer_id)
 		NetProto.JOIN:
 			_on_join(peer_id, msg)
+		NetProto.SIT:
+			_on_sit(peer_id, msg)
 		NetProto.LEAVE:
 			_on_leave(peer_id)
 		NetProto.START:
@@ -117,6 +129,31 @@ func _dispatch(msg: Dictionary) -> void:
 			pass  # 探测空包/未知消息忽略
 
 
+## 复活：宽限期内的离线成员经旧连接发来任何消息（典型：Web 标签页后台暂停后恢复，
+## 心跳/操作经原连接重达）→ 视同重连回房（解除离线、广播房间状态、对局中补发快照），
+## 无需重新 hello；匹配依据是掉线成员仍保留的原 peer_id。
+func _try_revive(peer_id: int) -> void:
+	for room in _rooms.values():
+		var m = room.member_by_peer(peer_id)
+		if m != null and not m.is_ai and m.offline:
+			_peer_nick[peer_id] = m.name
+			room.reconnect(peer_id, m.name)
+			return
+
+
+## peer 静默判定：无活跃记录或距上次消息超过接管阈值（同昵称接管用）
+func _peer_stale(peer_id: int) -> bool:
+	var last: int = int(_peer_last_seen.get(peer_id, 0))
+	return _now_ms() - last > takeover_stale * 1000.0
+
+
+## 释放 peer 的昵称占用与活跃记录（同昵称接管旧 peer 时调用；
+## 对已离线成员的旧 peer 是安全空操作）
+func _release_peer(peer_id: int) -> void:
+	_peer_nick.erase(peer_id)
+	_peer_last_seen.erase(peer_id)
+
+
 func _on_hello(peer_id: int, msg: Dictionary) -> void:
 	var nick: String = str(msg.get("nick", "")).strip_edges()
 	var check := NetProto.check_nick(nick)
@@ -127,16 +164,24 @@ func _on_hello(peer_id: int, msg: Dictionary) -> void:
 	if _peer_nick.get(peer_id, "") == nick:
 		_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick})
 		return
-	# 断线重连：昵称命中存活房间的离线成员 → 直接回房（宽限期内昵称仍视为被该成员占用）
+	# 断线重连（昵称即身份键）：同昵称命中存活房间成员 → 回房。两种情形：
+	# - 离线（宽限期内）：昵称随房间成员资格保留，直接回房；
+	# - 在线但其 peer 静默超阈：断连尚未被扫描判出（半开 TCP 发送不报错，只能等
+	#   静默超时），为让「昵称保留窗口内重连首试即回房」，释放旧 peer 映射并立即接管。
 	for room in _rooms.values():
 		var m = room.member_by_name(nick)
-		if m != null and not m.is_ai and m.offline:
+		if m == null or m.is_ai:
+			continue
+		if m.offline or _peer_stale(m.peer_id):
+			_release_peer(m.peer_id)
 			_peer_nick[peer_id] = nick
-			_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick})
+			# rejoined=true：客户端自动重连以此判定回房成功（协议层字段）
+			_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick, "rejoined": true})
 			room.reconnect(peer_id, nick)
 			return
-	# 在线占用制：昵称只与「同时在线」互斥（活跃 peer；存活房间的在线成员必已 hello 占用）。
-	# 掉线经扫描清理即释放，可复用；不落任何历史注册表。
+	# 在线占用制：昵称只与「同时在线」互斥——持有者 peer 活跃（静默未超阈）时拒绝同昵称；
+	# 昵称保留窗口 = 重连窗口（宽限期内随房间保留 / 静默超阈可接管），房间解散或主动退出
+	# （以及未进房连接的静默清理）后才释放复用；不落任何历史注册表。
 	if _peer_nick.values().has(nick):
 		_send(peer_id, {"t": NetProto.ERR, "msg": "昵称「%s」已被占用" % nick})
 		return
@@ -189,6 +234,22 @@ func _on_join(peer_id: int, msg: Dictionary) -> void:
 		_send(peer_id, {"t": NetProto.ERR, "msg": "房间已满（4/4）"})
 		return
 	room.add_member(nick, peer_id)
+	room.broadcast_room_state()
+
+
+func _on_sit(peer_id: int, msg: Dictionary) -> void:
+	var nick: String = _peer_nick.get(peer_id, "")
+	if nick == "":
+		_send(peer_id, {"t": NetProto.ERR, "msg": "请先输入昵称"})
+		return
+	var room := _room_of_peer(peer_id)
+	if room == null:
+		_send(peer_id, {"t": NetProto.ERR, "msg": "你不在任何房间中"})
+		return
+	var err: String = room.sit(nick, int(msg.get("seat", -1)))
+	if err != "":
+		_send(peer_id, {"t": NetProto.ERR, "msg": err})
+		return
 	room.broadcast_room_state()
 
 
