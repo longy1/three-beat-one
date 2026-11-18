@@ -212,6 +212,21 @@
 - 验证：--import 零错误 → 136/136 → smoke_ui → Web 导出 + 浏览器验收（主菜单/牌桌完整渲染）
 - `.uid` 随脚本同迁（git mv），class_name 注册与场景引用不受影响
 
+### Safari 真机排雷（2026-11-18，用户 iPhone 实测）
+
+- 现象演进：初报「主菜单按键失灵」→ 触控探针页实测输入全部到达且坐标一致（浏览器层健康）
+  → 用户复判「点按有效，画面不前进，转屏才进下一画面」= **渲染/主循环停摆**，非输入问题
+- 引擎运行时核对（build/web/index.js）：Godot 4.7.2 Web 只注册 canvas touchstart/touchend
+  （触摸）+ mousedown/mouseup（鼠标）+ window pointermove（轨迹），**无 pointerdown/up 监听**
+  ——Safari 上一次点触 4 条事件（touch+pointer 双流）仅 pointer 流无消费者，无双重输入；
+  触控探针页同步改进（分类型统计、TouchEvent 改读 changedTouches[0] 坐标、注明双流属正常）
+- 修复：iOS rAF 停摆垫片（setTimeout 16ms 驱动主循环，document.hidden 回退原生 rAF；
+  iPad 默认 Mac UA 用 maxTouchPoints 判定）+ 画布 translateZ(0) 强制合成层；配套上一轮的
+  touch_delay=0 / viewport 归一 / gesturestart 拦截 / visualViewport→resize 桥
+- 验证：Chromium 回归（桌面不受 UA 门控垫片影响，136/136 + smoke_ui + 浏览器对局推进正常）；
+  **iPhone 真机表现待用户复测**——若垫片后仍停帧，下一层排查为合成器呈现问题（备选：
+  每帧轻量 DOM 触碰强制合成 / 官方 issue 跟踪）
+
 ## 4. 待定事项清单（联机前需定）
 
 - 每步操作超时时长与托管策略 → **已做（M4）**：叫分 20s/叫主 30s/扣底 60s/出牌 30s，超时由 AI 纯模块代打并广播 auto 标记；时长常量未配置化（后续可做）

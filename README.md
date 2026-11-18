@@ -88,6 +88,7 @@ python tool/serve_https.py            # 自动生成证书并打印手机访问�
 # 选「高级 → 继续访问」（iOS：显示详细信息 → 访问此网站）即可正常进入。
 # 无线程构建兼容 iOS Safari；触控点按等价鼠标（触控延迟已归零，快速点按即时响应）；
 # Safari 适配：viewport 归一 + 捏合/双击缩放拦截 + 工具栏收起时画布自动重排（点按不失准）；
+# iOS rAF 停摆垫片（画面停帧转屏才更新的场景，setTimeout 驱动主循环，后台自动暂停）；
 # iPhone 无网页全屏 API（点 ⛶ 会提示「添加到主屏幕」），iPad/桌面 Safari 可真实全屏；
 # 横屏体验最佳，竖屏 letterbox 居中可玩。
 # 页面右上角有 ⛶ 全屏按钮（安卓/桌面/ iPad 直接全屏；iPhone Safari 无网页全屏 API，
