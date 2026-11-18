@@ -1,6 +1,6 @@
 class_name UiTestBase
 extends TestBase
-## UI 套件共享基类（doc/coding.md §5 UI 用例模式）：
+## UI 套件共享基类（[码5] UI 用例模式）：
 ## headless 实例化牌桌场景 + 加速计时器 + 标准发牌注入 + 帧暂停。
 
 

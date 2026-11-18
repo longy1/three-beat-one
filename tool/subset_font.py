@@ -9,7 +9,7 @@
 默认：build/_font_src/NotoSansSC-Regular.otf → font/NotoSansSC-Regular.subset.otf
 
 纪律：UI 文案有新增字符（尤其新中文/符号）后必须重跑本脚本并重新导出 Web 版，
-否则该字符在浏览器中显示为豆腐块（详见 doc/重构规范.md「HTML 导出与验收工作流」）。
+否则该字符在浏览器中显示为豆腐块（详见 [构6]「HTML 导出与验收工作流」）。
 """
 import pathlib
 import sys

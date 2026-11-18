@@ -19,6 +19,11 @@
   内 → 基线无漂移，BID_CALIB 维持不动；校准工具样本量 60→200 局/格（详见工程计划
   「校准复跑验证」节）
 - 规范建立：代码文件禁更新记录式注释，历史注记迁入本文档（本条即迁出动作本身）
+- 文档引用令牌制落地：代码注释引用文档一律用短令牌（[规N]/[码N]/[构N]/[史]/[划N]），
+  不再写完整路径——注册表单一事实源在 AGENTS.md §5（代理每次会话自动加载 = 天然解码表），
+  `test_doc_tokens_valid` 校验令牌已注册且节号真实存在于目标文档「## N.」标题；原 12 处
+  路径式引用迁为令牌（ui_style / trump_rank_picker / hand_area / table_view / store /
+  host_room / test_components / test_architecture / ui_test_base / test_ui）
 
 ## 2026-11-17
 

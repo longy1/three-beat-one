@@ -1,7 +1,7 @@
 class_name TrumpRankPicker
 extends PanelContainer
 ## 叫主点数选择面板（居中多排 2×6）：10 个点数按钮完整展示（R ∈ 5~2，不可为王）。
-## 点锚 = 主牌桌十字中心 + grow BOTH（居中规范，doc/coding.md §4）。
+## 点锚 = 主牌桌十字中心 + grow BOTH（居中规范，[码4]）。
 
 
 signal rank_picked(rank: int)

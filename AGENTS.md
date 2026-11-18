@@ -3,6 +3,7 @@
 > 本文档是本仓库的**总体规范与协作约定**。**随实现演进及时更新**——任何行为、结构、流程变更后，须同步修订对应章节。
 > **编码类规范已拆至 [doc/coding.md](./doc/coding.md)（架构 / GDScript / Godot 最佳实践 / UI 布局 / 测试，仅编码任务时查阅）**。
 > 规则依据：[doc/三打哈规则.md](./doc/三打哈规则.md)（唯一规则依据）；里程碑与技术决策：[doc/三打哈-Godot工程计划.md](./doc/三打哈-Godot工程计划.md)；**重构类任务执行 [doc/重构规范.md](./doc/重构规范.md)**（兜底代码根治协议、模块拆分原则、HTML 导出验收工作流、C/S 预留约定）；代码变更史归档：[doc/update.md](./doc/update.md)（代码注释禁更新记录，doc/coding.md §2）。
+> **代码引用文档一律用短令牌**（[规N]/[码N]/[构N]/[史]/[划N]，禁止写路径）——解码表见 §5 文档同步要求。
 
 ## 1. 项目概述
 
@@ -23,7 +24,7 @@
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（全部通过退出码 0；当前 13 套件 137 用例，含联机回环套件）
+# 单元/规则测试（全部通过退出码 0；当前 13 套件 138 用例，含联机回环套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
 
 # UI 冒烟（headless 自动打完一整局，约 1 分钟，退出码 0）
@@ -84,7 +85,7 @@ font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 too
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
 test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ suite_registry.gd（套件注册单一事实源）
-          + test_*.gd（13 套件 137 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 11 用例）+ run_tests.gd + smoke_ui.gd
+          + test_*.gd（13 套件 138 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环 11 用例）+ run_tests.gd + smoke_ui.gd
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
 doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md、coding.md（编码规范，编码时查阅）、update.md（代码变更史归档）
 static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新；含 .gdignore 不参与引擎导入）
@@ -109,6 +110,16 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 - 网络恢复后 `git push` 应显示无差异；若远端落后可随时用上述流程补推。
 
 ## 5. 文档同步要求（重要）
+
+**文档引用令牌（代码注释引文档的唯一合法形式）**：代码注释需要指向上游文档时用下列短令牌、**禁止写路径**——路径只存在于本表（文档改名/搬迁只改注册表一处）；代理每次会话自动加载本文档即持有解码表，读代码见令牌即可查此表定位；人类开发者从本文件/README 头部一行进入。`test_doc_tokens_valid` 机器守护：未注册令牌或悬空节号即红。
+
+| 令牌 | 指向 | 说明 |
+|---|---|---|
+| [规N] | doc/三打哈规则.md 第 N 节 | 规则出处（如 [规7.3]；自然语言「规则 7.3」仍可，令牌为显式形式） |
+| [码N] | doc/coding.md §N | 编码规范：1 架构 / 2 GDScript / 3 Godot 最佳实践 / 4 UI 布局 / 5 测试 |
+| [构N] | doc/重构规范.md §N | 重构任务规则（裸令牌 [构] = 全文；如 [构7] 联机预留约定） |
+| [史] | doc/update.md | 变更史（仅裸令牌，按日期归档；代码注释禁更新记录的唯一出口） |
+| [划N] | doc/三打哈-Godot工程计划.md §N | 技术决策 / 里程碑实施记录 |
 
 以下文档**必须随实现保持一致**，改动后逐项检查：
 
