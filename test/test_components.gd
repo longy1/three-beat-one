@@ -70,7 +70,7 @@ func test_hand_area_hit_strips(test) -> void:
 ## SeatPanel：统一尺寸、信息更新、悬停信号携带座位号
 func test_seat_panel_component(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
-	var panel: SeatPanel = load("res://scene/seat_panel.tscn").instantiate()
+	var panel: SeatPanel = load("res://scene/table/seat_panel.tscn").instantiate()
 	tree.root.add_child(panel)
 	await tree.process_frame
 	# 组件自带统一尺寸（规范：实例只定位）
@@ -96,7 +96,7 @@ func test_seat_panel_component(test) -> void:
 ## InfoSidebar：统计行（含灰显）、局面、主牌展示、菜单信号
 func test_info_sidebar_component(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
-	var sb: InfoSidebar = load("res://scene/info_sidebar.tscn").instantiate()
+	var sb: InfoSidebar = load("res://scene/table/info_sidebar.tscn").instantiate()
 	tree.root.add_child(sb)
 	await tree.process_frame
 	sb.update_stats("主 3 ｜ 副 ♥2 ♣1", [["5×1", true], ["大王×0", false]])
@@ -195,7 +195,7 @@ func test_table_seat_wiring(test) -> void:
 ## 会把 position 重置回内容区原点——印章被拽到左上角压住姓名。修复用 top_level 脱离布局树
 func test_void_stamp_component(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
-	var panel: SeatPanel = load("res://scene/seat_panel.tscn").instantiate()
+	var panel: SeatPanel = load("res://scene/table/seat_panel.tscn").instantiate()
 	tree.root.add_child(panel)
 	await tree.process_frame
 	var stamp: VoidStamp = panel.get_node("VoidStamp")
@@ -321,3 +321,24 @@ func test_hand_area_render_prunes_stale_selection(test) -> void:
 	test.eq(ha.selected.size(), 1, "陈旧引用（已打出的牌）被渲染剪除")
 	test.check(ha.selected.has(kept), "保留仍在手中的选中")
 	ha.queue_free()
+
+
+## AppSettings 持久化往返（重定向临时文件，不触真实用户设置）
+func test_app_settings_roundtrip(test) -> void:
+	var path := "user://test_app_settings.cfg"
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	var prev_path: String = AppSettings.cfg_path
+	AppSettings.cfg_path = path
+	AppSettings.main_side = AppSettings.MainSide.LEFT
+	AppSettings.sort_order = AppSettings.SortOrder.BIG_FIRST
+	AppSettings.save_settings()
+	AppSettings.main_side = AppSettings.MainSide.RIGHT
+	AppSettings.sort_order = AppSettings.SortOrder.SMALL_FIRST
+	AppSettings.load_settings()
+	test.eq(int(AppSettings.main_side), int(AppSettings.MainSide.LEFT), "持久化往返：主牌框位置")
+	test.eq(int(AppSettings.sort_order), int(AppSettings.SortOrder.BIG_FIRST), "持久化往返：排序方向")
+	AppSettings.cfg_path = prev_path
+	AppSettings.main_side = AppSettings.MainSide.LEFT
+	AppSettings.sort_order = AppSettings.SortOrder.BIG_FIRST
+	DirAccess.remove_absolute(path)

@@ -24,7 +24,8 @@ func _initialize() -> void:
 
 	var only: Array[String] = []
 	if opts.tests.size() > 0:
-		only = opts.tests
+		for t in opts.tests:
+			only.append(str(t))  # 命令行来的无类型 Array，逐个转换（直接赋值 Array[String] 会解析期报错）
 	elif opts.shard_n > 0:
 		only = _shard_selection(suites, opts.shard_k, opts.shard_n)
 
