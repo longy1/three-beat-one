@@ -11,9 +11,10 @@ extends UiTestBase
 ## 离线快托管 ~0.1s、离线宽限 180s→~3.6s）；心跳判定阈值默认 60s（后台标签页容忍）。
 
 
-const PORT := 9811
-const STORE_PATH := "user://test_online_store.json"
-const URL := "ws://127.0.0.1:9811"
+## 端口/存储按 TEST_PORT_OFFSET 偏移：并行分片跑本套件时各分片独占端口与存储文件
+## （run_tests_parallel.sh 为每分片注入偏移；单进程直跑默认 0 = 原端口 9811）
+static var _port: int = 9811 + maxi(0, OS.get_environment("TEST_PORT_OFFSET").to_int())
+static var _store_path: String = "user://test_online_store_%d.json" % _port
 
 var _manager: Node = null
 var _store: RefCounted = null
@@ -26,9 +27,9 @@ var _client_errors := {}  ## NetClient → Array[String]（持久收集，避免
 func _ensure_server() -> void:
 	if _manager != null:
 		return
-	if FileAccess.file_exists(STORE_PATH):
-		DirAccess.remove_absolute(STORE_PATH)
-	_store = load("res://server/store.gd").new(STORE_PATH)
+	if FileAccess.file_exists(_store_path):
+		DirAccess.remove_absolute(_store_path)
+	_store = load("res://server/store.gd").new(_store_path)
 	_manager = load("res://server/room_manager.gd").new()
 	_manager.name = "OnlineTestServer"
 	Engine.get_main_loop().root.add_child(_manager)
@@ -37,9 +38,9 @@ func _ensure_server() -> void:
 	# 离线检测在本套件靠 drop_connection 后的定向发送失败即时生效，复活用例临时调小本值
 	_manager.heartbeat_timeout = 60.0
 	_manager.time_scale = 0.02
-	var err: Error = _manager.start(PORT, _store)
+	var err: Error = _manager.start(_port, _store)
 	if err != OK:
-		push_error("回环服务器启动失败（端口 %d）：%s" % [PORT, error_string(err)])
+		push_error("回环服务器启动失败（端口 %d）：%s" % [_port, error_string(err)])
 
 
 func _make_client(nick: String, node_name: String, standalone := true) -> NetClient:
@@ -48,7 +49,7 @@ func _make_client(nick: String, node_name: String, standalone := true) -> NetCli
 	nc.standalone = standalone
 	nc.auto_reconnect = false  # 既有 drop 类用例保持旧的断线即弹窗路径；自动重连用例显式开启
 	Engine.get_main_loop().root.add_child(nc)
-	nc.connect_to(URL, nick)
+	nc.connect_to("ws://127.0.0.1:%d" % _port, nick)
 	var errs: Array = []
 	_client_errors[nc] = errs
 	nc.net_error.connect(func(m: String): errs.append(m))
@@ -66,7 +67,7 @@ func _until(pred: Callable, timeout := 5.0) -> bool:
 	while Time.get_ticks_msec() - start < timeout * 1000.0:
 		if pred.call():
 			return true
-		await tree.create_timer(0.01).timeout
+		await tree.create_timer(0.002).timeout
 	return false
 
 
@@ -181,7 +182,7 @@ func _drive_until(nc: NetClient, pred: Callable, deadline_s := 30.0) -> bool:
 			if fp != prev_fp:
 				prev_fp = fp
 				_maybe_act(nc, v)
-		await tree.create_timer(0.01).timeout
+		await tree.create_timer(0.002).timeout
 	return false
 
 
@@ -789,7 +790,7 @@ func test_ui_online_table(a) -> void:
 					0, v.banker_seat, v.trick_history, v.trump_void_seats):
 				table.hand_area.selected.append(c)
 			table._submit_human_play()
-		await tree.create_timer(0.02).timeout
+		await tree.create_timer(0.005).timeout
 	a.check(bool(settled.done), "UI 牌桌完整打完一局")
 	a.check(await _until(func(): return table.result_panel.visible, 10.0), "结算面板弹出")
 	a.check(table.result_next_button.visible, "房主结算面板可见【下一局】")
