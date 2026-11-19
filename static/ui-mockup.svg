@@ -18,7 +18,15 @@
   <!-- ═══ 丙（上带，SeatPanel 统一 180×100，居中牌桌区 x536） ═══ -->
   <rect x="446" y="48" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
   <text x="536" y="86" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丙（电脑）</text>
-  <text x="536" y="110" font-size="13" fill="#9ab5a5" text-anchor="middle">17 张 ｜ 叫 135</text>
+  <text x="536" y="110" font-size="13" fill="#9ab5a5" text-anchor="middle">17 张</text>
+  <!-- 叫分对话气泡（BidBubbles）：叫分/放弃不占姓名版状态行；气泡停留到更高分出现；
+       叫分越大字号越大（130→200 线性），气泡封顶约中央空白牌桌 1/3 面积 -->
+  <g>
+    <rect x="510" y="170" width="52" height="38" rx="10" fill="#f5efdf" stroke="#59503a" stroke-width="1.5"/>
+    <path d="M 530 170 L 542 170 L 536 158 Z" fill="#f5efdf" stroke="#59503a" stroke-width="1.5"/>
+    <text x="536" y="196" font-size="17" fill="#332e1f" text-anchor="middle" font-weight="bold">135</text>
+    <text x="575" y="196" font-size="11" fill="#8a7a4a">丙·气泡（面板下方，尾巴朝上）</text>
+  </g>
   <!-- 皇冠动画：叫分结束 → 中央大皇冠减速飞向庄家名字旁 -->
   <path d="M 530 360 Q 480 220 476 88" fill="none" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="5 4"/>
   <g transform="translate(460,64)">
@@ -41,8 +49,13 @@
   <!-- ═══ 丁（左带 面板 12~192） ═══ -->
   <rect x="12" y="244" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
   <text x="102" y="278" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丁（电脑）</text>
-  <text x="102" y="300" font-size="13" fill="#9ab5a5" text-anchor="middle">16 张 ｜ 已放弃</text>
-  <text x="102" y="320" font-size="13" fill="#9ab5a5" text-anchor="middle">（悬停=牌堆）</text>
+  <text x="102" y="300" font-size="13" fill="#9ab5a5" text-anchor="middle">16 张</text>
+  <g>
+    <rect x="208" y="250" width="56" height="30" rx="9" fill="#f5efdf" stroke="#59503a" stroke-width="1.5"/>
+    <path d="M 264 258 L 264 272 L 276 265 Z" fill="#f5efdf" stroke="#59503a" stroke-width="1.5"/>
+    <text x="236" y="271" font-size="14" fill="#332e1f" text-anchor="middle" font-weight="bold">不要</text>
+    <text x="226" y="298" font-size="11" fill="#8a7a4a">丁·放弃气泡（面板右侧，尾巴朝左）</text>
+  </g>
   <!-- 丁出牌（200~296） -->
   <rect x="200" y="262" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
   <text x="207" y="282" font-size="11" fill="#1a1a24">♣K</text>
@@ -71,6 +84,7 @@
   <!-- 中央空旷区标注 -->
   <text x="536" y="230" font-size="12" fill="#5a7a68" text-anchor="middle">中央空旷区（y136~432）</text>
   <text x="536" y="248" font-size="12" fill="#5a7a68" text-anchor="middle">居中展示层（叫主点数面板 / 牌堆弹层 / 翻底底牌面板 / 结算面板）：点锚主牌桌十字中心 + grow BOTH</text>
+  <text x="536" y="266" font-size="12" fill="#8fd0a8" text-anchor="middle">发牌动画（DealAnimator，开局/下一局；快照恢复不播）：中央牌叠 → 逐轮 4 张背面飞入各家 → 我的牌翻正挤成一坨 → 收拢 → 展开成牌序（表现层不阻塞对局）</text>
 
   <!-- ═══ 你的出牌（手牌正上方 y384~461；重叠步距与手牌同款，2026-11-19） ═══ -->
   <rect x="460" y="388" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
@@ -157,7 +171,9 @@
   <text x="1084" y="374" font-size="13" fill="#c8d8cd">      丙+3 丁-3</text>
 
   <line x1="1084" y1="396" x2="1256" y2="396" stroke="#2c4a38"/>
-  <!-- 主菜单按钮挪入栏底 -->
+  <!-- 栏底按钮：设置（游戏设置弹层，与主菜单入口共用）+ 返回主菜单 -->
+  <rect x="1090" y="630" width="160" height="32" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1170" y="651" font-size="14" fill="#d8e5dd" text-anchor="middle">设置</text>
   <rect x="1090" y="668" width="160" height="32" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
   <text x="1170" y="689" font-size="14" fill="#d8e5dd" text-anchor="middle">返回主菜单</text>
 
@@ -181,16 +197,22 @@
   <text x="470" y="946" font-size="13" fill="#9ab5a5">服务器地址</text>
   <rect x="470" y="954" width="360" height="36" rx="6" fill="#0d1f16" stroke="#3a5c48"/>
   <text x="482" y="978" font-size="14" fill="#d8e5dd">ws://127.0.0.1:9080（默认，可改远程）</text>
-  <rect x="470" y="1004" width="360" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
-  <text x="650" y="1030" font-size="16" fill="#d8e5dd" text-anchor="middle">新建房间</text>
-  <rect x="470" y="1054" width="230" height="36" rx="6" fill="#0d1f16" stroke="#3a5c48"/>
-  <text x="482" y="1078" font-size="14" fill="#5a7a68">房间码（4 位）</text>
-  <rect x="712" y="1054" width="118" height="36" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
-  <text x="771" y="1078" font-size="15" fill="#d8e5dd" text-anchor="middle">加入房间</text>
-  <rect x="470" y="1104" width="360" height="36" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
-  <text x="650" y="1128" font-size="14" fill="#d8e5dd" text-anchor="middle">返回</text>
-  <text x="650" y="1170" font-size="13" fill="#e8b84a" text-anchor="middle">状态行：连接中…/昵称已被占用/房间不存在等</text>
-  <text x="650" y="1216" font-size="12" fill="#5a7a68" text-anchor="middle">昵称经 ConfigFile（user://online.cfg）记忆；全屏居中容器</text>
+  <!-- 最近成功连接：连接成功即记录（去重置顶、封顶 5 条、落盘），点按填入地址框 -->
+  <text x="470" y="1000" font-size="12" fill="#8a7a4a">最近成功连接：</text>
+  <rect x="470" y="1006" width="110" height="26" rx="5" fill="#0d1f16" stroke="#3a5c48"/>
+  <text x="525" y="1024" font-size="11" fill="#9ab5a5" text-anchor="middle">ws://10.0.0.5:9080</text>
+  <rect x="588" y="1006" width="110" height="26" rx="5" fill="#0d1f16" stroke="#3a5c48"/>
+  <text x="643" y="1024" font-size="11" fill="#9ab5a5" text-anchor="middle">wss://site.example</text>
+  <rect x="470" y="1040" width="360" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="650" y="1066" font-size="16" fill="#d8e5dd" text-anchor="middle">新建房间</text>
+  <rect x="470" y="1090" width="230" height="36" rx="6" fill="#0d1f16" stroke="#3a5c48"/>
+  <text x="482" y="1114" font-size="14" fill="#5a7a68">房间码（4 位）</text>
+  <rect x="712" y="1090" width="118" height="36" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="771" y="1114" font-size="15" fill="#d8e5dd" text-anchor="middle">加入房间</text>
+  <rect x="470" y="1140" width="360" height="36" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="650" y="1164" font-size="14" fill="#d8e5dd" text-anchor="middle">返回</text>
+  <text x="650" y="1206" font-size="13" fill="#e8b84a" text-anchor="middle">状态行：连接中…/该昵称已在其他设备登录/房间不存在等</text>
+  <text x="650" y="1244" font-size="12" fill="#5a7a68" text-anchor="middle">昵称经 ConfigFile（user://online.cfg）记忆；重连凭会话令牌（token 即重连身份键，在线成员不可被同昵称顶座）；全屏居中容器</text>
 
   <!-- 房间大厅（右半 640~1280） -->
   <text x="960" y="780" font-size="16" fill="#8fd0a8" text-anchor="middle" font-weight="bold">房间大厅 room_lobby.tscn</text>
@@ -243,9 +265,9 @@
   <text x="752" y="1604" font-size="13" fill="#d8e5dd">  NetClient 摄取层统一完成——牌桌代码零改动</text>
   <text x="740" y="1632" font-size="13" fill="#d8e5dd">· 视图只持有本人手牌 + 公开回放（他人手牌/所扣牌面不下发）</text>
   <text x="740" y="1660" font-size="13" fill="#d8e5dd">· 他人操作超时托管 → toast「XX 超时，已托管」</text>
-  <text x="740" y="1688" font-size="13" fill="#d8e5dd">· 掉线成员座位标注「离线」，宽限 120s 内可同昵称重连恢复</text>
+  <text x="740" y="1688" font-size="13" fill="#d8e5dd">· 掉线成员座位标注「离线」，宽限 180s 内凭会话令牌重连恢复</text>
   <text x="740" y="1716" font-size="13" fill="#d8e5dd">· 结算面板【下一局】仅房主可见；其余显示等待房主</text>
   <text x="740" y="1744" font-size="13" fill="#d8e5dd">· 下一局由服务端广播新 game_start 原地重灌（庄位轮换同单机）</text>
   <text x="740" y="1784" font-size="12" fill="#e8b84a">超时托管：叫分 20s / 叫主 30s / 扣底 60s / 出牌 30s（AI 纯模块代打）</text>
-  <text x="740" y="1812" font-size="12" fill="#e8b84a">心跳：客户端 5s ping，服务端 15s 无消息或发送失败判离线（进入宽限期）</text>
+  <text x="740" y="1812" font-size="12" fill="#e8b84a">心跳：客户端 5s ping，服务端 60s 无消息或发送失败判离线（进入宽限期；回连凭会话令牌/同昵称承接）</text>
 </svg>

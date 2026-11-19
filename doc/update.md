@@ -6,6 +6,82 @@
 > 里程碑级决策仍归《三打哈-Godot工程计划.md》，本文档只收代码注释层的历史注记。
 > 条目按日期倒序，新条目置顶；每条注明迁出前所在的文件。
 
+## 2026-11-20
+
+- TODO.md 批量实现（用户需求：把指定 10 项 TODO 全部实现后 push 并部署，过程与经验统一记录本文档）。
+  分主题：
+  - **AI 守门动态放宽**（`core/ai_play.gd`、`core/ai_policy.gd`、test/test_ai_policy.gd）：垫牌守门
+    避让按庄家剩牌量三档——剩牌 >16 全量避让（旧行为）、9~16 只避让队友深清（≥4 张）的门、
+    ≤8 守门解除自由垫牌（残局守门无意义）；`choose_play` 新增 `banker_cards` 参（缺省 -1 =
+    未知保持全量口径，旧调用方/测试零改动），AiPolicy/服务端传 `engine.hand_count(banker_seat)`；
+    `_teammate_shed_suits` 拆出计数版 `_teammate_shed_counts` 供深清判定（避免镜像实现）
+  - **存储层升级**（`server/store.gd` 重写、test/test_store.gd 新增套件）：store.json 整文件 JSON →
+    **单文件追加日志库**（SQLite 平替定位：纯 GDScript 无第三方依赖）——每次变更追加一行 JSON op，
+    启动顺序回放重建内存态，行数超 256 压实为单行快照（临时文件 + rename 原子替换），末行残缺
+    （写入中途崩溃）回放自动截断并自愈重写；旧版 store.json 首次载入自动迁移；接口面不变
+    （record_room/add_scores/room_scores）并新增 live_rooms 三接口（save/clear/load，供房间恢复）；
+    套件注册表 13→14 套件，run_affected.sh 补映射（store.gd → test_store+test_online、
+    app_settings.gd → test_components）
+  - **重连身份令牌化 + 占用文案**（`net/protocol.gd`、`net/net_client.gd`、`server/room_manager.gd`、
+    `server/host_room.gd`）：客户端每实例生成会话令牌（32 位 hex，会话级防顶座凭据，非加密强度——
+    服务定位为本地/可信小服），每条 hello 必带、hello_ok 回执签发后保存；服务端 hello 流程重排——
+    同 token 命中存活房间成员即回房（掉线宽限与旧连接静默窗口都承接，无需再判静默时长，
+    `TAKEOVER_STALE`/`takeover_stale` 整体废除）；同昵称但 token 不符 = 其他设备在使用，
+    在线成员一律拒绝，文案「昵称已被占用」→「该昵称已在其他设备登录」（用例断言同步）；
+    离线成员（宽限期）同昵称无令牌可承接——覆盖应用重启/页面刷新丢令牌的合法回归
+    （等待扫描判离线 ≤ 探测周期，原来的 15s 接管静默阈不再需要）
+  - **服务端进程重启不散房**（同批文件）：host_room 全量序列化（成员含令牌 + 引擎全量，
+    牌走 Card.key() 串与协议同构）+ `restore_from`（成员离线、令牌保留、宽限计时重挂、
+    `_resume_pending_turn` 按阶段重新调度 AI 代打/离线快托管）；RoomManager 启动时
+    `_restore_rooms` 经 store.live_rooms 重建（新 store 实例 = 日志回放，端到端即真实重启路径）；
+    每次成功变更即 `_persist()` 落盘、close 时 clear；测试 test_server_restart_keeps_rooms：
+    销毁服务端 → 同端口同存储重建 → 房间恢复 → 客户端凭 token 自动重连 → 快照恢复 → 打完
+  - **设置面板**（`script/app_settings.gd`、`script/menu/settings_dialog.gd` 新增，main_menu、
+    info_sidebar 加入口，`script/table/hand_area.gd` 呈现感知）：两项设置——手牌区主牌框在左/右
+    （框序对调）、牌点数从大到小/从小到大（花色分组从左到右不变）；AppSettings 静态状态 +
+    ConfigFile user://settings.cfg 即时保存生效（cfg_path 可重定向供测试）；弹层程序化构建
+    （遮罩 + UiStyle.center_anchor 居中 + 循环切换按钮 + 完成）
+  - **便捷操作**（hand_area + game_table）：双击手牌区空白（未命中任何牌的条带）清空选择，
+    双击牌桌空白（Background 层）同款；触摸设备两指单击 = 右键出牌——首指按下即快照当前选择
+    （先于触摸模拟的鼠标点选副作用），第二指按下（至少一指在手牌区内）确认手势，两指全抬时
+    恢复快照撤销模拟点选、出牌模式下提交 play_requested
+  - **叫分对话气泡**（`script/table/bid_bubbles.gd` 新增）：各家叫分/放弃改以带尾巴的气泡呈现
+    （你=手牌上方尾朝下、乙=面板左侧尾朝右、丙=面板下方尾朝上、丁=面板右侧尾朝左），
+    姓名版状态行腾空；气泡全量幂等 apply（_refresh_seats 状态驱动，重连快照恢复同路径生效）——
+    只有当前最高叫分的气泡在展示（低分被更高分取代即消失）、放弃气泡保留到拍卖结束、
+    无表态座位隐藏（新局不留残影）；字号随分值 130→200 线性 17→44px，封顶约中央牌桌 1/3 面积
+  - **发牌动画**（`script/table/deal_animator.gd` 新增）：开局（单机开局/下一局、联机 game_start；
+    重连快照不播）中央出现背面牌叠 → 19 轮按 4 张/轮背面飞入各家（闲家到座位面板隐没）→
+    我的牌翻正面逐张淡入、按发牌顺序挤成一坨（未排序未分常主）→ 两边向中间收拢 →
+    按牌对号展开到真实牌序布局（目标位取自 HandArea 测量渲染的真实卡牌位——控制器先渲一次
+    并隐藏真实牌面，动画结束回调重渲放行）；播放期间 `_render_hand` 统一挂起（`_deal_active`）；
+    表现层不阻塞对局（test_deal_animation_non_blocking）；speed 缩放供测试（ui_test_base =80）
+  - **联机菜单最近成功连接**（`script/menu/online_menu.gd`）：连接成功（hello_ok）即记录规范化地址
+    （去重置顶、封顶 5 条、ConfigFile 落盘），地址框下方渲染条目按钮、点按填入地址框
+    （cfg_path 可重定向供测试）
+- 经验/踩坑记录（本轮）：
+  - `run_tests.gd --tests` 多值过滤把无类型 Array 直接赋给 `Array[String]`，解析期报错令
+    `_initialize` 中断、进程永不退出（表现为「测试卡死」）——修为逐个 str() 转换；测试协程内
+    运行时错误会静默中断该用例且被计为通过（框架 await 对中断协程立即返回），test_components
+    三处旧场景路径（重构前 `res://scene/seat_panel.tscn`）因此长期静默空转——修为
+    `scene/table/` 并借此确认用例真实跑通
+  - UI 直驱引擎的测试与牌桌自身 `_run_ai` 计时存在竞速：用例中插入 `await tree_pause()` 再按
+    固定座位提交会被 AI 抢先——新用例要么同帧完成全部提交（无 await），要么自适应当前回合/
+    用结算历史做健壮断言；叫分气泡用例曾因「dealer 在 _deal 之前读取」拿到随机局的庄家而假失败
+  - 令牌化后自动重连「首试即回房」，服务端未及扫出掉线时不再有 member_offline 广播——
+    test_client_auto_reconnect 的离线/上线 presence 断言移除（行为更优，避免竞态假失败）
+  - store 每次追加 `flush()` 强制刷盘在高频对局动作下开销过大（联机套件 95s→205s），
+    改为 close 即落盘后回到 98s
+  - ZCode 内嵌浏览器（IAB）验收时页面非前台会节流 rAF：游戏画面停滞、状态不推进，均在与页面
+    交互的瞬间恢复——为环境节流而非游戏缺陷（headless smoke 完整跑通一局、同一 await 计时
+    机制的 AI 节拍在交互间隙正常推进）；自动化验收需周期性保持页面活跃，真实用户前台标签页不受影响
+- 视觉稿 static/ui-mockup.svg 同步：丙/丁叫分气泡示意（姓名版状态行腾空）、信息栏【设置】按钮、
+  联机菜单「最近成功连接」条目与令牌化文案、联机牌桌态注记参数更新（宽限 180s/心跳 60s）、
+  发牌动画流程注记——原 static/ui-mockup.svg
+- 配套文档同步：AGENTS.md（目录/套件计数/已知简化）、doc/coding.md（§1.12 令牌化、§4 气泡/发牌
+  动画/设置/手牌交互、§5 新套件）、README.md（联机重连口径与新功能）、工程计划（技术决策与
+  实施记录）、TODO.md（10 项勾选）——各文件本体
+
 ## 2026-11-19
 
 - 测试基建提速与分级（用户需求：①分析全量测试性能并优化、考虑并发；②push 前才跑全量、
