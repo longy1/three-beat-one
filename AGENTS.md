@@ -111,7 +111,7 @@ static/   ui-mockup.svg（界面区域图视觉稿，布局变更须同步更新
 build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导出模板在编辑器安装目录 S:\Program\Godot\editor_data\export_templates\，self-contained 模式由 exe 旁 ._sc_ 标记启用）
 ```
 
-`.uid` 文件由 Godot 生成，**必须与对应 `.gd`/`.tscn` 一同提交**；`.godot/`、`.zcode/`、`build/` 已忽略；`export_presets.cfg` **入库**。根目录 `TODO.md` 为迭代想法 backlog（按模块分节、复选框管理，使用约定见文件头；负向结论/失败迭代不走这里，归工程计划与 update.md）。**换行符约定**：仓库与工作区一律 LF，由 `.gitattributes` 强制（`* text=auto eol=lf`；bat 按 `-text` 保持仓库原样、字体/二进制显式标记），本仓库本地 `core.autocrlf=false`/`core.eol=lf`——Windows 默认 autocrlf=true 会在 checkout 注入 CRLF 与 AI 写盘的 LF 打架，禁止改回。
+`.uid` 文件由 Godot 生成，**必须与对应 `.gd`/`.tscn` 一同提交**；`.godot/`、`.zcode/`、`build/` 已忽略；`export_presets.cfg` **入库**。根目录 `TODO.md` 为迭代想法 backlog（按模块分节、复选框管理，使用约定见文件头；负向结论/失败迭代不走这里，归工程计划与 update.md）。**@TODO.md 的消息默认只是记录**（把想法写入对应分节即完成，不展开实现）；仅当用户明确要求实现/动手时才开工。**换行符约定**：仓库与工作区一律 LF，由 `.gitattributes` 强制（`* text=auto eol=lf`；bat 按 `-text` 保持仓库原样、字体/二进制显式标记），本仓库本地 `core.autocrlf=false`/`core.eol=lf`——Windows 默认 autocrlf=true 会在 checkout 注入 CRLF 与 AI 写盘的 LF 打架，禁止改回。
 
 **命名规范：目录名一律用单数**（core / doc / font / scene / script / static / test / theme / tool），不用复数；新增目录同样遵守。静态设计资产放 static/（含 .gdignore，不参与引擎导入）。
 
