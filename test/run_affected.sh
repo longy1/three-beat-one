@@ -16,11 +16,14 @@ fi
 
 suites=()
 want_full=0
-add() {
-  case " ${suites[*]:-} " in
-    *" $1 "*) ;;
-    *) suites+=("$1") ;;
-  esac
+add() {  # 可变参数：逐个去重加入
+  local s
+  for s in "$@"; do
+    case " ${suites[*]:-} " in
+      *" $s "*) ;;
+      *) suites+=("$s") ;;
+    esac
+  done
 }
 add_arch() {  # 架构守护便宜且覆盖全仓分层：任何代码改动都带上
   add test_architecture
