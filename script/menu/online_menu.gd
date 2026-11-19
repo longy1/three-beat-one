@@ -1,6 +1,7 @@
 extends Control
 ## 联机入口（M4）：昵称 + 服务器地址 → 新建房间 / 凭码加入。
-## 昵称经 ConfigFile 记忆（user://online.cfg）；连接/进房失败在状态行报错。
+## 昵称与地址经 ConfigFile 记忆（user://online.cfg），另有「最近成功连接」列表
+## （连接成功即记录，最多 5 条，点按填入地址框）；连接/进房失败在状态行报错。
 ## NetClient 创建后挂 tree.root（名字固定 "NetClient"）跨场景存活；
 ## 进房成功由 NetClient 切到房间大厅（scene/room_lobby.tscn）。
 
@@ -8,10 +9,17 @@ extends Control
 const CFG_PATH := "user://online.cfg"
 const LOBBY_SCENE := "res://scene/menu/room_lobby.tscn"
 const DEFAULT_LOCAL_ADDR := "ws://127.0.0.1:9080"  ## 与场景 AddrEdit 默认值一致（本地调试）
+const RECENT_MAX := 5              ## 最近成功连接列表条数上限
+const RECENT_SECTION := "recent"
 
 var _net: NetClient = null
 var _pending_join := ""  ## ""=建房；否则为要加入的房间码
 var _proceeding := false
+var _submitted_addr := ""  ## 本次提交的规范化地址（连接成功后记入最近列表）
+var _recent: Array = []    ## 最近成功连接地址（新→旧）
+var _recent_row: HBoxContainer = null
+## 配置文件路径（实例字段：测试可指向临时文件，避免覆写真实用户配置）
+var cfg_path: String = CFG_PATH
 
 @onready var nick_edit: LineEdit = $Center/Panel/VBox/NickEdit
 @onready var addr_edit: LineEdit = $Center/Panel/VBox/AddrEdit
@@ -23,17 +31,22 @@ func _ready() -> void:
 	$Center/Panel/VBox/CreateButton.pressed.connect(_on_create)
 	$Center/Panel/VBox/CodeRow/JoinButton.pressed.connect(_on_join)
 	$Center/Panel/VBox/BackButton.pressed.connect(_on_back)
+	_build_recent_row()
 	_load_cfg()
 
 
 func _load_cfg() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(CFG_PATH) == OK:
+	if cfg.load(cfg_path) == OK:
 		nick_edit.text = str(cfg.get_value("online", "nick", ""))
 		var addr := str(cfg.get_value("online", "addr", ""))
 		if addr != "":
 			addr_edit.text = addr
+		var stored: Variant = cfg.get_value(RECENT_SECTION, "addrs", [])
+		if stored is Array:
+			_recent = stored
 	_prefill_web_addr()
+	_refresh_recent_row()
 
 
 ## Web 平台地址预填：未记忆自定义地址（仍为场景默认本地值）时，改填当前页面站点
@@ -55,7 +68,53 @@ func _save_cfg() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("online", "nick", nick_edit.text.strip_edges())
 	cfg.set_value("online", "addr", addr_edit.text.strip_edges())
-	cfg.save(CFG_PATH)
+	cfg.set_value(RECENT_SECTION, "addrs", _recent)
+	cfg.save(cfg_path)
+
+
+## ============================= 最近成功连接 =============================
+
+## 「最近成功连接」行（地址框下方，程序化构建）：点按历史地址填入地址框。
+## 列表为空时整行隐藏。
+func _build_recent_row() -> void:
+	_recent_row = HBoxContainer.new()
+	_recent_row.name = "RecentRow"
+	_recent_row.add_theme_constant_override("separation", 8)
+	$Center/Panel/VBox.add_child(_recent_row)
+	$Center/Panel/VBox.move_child(_recent_row, 5)  # AddrEdit（index 4）之后
+
+
+func _refresh_recent_row() -> void:
+	for child in _recent_row.get_children():
+		child.queue_free()
+	_recent_row.visible = not _recent.is_empty()
+	if _recent.is_empty():
+		return
+	var head := Label.new()
+	head.text = "最近成功连接："
+	head.add_theme_font_size_override("font_size", 13)
+	head.modulate = Color(1, 1, 1, 0.65)
+	_recent_row.add_child(head)
+	for addr in _recent:
+		var addr_text: String = str(addr)
+		var b := Button.new()
+		b.text = addr_text
+		b.add_theme_font_size_override("font_size", 13)
+		UiStyle.pad_button(b)
+		b.pressed.connect(func(): addr_edit.text = addr_text)
+		_recent_row.add_child(b)
+
+
+## 连接成功（hello_ok）后记录地址：去重置顶、封顶截断、落盘
+func _record_recent_addr(addr: String) -> void:
+	if addr == "":
+		return
+	_recent.erase(addr)
+	_recent.push_front(addr)
+	while _recent.size() > RECENT_MAX:
+		_recent.pop_back()
+	_save_cfg()
+	_refresh_recent_row()
 
 
 func _on_create() -> void:
@@ -86,6 +145,7 @@ func _submit(join_code: String) -> void:
 		return
 	if not addr.begins_with("ws://") and not addr.begins_with("wss://"):
 		addr = "ws://" + addr
+	_submitted_addr = addr
 	_save_cfg()
 	_pending_join = join_code
 	_proceeding = false
@@ -104,6 +164,7 @@ func _submit(join_code: String) -> void:
 
 
 func _on_hello_ok(_nick: String) -> void:
+	_record_recent_addr(_submitted_addr)  # 连接成功即记入「最近成功连接」
 	if _pending_join == "":
 		_net.request_create()
 	else:
