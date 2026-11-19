@@ -604,17 +604,23 @@ func _refresh_trick_area() -> void:
 	for play in shown:
 		var seat: int = play.seat
 		# 出牌区只渲染牌（归属信息在姓名版）；赢家标记见姓名版「✓ 上轮赢」。
-		# 卡牌尺寸按张数自适应：≤2 张正常、≥3 张中号（拖拉机不遮挡姓名版）
+		# 卡牌尺寸按张数自适应：≤2 张正常、≥3 张中号；相邻牌重叠步距与手牌紧凑
+		# 口径一致（HandArea.SPACING_MAX，后牌盖前牌各露左缘角标条），多张组合
+		# 不再摊成全宽横排（与手牌同款摆法）
 		var card_size: Vector2 = CardWidget.SIZE_NORMAL if play.cards.size() <= 2 \
 				else CardWidget.SIZE_MEDIUM
-		var cards_row := HBoxContainer.new()
-		cards_row.add_theme_constant_override("separation", 4)
-		for c in play.cards:
-			cards_row.add_child(CardWidget.create_sized(c, true, card_size))
-		trick_area.add_child(cards_row)
-		var width: float = play.cards.size() * (card_size.x + 4)
+		var cards_row := Control.new()
+		cards_row.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 出牌区不收输入，避免重叠区挡点
+		var step: float = HandArea.SPACING_MAX
+		for i in play.cards.size():
+			var widget := CardWidget.create_sized(play.cards[i], true, card_size)
+			widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			widget.position = Vector2(i * step, 0)
+			cards_row.add_child(widget)
 		var base: Vector2 = TRICK_ANCHORS[seat] * trick_area.size  # 相对锚点 × 层尺寸
-		cards_row.position = base - Vector2(width / 2.0, card_size.y / 2.0)
+		cards_row.size = Vector2(card_size.x + (play.cards.size() - 1) * step, card_size.y)
+		cards_row.position = base - cards_row.size / 2.0
+		trick_area.add_child(cards_row)
 
 
 func _clear_trick_area() -> void:

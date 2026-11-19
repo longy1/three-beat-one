@@ -29,6 +29,21 @@ func _drive_step(eng: GameEngine) -> void:
 			eng.submit_play(s, AiPolicy.choose_play(eng, s))
 
 
+## 出牌桌上当前展示的出牌行数（一行 = 一家出牌，行内含 CardWidget 即计；
+## 按「行」而非行内控件类型计数——出牌行摆法变动不破坏断言；一家可能出多张，
+## 所以不数牌面；BottomCards 是翻底弹层按名排除，queue_free 待删行不计）
+func _trick_row_count(table) -> int:
+	var n := 0
+	for c in table.get_node("TrickArea").get_children():
+		if c.name == "BottomCards" or c.is_queued_for_deletion():
+			continue
+		for d in c.get_children():
+			if d is CardWidget:
+				n += 1
+				break
+	return n
+
+
 ## 回归：扣底卡死——人类提交叫主后「确认扣底」按钮必须存活
 func test_discard_button_survives_trump_submit(test) -> void:
 	var table = await _spawn_table()
@@ -93,9 +108,10 @@ func test_pile_popup_delayed_hide(test) -> void:
 	var popup: PanelContainer = table._piles.bottom_popup
 	test.check(popup.visible, "悬停牌堆按钮后弹层显示")
 	btn.mouse_exited.emit()  # 移出入口 → 启动延迟隐藏
-	await tree_pause()  # ~0.05s < 0.1s：弹层应仍在
-	test.check(popup.visible, "移出后 0.1s 内弹层保持显示（延迟隐藏）")
 	var tree: SceneTree = Engine.get_main_loop()
+	await tree.process_frame  # 仅等 1 帧（远小于 0.1s 延迟）：用 0.05s 定时等待时，
+	# 后台负载的慢帧会把本用例的恢复与 0.1s 隐藏计时器挤进同一帧造成假失败
+	test.check(popup.visible, "移出后 0.1s 内弹层保持显示（延迟隐藏）")
 	await tree.create_timer(0.5).timeout
 	test.check(not popup.visible, "到期后弹层自动关闭")
 	await _release_table(table)
@@ -213,11 +229,8 @@ func test_trick_settle_display_pauses(test) -> void:
 		var s: int = eng.turn_seat
 		eng.submit_play(s, AiPolicy.choose_play(eng, s))
 	# 停留窗口内：四家出牌保留在桌上；赢家姓名版显示 ✓
-	var shown_cards := 0
-	for c in table.get_node("TrickArea").get_children():
-		if c is HBoxContainer and not c.is_queued_for_deletion():
-			shown_cards += 1
-	test.eq(shown_cards, 4, "停留期内四家出牌保留在桌上")
+	var shown_rows := _trick_row_count(table)
+	test.eq(shown_rows, 4, "停留期内四家出牌保留在桌上")
 	var winner: int = eng.leader_seat
 	if winner != 0:
 		var status: String = table.seat_panels[winner].get_node("VBox/StatusLabel").text
@@ -225,11 +238,7 @@ func test_trick_settle_display_pauses(test) -> void:
 	# 停留到期：出牌桌主动清空
 	var tree: SceneTree = Engine.get_main_loop()
 	await tree.create_timer(2.0).timeout
-	var remaining := 0
-	for c in table.get_node("TrickArea").get_children():
-		if c is HBoxContainer and not c.is_queued_for_deletion():
-			remaining += 1
-	test.eq(remaining, 0, "停留到期后出牌主动清空")
+	test.eq(_trick_row_count(table), 0, "停留到期后出牌主动清空")
 	await _release_table(table)
 
 

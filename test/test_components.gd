@@ -10,8 +10,8 @@ func test_card_widget_face(test) -> void:
 	for c in spade_k.get_children():
 		if c is Label:
 			texts.append(c.text)
-	test.check("K\n♠" in texts, "角标竖排显示点数+花色（点数上、花色下）")
-	test.check("♠" in texts, "中心显示花色符号")
+	test.check("K" in texts and "♠" in texts, "角标点数/花色分行显示（各行居中同轴）")
+	test.check(texts.count("♠") >= 2, "花色至少两处（角标 + 中央；角标含左上/右下镜像两份）")
 	# 黑桃着黑色、红桃着红色（label modulate）
 	var black_ok := true
 	for c in spade_k.get_children():
@@ -44,6 +44,27 @@ func test_card_widget_back(test) -> void:
 	var hidden := CardWidget.create(null, false)  # card=null 也走背面
 	var hidden_ok := hidden.get_child_count() > 0
 	test.check(hidden_ok, "null 牌安全渲染背面")
+
+
+## HandArea：条带命中——每张牌只有露出的条带可点（各框末张整张）
+## 回归（用户报告）：旧实现点击/拖动按整张 72px 矩形取「最左包含」的牌，
+## 重叠区会隔张选中（点到牌 i 的可见区实际选中它下面两张的 i-2）
+func test_hand_area_hit_strips(test) -> void:
+	var area := HandArea.new()
+	area.size = Vector2(400, 118)
+	var hand := [
+		Card.new(Card.Suit.SPADE, Card.RANK_8),
+		Card.new(Card.Suit.SPADE, Card.RANK_7),
+		Card.new(Card.Suit.SPADE, Card.RANK_5),
+	]
+	area.render(hand, null)
+	# 单组 3 张布局：x0 = (400 − (72 + 2×24 + 20)) / 2 + 10(pad) = 140，步距 24 → 140/164/188
+	test.eq(area._hit_card_at(Vector2(141, 60)), hand[0], "露出的条带命中自身（8♠）")
+	test.eq(area._hit_card_at(Vector2(170, 60)), hand[1], "重叠区命中上层可见牌（7♠，旧实现误中 5♠）")
+	test.eq(area._hit_card_at(Vector2(200, 60)), hand[2], "5♠ 条带命中自身")
+	test.eq(area._hit_card_at(Vector2(249, 60)), hand[2], "末张无遮挡，整张可点")
+	test.check(area._hit_card_at(Vector2(139, 60)) == null, "条带之外（框内留空）不命中")
+	test.check(area._hit_card_at(Vector2(141, 8)) == null, "牌面上缘之外不命中")
 
 
 ## SeatPanel：统一尺寸、信息更新、悬停信号携带座位号

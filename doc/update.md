@@ -8,6 +8,77 @@
 
 ## 2026-11-19
 
+- 测试基建提速与分级（用户需求：①分析全量测试性能并优化、考虑并发；②push 前才跑全量、
+  本地 commit 只跑受影响；③日常开发默认本地提交、显式要求才 push）：逐套件/慢用例计时
+  诊断（[suite]/[slow] 行）显示 89% 耗时在 test_online 联机回环（80s，完整对局类用例绑
+  服务端缩放节拍与宽限等待，轮询收紧无感）；**并行分片**——run_tests.gd 接受用户参数
+  （--suite/--tests/--shard=k/n/--result-file），分片按「文件名::用例名」稳定哈希（新用例
+  自动纳入分片，零维护），test_online 端口/存储按 TEST_PORT_OFFSET 偏移（分片进程不撞
+  端口）；新增 run_tests_parallel.sh（默认分片 = 逻辑核数封顶 8，7700X 实测 6 分片墙钟
+  ~24s vs 顺序 ~100s，4.2×）与 run_affected.sh（改动文件→套件映射，触测试基建/全局配置/
+  未知路径自动转并行全量）；AGENTS.md §2 命令与验证顺序、§4 本地提交约定（默认本地
+  commit 不 push，push 前并行全量）——原 test/test_framework.gd、test/run_tests.gd、
+  test/test_online.gd、test/run_tests_parallel.sh（新）、test/run_affected.sh（新）、
+  AGENTS.md §2/§4、doc/coding.md §5
+- JOKER 字母改等宽字体（用户反馈：五个字母看着没对齐，建议等宽字体）：根因是字母用 Noto 的
+  比例拉丁字形——各字形墨迹中心相对步进中心有偏差，居中盒对齐的是步进中心不是墨迹中心，
+  竖排即错位；等宽拉丁字体无 ♠♥♣♦，故角标花色维持 Noto+居中方案不变。新增第二字体
+  `font/RobotoMono-Regular.subset.ttf`（仅 J/O/K/E/R 五字形，1.2KB，Apache-2.0，源字体缓存
+  build/_font_src/，重切命令记入 coding.md 资源与字体节），王牌字母 Label 加 font override；
+  渲染复核竖排墨迹成列，147/147——原 script/table/card_widget.gd、font/（新增子集+.import）、
+  doc/coding.md 资源与字体节
+- 手牌命中范围改露出条带（用户报告：点击和拖动选牌会意外选中隔一张的牌，要求除最右一张外
+  只把露出部分作为可点范围）：根因双处——拖动的 `_input` 全局命中取「最左包含」的牌（鼠标在
+  牌 i 的可见区命中被压住两张的 i−2，正好隔一张）；点击虽有顶层路由但卡牌整张矩形可收输入，
+  重叠区边界易误触。改为卡牌控件 `mouse_filter IGNORE`，点击与拖动统一走 `HandArea._hit_card_at`
+  条带命中（每张牌只有到下一张牌左缘的露出部分可命中，各框末张整张；`_gui_input` 分发点击），
+  `test_components` 补条带命中回归用例（147 用例）；连带修复 `to_local()` 误用（Control 无此
+  Node2D 方法，曾致 HandArea 编译失败拖垮全部牌桌用例）——原 script/table/hand_area.gd、
+  test/test_components.gd、doc/coding.md §4
+- JOKER 字母列贴角 + 牌堆弹层假失败根治（用户反馈：JOKER 要贴近左上角；随发现牌堆延迟隐藏
+  用例在后台负载下假失败）：王牌字母列 y 从纵向居中改**贴左上角起排**（右列镜像贴右下角，
+  上下边距 3px 与普通牌角标一致）；test_ui 牌堆延迟隐藏用例的检查点由 0.05s 定时等待改
+  **单帧等待**（await process_frame）——后台负载的慢帧会把检查恢复与 0.1s 隐藏计时器挤进
+  同一帧造成假失败，单帧等待与负载无关且仍能抓住「移出即隐藏」回归；coding.md §5 收
+  「计时敏感断言用单帧等待」规范——原 script/table/card_widget.gd、test/test_ui.gd、
+  doc/coding.md §4/§5
+- 中央花色回正中 + JOKER 字距收紧（用户反馈：①中央图标看着不居中；②JOKER 五字母太散、
+  字号不必与点数一样大，要贴实牌的紧凑感）：中央花色去掉 0.30 下沉偏移回牌面横竖正中
+  （字号维持 26/18/22）；JOKER 字母字号 12/9/10→11/8/9、列高 96/72/82→65/50/55
+  （整列纵向居中，五字母间距紧凑）——原 script/table/card_widget.gd、doc/coding.md §4
+- 王牌去「大/王」角标，改经典小丑牌版式（用户反馈：不要大王小王字样，正常 joker 牌就是
+  JOKER，并给出实牌参照——左右两列竖排 JOKER、右列倒置、红黑分大小王、中央小丑）：
+  王牌不再绘制角标，JOKER 字样由单列改**左右两列**（右列整列 180° 倒置，逐字母落位镜像），
+  像素小丑移到正中；大小王区分仅靠红黑着色（字母与小丑帽同色），与实牌惯例一致；
+  普通牌角标/镜像不受影响——原 script/table/card_widget.gd、doc/coding.md §4
+- 角标重做 + 旋转对称 + 中央花色调小（用户三点需求：①花色标记与点数不在一条竖线上、
+  建议试等宽字体；②中央花色离角标太近应调小；③卡牌应旋转对称、右下角补标记）：
+  角标由单 Label「点数\n花色」拆成**每行一个 Label、各居其半区水平居中**——Noto 里花色字形
+  全角、点数半角，左对齐必错位，居中才能同轴（等宽拉丁字体不含 ♠♥♣♦ 字形，不采用）；
+  卡牌**旋转对称**：右下角同款角标 180° 镜像（pivot_offset=size/2 + rotation 180°），
+  王牌角标「大/王」「小/王」同样镜像；中央花色字号 34/26/30→**26/18/22** 并按
+  `CENTER_TOP_RATIO` 0.30 下沉（远离上下角标）；像素小丑移到右上（避开右下镜像角标）；
+  test_components 角标断言同步新结构（点数/花色分行 + 花色 ≥2 处）——
+  原 script/table/card_widget.gd、test/test_components.gd、doc/coding.md §4
+- 王牌牌面竖排 JOKER 字样 + 像素小丑（用户需求：大王/小王改竖排 Joker 字样；随后从 3 张
+  网络示例图中选定 Balatro 像素小丑作设计参考，程序化重绘不引入图片素材）：`CardWidget`
+  王牌面 = 左列竖排 J→O→K→E→R（大王红/小王黑沿用角标着色）+ 右侧 `PixelJester` 8×11 色块
+  网格小丑（黄铃帽色区分大小王：大王红帽/小王黑帽；白脸蓝身；整簇先铺深色底再叠色块＝
+  像素风描边）；字母逐个 Label 落位（列高五等分，间距确定）——单 Label 的 \n 换行受主题行距
+  影响实测行高 ≈1.8× 字号，五行必溢出牌底；角标同步拆「大/王」「小/王」两行竖排（与普通牌
+  「点数上花色下」同构，此前大王/小王角标横排两字在紧凑重叠下被后牌盖住）。JOKER 为 ASCII
+  字母，子集字集本就含可打印 ASCII，无需重跑字体子集；三档尺寸窗口直摆截图复核
+  （test_components 大王红色断言不变仍通过）——原 script/table/card_widget.gd、doc/coding.md §4
+- 手牌与出牌紧凑化（用户需求：①手牌再紧凑些；②出的牌照手牌摆法重叠摆、不要摊成全宽横排）：
+  手牌相邻牌步距上限 `HandArea.SPACING_MAX` 40→24（露出条宽 = 步距，宽度不足仍向
+  SPACING_MIN 8 收紧）；出牌区各家组合弃 HBoxContainer 平铺（separation 4）改手工
+  重叠横排——步距直接引用 `HandArea.SPACING_MAX` 保持两处同口径，出牌行与卡牌控件
+  均 `MOUSE_FILTER_IGNORE`（重叠区不挡点击）；静态视觉稿 ui-mockup.svg 同步
+  （手牌双框收窄 + 牌面条带示意、四家出牌改重叠示意）；test_ui 出牌区断言由
+  「数 HBoxContainer 行」改为「数 TrickArea 内真实 CardWidget 牌面」（按内容而非
+  结构计数，摆法变动不再破坏断言，BottomCards 翻底弹层按名排除）——
+  原 script/table/hand_area.gd、script/table/game_table.gd、test/test_ui.gd、
+  static/ui-mockup.svg、doc/coding.md §4
 - 卡牌移动端触控调整（用户需求：①花色点数同行改竖排以缩短牌间距；②适当加大牌尺寸，
   兼顾画面与主流移动设备触摸目标）：三档尺寸上调——NORMAL 60×86→72×100、MEDIUM
   50×72→60×86、SMALL 44×64→52×76（iPhone 横屏 letterbox 缩放 ≈0.54 下手牌 ≈39×54pt）；

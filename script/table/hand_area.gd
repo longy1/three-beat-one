@@ -14,8 +14,8 @@ const SELECT_LIFT_RATIO := 0.2  ## 选中牌上浮 = 牌高 20%（[码4] 手牌�
 const HAND_BASE_Y := 16.0       ## 手牌基准 y（虚线框 frame_y 6 + 内边距 10）
 const LAYOUT_PAD := 10.0        ## 框内左右留空
 const LAYOUT_GAP := 16.0        ## 主副框间距
-const SPACING_MAX := 40.0       ## 相邻牌最大间距
-const SPACING_MIN := 8.0        ## 相邻牌最小间距（拥挤时收紧）
+const SPACING_MAX := 24.0       ## 相邻牌步距上限（紧凑重叠：露左缘角标条；出牌区同款）[码4]
+const SPACING_MIN := 8.0        ## 相邻牌步距下限（拥挤时收紧）
 const MIN_USABLE_WIDTH := 100.0 ## 尺寸低于此值视为布局未就绪
 
 
@@ -28,6 +28,9 @@ var _drag_target := false     # 本次拖选的目标态（首张牌的新态）
 var _render_pending := false  # 布局未就绪时挂起的渲染请求
 var _pending_hand: Array = []
 var _pending_trump: TrumpInfo = null
+var _hit_cards: Array = []    # 视觉顺序的牌（命中测试用）
+var _hit_x := []              # 各牌左缘 x（与 _hit_cards 对齐）
+var _hit_w := []              # 各牌可命中宽度＝露出条带（末张整张）
 
 
 func _process(_delta: float) -> void:
@@ -137,6 +140,9 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 	var frame_h := card_h + 2 * LAYOUT_PAD
 	var frame_y := 6.0  # 固定纵向位置：不随布局高度变化，避免整排手牌上下漂移
 
+	_hit_cards.clear()
+	_hit_x.clear()
+	_hit_w.clear()
 	for i in groups.size():
 		var g: Array = groups[i]
 		var frame := DashedRoundedFrame.new()
@@ -151,17 +157,19 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 			card_widget.set_selected(is_selected)
 			# 选中：金色边框 + 上浮 20% 牌高（交互规范）
 			card_widget.position = Vector2(cx, HAND_BASE_Y - (card_h * SELECT_LIFT_RATIO if is_selected else 0))
-			var card_ref: Card = c
-			card_widget.gui_input.connect(func(event: InputEvent):
-				if event is InputEventMouseButton and event.pressed:
-					if event.button_index == MOUSE_BUTTON_LEFT:
-						_on_card_left_press(card_ref)
-					elif event.button_index == MOUSE_BUTTON_RIGHT:
-						_on_card_right_press())
+			# 命中不由卡牌控件自理（整张矩形会在重叠区误命中），统一走 HandArea 条带测试
+			card_widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_widgets[c] = card_widget
 			add_child(card_widget)
+			_hit_cards.append(c)
+			_hit_x.append(cx)
 			cx += spacing
 		x += widths[i] + (LAYOUT_GAP if i == 0 and groups.size() == 2 else 0.0)
+	# 可命中宽度 = 该牌露出的条带（到下一张牌左缘为止）；末张无遮挡，整张可点
+	for k in _hit_cards.size():
+		var hit_w := card_w if k == _hit_cards.size() - 1 \
+				else minf(card_w, maxf(0.0, _hit_x[k + 1] - _hit_x[k]))
+		_hit_w.append(hit_w)
 
 
 ## ============================= 选牌交互 =============================
@@ -256,12 +264,37 @@ func _input(event: InputEvent) -> void:
 		_drag_selecting = false  # 左键松开（任何位置）结束拖选
 	elif event is InputEventMouseMotion and _drag_selecting:
 		# 按住鼠标期间 Godot 把 motion 路由给按下时的控件（mouse_focus 捕获），
-		# 相邻牌收不到 gui_input——对全部手牌做全局命中测试（引擎行为适配，非兜底）
-		for card in _widgets:
-			var w: CardWidget = _widgets[card]
-			if w.get_global_rect().has_point(w.get_global_mouse_position()):
-				_drag_hover(card)
-				break
+		# 相邻牌收不到 gui_input——用与点击相同的条带命中测试
+		# （Control 无 Node2D.to_local，祖先链纯平移：全局坐标 − 全局位置 = 局部坐标）
+		var card := _hit_card_at(get_global_mouse_position() - get_global_position())
+		if card != null:
+			_drag_hover(card)
+
+
+## 条带命中测试：每张牌只有露出的条带可命中（各框末张整张），返回命中的牌或 null。
+## 条带互不相交，从右往左找到即返回；y 范围随选中上浮扩展（浮起的牌真占据了那块）
+func _hit_card_at(point: Vector2) -> Card:
+	var card_h := CardWidget.SIZE_NORMAL.y
+	for k in range(_hit_cards.size() - 1, -1, -1):
+		var card: Card = _hit_cards[k]
+		var lift := card_h * SELECT_LIFT_RATIO if selected.has(card) else 0.0
+		var y_top := HAND_BASE_Y - lift
+		if point.x >= _hit_x[k] and point.x < _hit_x[k] + _hit_w[k] \
+				and point.y >= y_top and point.y < y_top + card_h:
+			return card
+	return null
+
+
+## 点击入口：卡牌控件不收输入（mouse_filter IGNORE），事件落到 HandArea 后按条带命中分发
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		var card := _hit_card_at(event.position)
+		if card == null:
+			return
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			_on_card_left_press(card)
+		elif event.button_index == MOUSE_BUTTON_RIGHT:
+			_on_card_right_press()
 
 
 func _toggle_select(card: Card) -> void:
