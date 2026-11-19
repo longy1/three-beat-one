@@ -19,13 +19,19 @@
 | 引擎 | Godot **4.7.2** stable（编辑器位于 `S:\Program\Godot\`，用户级环境变量 `GODOT_PATH` 已指向主程序） |
 | 语言 | GDScript（无 C#）；渲染 gl_compatibility（兼容桌面/移动/Web） |
 | 依赖 | 无第三方插件、无外部美术素材（全部程序化绘制）；**唯一例外：字体**——中文 UI 打包 Noto Sans SC 子集（OFL，Web 无系统字体回退所必需）；**联机存储**：本地 JSON 文件（`user://sanhax_server/store.json`，无第三方依赖，接口形状预留 SQLite 平替） |
-| 测试 | 自研轻量框架（`test/test_framework.gd`），headless 运行 |
+| 测试 | 自研轻量框架（`test/test_framework.gd`），headless 运行；支持并行分片与受影响套件选择（见下方命令） |
 
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（全部通过退出码 0；当前 13 套件 146 用例，含联机回环套件）
+# 单元/规则测试（顺序全量，约 100s；全部通过退出码 0；当前 13 套件 147 用例，含联机回环套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
+
+# 并行全量（push 前必跑；分片并发墙钟 ~25s，分片数默认 = 逻辑核数封顶 8，可 N=6 覆盖）
+bash test/run_tests_parallel.sh
+
+# 受影响测试（本地 commit 前跑：按改动文件映射套件，改动面大自动转并行全量；基线可传 HEAD~1 等）
+bash test/run_affected.sh
 
 # UI 冒烟（headless 自动打完一整局，约 1 分钟，退出码 0）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/smoke_ui.gd
@@ -59,7 +65,7 @@ cd build/web && python -m http.server 8765
 > **部署须用户明确要求才执行**（「部署/上线/重新发布/更新站点」等指令）：本地 `--export-release "Web"` +
 > 本地 serve 的浏览器验收只是验证环节，**不等于部署**，验证流程照常做，但绝不自动触发 deploy。
 
-**每次改动后的验证顺序**：`--import`（无脚本错误）→ `run_tests.gd`（全绿）→ `smoke_ui.gd`（若动了 UI/引擎流程）→ **Web 导出 + 浏览器截图验收**（若动了视觉/布局/字体）。
+**每次改动后的验证顺序**：`--import`（无脚本错误）→ `bash test/run_affected.sh`（本地 commit 前必跑；改动面大自动转并行全量）→ `smoke_ui.gd`（若动了 UI/引擎流程）→ **push 前跑 `bash test/run_tests_parallel.sh` 并行全量** → **Web 导出 + 浏览器截图验收**（若动了视觉/布局/字体）。本地提交与 push 的约定见第 4 节。
 
 ## 3. 目录结构
 
@@ -114,6 +120,7 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
 ## 4. Git 与推送规范
 
 - 提交信息：`类型: 中文摘要`，类型 ∈ feat/fix/ui/ai/docs/test/chore/refactor；一个主题一个提交。
+- **本地提交约定（2026-11-19）**：日常开发改动完成即按主题**本地 commit**（无需用户指示），**默认不 push**；push 仅在用户显式要求（「push/推送/推远端」）时执行。push 前必须先 `bash test/run_tests_parallel.sh` 并行全量确认全绿（本地 commit 前只需 `bash test/run_affected.sh` 受影响测试）。
 - **推送流程**（github.com 直连经常被重置，push 可能失败）：失败时改走 gh CLI 的 Git Data API **逐字节复刻提交**（树 → 提交 → PATCH refs/heads/main），保证远端 SHA 与本地一致：
   1. `git ls-tree -r -z HEAD`（**必须 -z**，否则中文文件名被转义成乱码字面量——踩过坑）+ `git cat-file blob` 构造 tree payload；**blob 一律 base64**（树里有字体/图标/GBK bat 等二进制）
   2. `POST /git/trees`、`POST /git/commits`（作者/时间戳取自 `git cat-file commit HEAD`；**时区要 ISO 带冒号 `+08:00`**；**message 必须带尾随 `
