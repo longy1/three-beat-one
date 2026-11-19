@@ -12,8 +12,9 @@ extends RefCounted
 ## - 下分：庄家当前领先且未现身牌中仍有同型能压过其当前牌（队友可能握有）→ 垫分进该轮；
 ##   确定无人能压（如双大王已现身、庄家出小王）→ 保留分牌
 ## - 杀/垫：无领出花色时，桌面 ≥10 分或最后一手且能压过 → 最小杀；否则垫最差牌
-##   （防守方在队友领先时垫分喂队友）；垫牌避开队友已清的副花色（每门留一家闲家守门），
-##   并按花色顶牌分级：顶 ≤10 无赢张的门尽早清理，含 K/A 的门更多保留
+##   （防守方在队友领先时垫分喂队友）；垫牌避开队友已清的副花色（每门留一家闲家守门，
+##   按庄家剩牌量动态放宽：残局守门无意义则解除避让），并按花色顶牌分级：
+##   顶 ≤10 无赢张的门尽早清理，含 K/A 的门更多保留
 ## 全部输出交由 GameEngine 校验；自动对局测试（test_ai_policy.gd）即其正确性验证。
 
 
@@ -141,10 +142,12 @@ static func choose_discard(hand: Array, trump: TrumpInfo, bottom_size: int) -> A
 
 ## 出牌决策（数据进/决策出）。plays 为本轮已出记录 [{ seat, cards, role }]，
 ## plays[0] 为领出；空数组表示本手领出。
-## history = 已结算轮次（可空）、trump_void = 7.3 无主公示（seat → bool，可空）：
-## 供领出角色策略做情报推断，缺省时退化为纯手牌贪心。
+## history = 已结算轮次（可空）、trump_void = 7.3 无主公示（seat → bool，可空）、
+## banker_cards = 庄家剩牌张数（守门放宽依据，见 _guard_avoid_suits；缺省 -1 = 未知，
+## 守门按全量口径）：供领出角色策略做情报推断，缺省时退化为纯手牌贪心。
 static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, banker_seat: int,
-		history: Array = [], trump_void: Array = [false, false, false, false]) -> Array:
+		history: Array = [], trump_void: Array = [false, false, false, false],
+		banker_cards: int = -1) -> Array:
 	if plays.is_empty():
 		return _choose_lead(hand, trump, seat, banker_seat, history, trump_void)
 
@@ -155,7 +158,7 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 		var leader_seat: int = plays[0].seat
 		var feed: bool = seat != banker_seat and leader_seat != banker_seat and leader_seat != seat
 		return build_discard(hand, trump, plays[0].cards.size(), feed,
-			_teammate_shed_suits(history, trump, seat, banker_seat),
+			_guard_avoid_suits(history, trump, seat, banker_seat, banker_cards),
 			_defender_focus_suit(history, trump, seat, banker_seat, hand))
 	# 部分结算判定"当前最大者"：settle 与 plays 同构（键名 seat），直接传入
 	var cur: Dictionary = Trick.settle(plays, trump)
@@ -218,7 +221,7 @@ static func choose_play(hand: Array, trump: TrumpInfo, plays: Array, seat: int, 
 		if s != seat and s != banker_seat and trump_void[s]:
 			mate_void = true
 	return build_discard(hand, trump, lead.cards.size(), feed,
-		_teammate_shed_suits(history, trump, seat, banker_seat),
+		_guard_avoid_suits(history, trump, seat, banker_seat, banker_cards),
 		_defender_focus_suit(history, trump, seat, banker_seat, hand), mate_void)
 
 
@@ -620,6 +623,12 @@ static func _option_power_asc(a, b) -> bool:
 	return a.power < b.power
 
 
+## 守门避让三档阈值（按庄家剩牌量，见 _guard_avoid_suits）
+const GUARD_FULL_MAX := 16    ## 剩牌 > 此值：全量避让
+const GUARD_PARTIAL_MIN := 8  ## 剩牌 ≤ 此值：守门解除；中间档只避让深清门
+const GUARD_DEEP_SHED := 4    ## 中间档的「深清」判定：队友垫牌累计张数下限
+
+
 static func _card_power_asc(trump: TrumpInfo) -> Callable:
 	return func(a: Card, b: Card) -> bool:
 		return trump.card_power(a) < trump.card_power(b)
@@ -695,6 +704,39 @@ static func _suit_classes(hand: Array, trump: TrumpInfo) -> Dictionary:
 ## 队友（其余闲家，含人类 0 号位）垫牌清掉的副花色：以垫牌角色累计 ≥2 张视为在清该门。
 ## 我方自由垫牌避开同门——每门副牌至少留一家闲家守门，末局庄家剩余副牌有人能压。
 static func _teammate_shed_suits(history: Array, trump: TrumpInfo, seat: int, banker_seat: int) -> Array:
+	var counts := _teammate_shed_counts(history, trump, seat, banker_seat)
+	var out: Array = []
+	for s in counts:
+		if int(counts[s]) >= 2:
+			out.append(s)
+	return out
+
+
+## 守门避让（按庄家剩牌量动态放宽）：守门的价值在于庄家未来还会领副牌、
+## 末局该门有人能压——庄家剩牌越少，剩余轮次越少，守门越无意义，此时自由垫牌
+## 甩掉弱牌反而优先。三档：
+## - 剩牌 > GUARD_FULL_MAX（开局/中盘，轮次还多）：全量避让（队友清 ≥2 张的门都避开）
+## - 剩牌 GUARD_PARTIAL_MIN~GUARD_FULL_MAX：只避让队友深清（≥GUARD_DEEP_SHED 张）的门
+##   （队友投入越深越接近清空，同门再垫才会真正无人守）
+## - 剩牌 ≤ GUARD_PARTIAL_MIN（残局）：守门解除，avoid 清空
+## banker_cards 缺省 -1（未知）保持全量口径（旧调用方/测试兼容）。
+static func _guard_avoid_suits(history: Array, trump: TrumpInfo, seat: int, banker_seat: int,
+		banker_cards: int) -> Array:
+	var shed := _teammate_shed_suits(history, trump, seat, banker_seat)
+	if banker_cards < 0 or banker_cards > GUARD_FULL_MAX:
+		return shed
+	if banker_cards <= GUARD_PARTIAL_MIN:
+		return []
+	var shed_counts := _teammate_shed_counts(history, trump, seat, banker_seat)
+	var out: Array = []
+	for s in shed:
+		if int(shed_counts.get(s, 0)) >= GUARD_DEEP_SHED:
+			out.append(s)
+	return out
+
+
+## 队友各副花色的垫牌累计张数（_teammate_shed_suits 的计数版，深清判定用）
+static func _teammate_shed_counts(history: Array, trump: TrumpInfo, seat: int, banker_seat: int) -> Dictionary:
 	var counts := {}
 	for th in history:
 		var plays: Array = th.plays
@@ -708,11 +750,7 @@ static func _teammate_shed_suits(history: Array, trump: TrumpInfo, seat: int, ba
 				if s == TrumpInfo.CLASS_TRUMP:
 					continue
 				counts[s] = counts.get(s, 0) + 1
-	var out: Array = []
-	for s in counts:
-		if counts[s] >= 2:
-			out.append(s)
-	return out
+	return counts
 
 
 ## 无主闲家的聚焦门（整门优先清空）：队友以垫牌角色甩过大牌（≥K）的副花色——

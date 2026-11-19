@@ -260,6 +260,44 @@ func test_defender_discard_avoids_teammate_shed_suit(test) -> void:
 	test.eq(play3, [hand3[1]], "队友领先喂分：分牌优先压过 avoid（♣5 照喂）")
 
 
+## 守门动态放宽（按庄家剩牌量）：守门价值随庄家剩余轮次递减——
+## 开局全量避让（旧行为）、中盘只避让队友深清（≥4 张）的门、残局守门解除自由垫牌；
+## banker_cards 缺省（-1 未知）保持全量口径
+func test_defender_guard_relaxes_by_banker_cards(test) -> void:
+	var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var hand := [C(Card.Suit.CLUB, Card.RANK_7, 0), C(Card.Suit.DIAMOND, Card.RANK_8, 0)]
+	# 庄家（座位 2）领小王单张；我（座位 1 闲家）无主 → 自由垫 1 张（♣7 牌力最低）
+	var plays := [{seat = 2, cards = [C(Card.Suit.JOKER, Card.RANK_SMALL_JOKER, 0)], role = FollowRule.Role.LEAD}]
+	# 队友丁（座位 3）一轮垫 ♣J♣8 → 在清 ♣（浅清：2 张）
+	var history := [{plays = [
+		{seat = 2, cards = [C(Card.Suit.HEART, Card.RANK_K, 0), C(Card.Suit.HEART, Card.RANK_K, 1)], role = FollowRule.Role.LEAD},
+		{seat = 0, cards = [C(Card.Suit.HEART, Card.RANK_Q, 0), C(Card.Suit.HEART, Card.RANK_Q, 1)], role = FollowRule.Role.FOLLOW_TYPE},
+		{seat = 1, cards = [C(Card.Suit.HEART, Card.RANK_J, 0), C(Card.Suit.HEART, Card.RANK_J, 1)], role = FollowRule.Role.FOLLOW_TYPE},
+		{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_J, 0), C(Card.Suit.CLUB, Card.RANK_8, 0)], role = FollowRule.Role.DISCARD}], winner = 2}]
+	# 开局（庄家 19 张 > 16）：全量避让 → 垫 ♦8 留 ♣ 守门
+	test.eq(AiPlay.choose_play(hand, trump, plays, 1, 2, history, [false, false, false, false], 19),
+		[hand[1]], "庄家剩牌 19：全量避让 ♣（旧行为）")
+	# 中盘（12）且队友浅清 2 张（<4）：只避让深清门 → ♣ 不避让，垫最低牌力 ♣7
+	test.eq(AiPlay.choose_play(hand, trump, plays, 1, 2, history, [false, false, false, false], 12),
+		[hand[0]], "庄家剩牌 12 且浅清：避让解除 → 垫 ♣7")
+	# 残局（≤8）：守门解除
+	test.eq(AiPlay.choose_play(hand, trump, plays, 1, 2, history, [false, false, false, false], 8),
+		[hand[0]], "庄家剩牌 8：守门解除 → 垫 ♣7")
+	# 中盘但队友深清 4 张 ♣（两轮各 2 张）：仍避让
+	var history2 := [history[0], {plays = [
+		{seat = 2, cards = [C(Card.Suit.DIAMOND, Card.RANK_K, 0), C(Card.Suit.DIAMOND, Card.RANK_K, 1)], role = FollowRule.Role.LEAD},
+		{seat = 0, cards = [C(Card.Suit.DIAMOND, Card.RANK_Q, 0), C(Card.Suit.DIAMOND, Card.RANK_Q, 1)], role = FollowRule.Role.FOLLOW_TYPE},
+		{seat = 1, cards = [C(Card.Suit.DIAMOND, Card.RANK_J, 0), C(Card.Suit.DIAMOND, Card.RANK_J, 1)], role = FollowRule.Role.FOLLOW_TYPE},
+		{seat = 3, cards = [C(Card.Suit.CLUB, Card.RANK_Q, 0), C(Card.Suit.CLUB, Card.RANK_5, 0)], role = FollowRule.Role.DISCARD}], winner = 2}]
+	test.eq(AiPlay.choose_play(hand, trump, plays, 1, 2, history2, [false, false, false, false], 12),
+		[hand[1]], "庄家剩牌 12 且深清 4 张：仍避让 ♣")
+	# 残局即使深清也解除
+	test.eq(AiPlay.choose_play(hand, trump, plays, 1, 2, history2, [false, false, false, false], 5),
+		[hand[0]], "庄家剩牌 5：守门解除（深清也不例外）")
+	# 缺省（未知 -1）：保持全量口径（旧调用方行为不变）
+	test.eq(AiPlay.choose_play(hand, trump, plays, 1, 2, history), [hand[1]], "未传庄家剩牌：全量避让（兼容口径）")
+
+
 ## 垫牌牌力分级：花色顶牌三档——≤10 尽早清理、J~Q 中性、K/A 级更多保留；
 ## 分级优先于守门避让与逐张牌力（弱门无守门价值），分牌保护仍最优先
 func test_defender_discard_clears_weak_suits_first(test) -> void:
