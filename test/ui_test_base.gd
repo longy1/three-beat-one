@@ -16,6 +16,7 @@ func _spawn_table():
 	table._ai_delay_scale = 0.014
 	table._trick_timer.wait_time = 0.01
 	table._trump_reveal.fly_duration = 0.01
+	table._deal_animator.speed = 80.0  # 发牌动画时长缩放（动画各步即时读取，本帧后生效）
 	return table
 
 

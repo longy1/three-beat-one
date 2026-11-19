@@ -1,13 +1,16 @@
 class_name HandArea
 extends Control
-## 手牌区组件（自 game_table.gd 拆出）：双虚线框分区（左主牌右副牌）+ 排序布局
-## + 选牌交互（点选 / 按住拖选 / 右键出牌）+ 选中态精准刷新。
+## 手牌区组件（自 game_table.gd 拆出）：双虚线框分区（主牌/副牌，框序可设置）+ 排序布局
+## + 选牌交互（点选 / 按住拖选 / 右键出牌 / 两指单击出牌 / 双击空白清空选择）
+## + 选中态精准刷新。
 ## 首帧布局未就绪时挂起渲染请求，待尺寸有效后落地（根治旧版「兜底宽度 1100」补丁）。
+## 呈现偏好读 AppSettings（主牌框在左/右、牌点数从大到小/从小到大），变更后由
+## 控制器重渲整排生效。
 
 
 signal selection_changed(count: int)  ## 选择数变化（扣底按钮计数等联动）
 signal select_capped                  ## 扣底模式点选触顶（8 张，控制器 toast 提示）
-signal play_requested                 ## 出牌模式下右键直接提交（牌取自当前选择）
+signal play_requested                 ## 出牌模式下右键/两指直接提交（牌取自当前选择）
 
 
 const SELECT_LIFT_RATIO := 0.2  ## 选中牌上浮 = 牌高 20%（[码4] 手牌交互）
@@ -31,6 +34,9 @@ var _pending_trump: TrumpInfo = null
 var _hit_cards: Array = []    # 视觉顺序的牌（命中测试用）
 var _hit_x := []              # 各牌左缘 x（与 _hit_cards 对齐）
 var _hit_w := []              # 各牌可命中宽度＝露出条带（末张整张）
+var _active_touches := {}     # 触摸 index → 位置（两指单击出牌手势判定）
+var _two_finger := false      # 第二指按下起记（两指手势进行中）
+var _gesture_selected: Array = []  ## 两指手势开始时的选择快照（撤销触摸模拟点选副作用）
 
 
 func _process(_delta: float) -> void:
@@ -59,23 +65,24 @@ func render(hand: Array, trump: TrumpInfo) -> void:
 	_do_render(hand, trump)
 
 
-## 副牌显示排序：花色按 ♠→♥→♣→♦ 顺序分组，组内点数从大到小（A 前 5 后）
-static func _side_display_cmp(a: Card, b: Card) -> bool:
+## 副牌显示排序：花色按 ♠→♥→♣→♦ 顺序分组（从左到右不变），组内点数按设置方向
+## （默认从大到小，A 前 5 后）
+static func _side_display_cmp(a: Card, b: Card, small_first: bool) -> bool:
 	if a.suit != b.suit:
 		return a.suit < b.suit
-	return a.rank > b.rank
+	return a.rank < b.rank if small_first else a.rank > b.rank
 
 
-## 叫主前左区（确定常主：王与所有 2）排序键：大王 > 小王 > 各 2（♠→♥→♣→♦）
-static func _pre_trump_main_key(c: Card) -> Array:
+## 叫主前主牌区（确定常主：王与所有 2）档位键：大王 2 > 小王 1 > 各 2 点 0
+static func _pre_trump_rank_key(c: Card) -> int:
 	if c.is_joker():
-		return [2 if c.rank == Card.RANK_BIG_JOKER else 1, 0]
-	return [0, -c.suit]
+		return 2 if c.rank == Card.RANK_BIG_JOKER else 1
+	return 0
 
 
-## 手牌：德州扑克桌面式分区——左框主牌、右框副牌（圆角虚线框），
-## 每个区域内从左至右按从大到小排列。
-## 叫主前同样分两块：王与所有 2（必然常主）进左框；四门花色普通牌进右框。
+## 手牌：德州扑克桌面式分区——主牌框、副牌框（圆角虚线框，框序按设置：主牌默认在左），
+## 每个区域内从左至右按设置方向排序（默认从大到小；花色分组从左到右不变）。
+## 叫主前同样分两块：王与所有 2（必然常主）进主牌框；四门花色普通牌进副牌框。
 func _do_render(hand: Array, trump: TrumpInfo) -> void:
 	for child in get_children():
 		child.queue_free()
@@ -93,29 +100,38 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 			trump_cards.append(c)
 		else:
 			side_cards.append(c)
-	# 主牌区（左框）：从大到小。叫主后按 3.1 牌力（大王→…→主5），
+	# 主牌框：默认从大到小。叫主后按 3.1 牌力（大王→…→主5），
 	# 牌力并列的副R/副2 再按花色分组（♠→♥→♣→♦）——同花色相邻便于识读；
 	# 叫主前为确定常主：大王 → 小王 → 各 2（♠→♥→♣→♦）
+	var small_first: bool = AppSettings.sort_order == AppSettings.SortOrder.SMALL_FIRST
 	if trump != null:
 		trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
 			var pa: int = trump.card_power(a)
 			var pb: int = trump.card_power(b)
 			if pa != pb:
-				return pa > pb
+				return pa < pb if small_first else pa > pb
 			if a.suit != b.suit:
 				return a.suit < b.suit
 			return a.copy < b.copy)
 	else:
 		trump_cards.sort_custom(func(a: Card, b: Card) -> bool:
-			return _pre_trump_main_key(a) > _pre_trump_main_key(b))
-	# 副牌区（右框）：花色分组、组内从大到小
-	side_cards.sort_custom(_side_display_cmp)
+			var ra: int = _pre_trump_rank_key(a)
+			var rb: int = _pre_trump_rank_key(b)
+			if ra != rb:
+				return ra < rb if small_first else ra > rb
+			return a.suit < b.suit)
+	# 副牌框：花色分组、组内按设置方向
+	side_cards.sort_custom(func(a: Card, b: Card) -> bool:
+		return _side_display_cmp(a, b, small_first))
 
 	var groups: Array = []
 	if not trump_cards.is_empty():
 		groups.append(trump_cards)  # 叫主前=确定常主（王/2），叫主后=主牌类
 	if not side_cards.is_empty():
 		groups.append(side_cards)
+	# 主牌框位置（设置）：默认主牌在左；在右时两框对调
+	if AppSettings.main_side == AppSettings.MainSide.RIGHT and groups.size() == 2:
+		groups.reverse()
 	if groups.is_empty():
 		return
 
@@ -174,11 +190,16 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 
 ## ============================= 选牌交互 =============================
 ## 左键单击切换选中；按住左键滑动批量选择相邻牌（以首张的目标态对齐）；
-## 右键在出牌模式下直接提交出牌（引擎校验，非法则提示原因）。
+## 右键在出牌模式下直接提交出牌（引擎校验，非法则提示原因）；
+## 触摸设备两指单击 = 右键出牌（撤销手势期间触摸模拟的鼠标点选副作用后提交）；
+## 双击手牌区空白 = 清空选择（把选中的牌全部放回）。
 
 ## 进入选牌模式：同模式连续轮次（如逐轮出牌）保留已选——出完一轮不重置选牌，
 # 仅在模式切换（扣底→出牌 / 新局）时清空
 func begin_select(mode: String) -> void:
+	_two_finger = false
+	_active_touches.clear()
+	_gesture_selected = []
 	if select_mode != mode:
 		select_mode = mode
 		clear_selection()
@@ -187,6 +208,9 @@ func begin_select(mode: String) -> void:
 
 
 func end_select() -> void:
+	_two_finger = false
+	_active_touches.clear()
+	_gesture_selected = []
 	select_mode = ""
 	clear_selection()
 
@@ -231,6 +255,25 @@ func clear_selection() -> void:
 	selection_changed.emit(0)
 
 
+## 当前手牌的真实展示位（Card → 全局中心坐标）：发牌动画的展开目标位。
+## 须在 render 落地后调用（布局未就绪时返回空表）
+func card_positions() -> Dictionary:
+	var out := {}
+	for card in _widgets:
+		var widget: CardWidget = _widgets[card]
+		if is_instance_valid(widget) and not widget.is_queued_for_deletion():
+			out[card] = widget.get_global_rect().get_center()
+	return out
+
+
+## 真实手牌显隐（发牌动画期间隐藏真实牌面，动画结束后由控制器重渲放行）
+func set_widgets_visible(v: bool) -> void:
+	for card in _widgets:
+		var widget: CardWidget = _widgets[card]
+		if is_instance_valid(widget):
+			widget.modulate.a = 1.0 if v else 0.0
+
+
 func _on_card_left_press(card: Card) -> void:
 	if select_mode == "":
 		return
@@ -269,6 +312,53 @@ func _input(event: InputEvent) -> void:
 		var card := _hit_card_at(get_global_mouse_position() - get_global_position())
 		if card != null:
 			_drag_hover(card)
+	elif event is InputEventScreenTouch:
+		_handle_touch(event)
+
+
+## 两指单击出牌手势：首指按下即快照当前选择（先于触摸模拟的鼠标点选副作用）；
+## 第二指按下（且至少一指在本区内）确认手势；两指全部抬起时撤销手势期间的
+## 模拟点选（恢复快照），出牌模式下直接提交出牌——与右键出牌等效的触屏入口
+func _handle_touch(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		var first: bool = _active_touches.is_empty()
+		_active_touches[event.index] = event.position
+		if first:
+			_gesture_selected = selected.duplicate()
+		elif _active_touches.size() == 2 and not _two_finger:
+			var inside := false
+			var rect := get_global_rect()
+			for pos in _active_touches.values():
+				if rect.has_point(pos):
+					inside = true
+					break
+			if inside:
+				_two_finger = true
+	else:
+		_active_touches.erase(event.index)
+		if _two_finger and _active_touches.is_empty():
+			_two_finger = false
+			_finish_two_finger_tap()
+
+
+func _finish_two_finger_tap() -> void:
+	# 撤销本手势期间触摸模拟的鼠标点选（恢复手势前的选择与视觉），再按模式提交
+	if _gesture_selected != selected:
+		selected = _gesture_selected.duplicate()
+		_resync_selection_visuals()
+		selection_changed.emit(selected.size())
+	if select_mode == "play" and not selected.is_empty():
+		play_requested.emit()
+
+
+func _resync_selection_visuals() -> void:
+	for card in _widgets:
+		var widget: CardWidget = _widgets[card]
+		var sel: bool = selected.has(card)
+		if widget.selected != sel:
+			widget.set_selected(sel)
+			widget.position.y = HAND_BASE_Y \
+				- (CardWidget.SIZE_NORMAL.y * SELECT_LIFT_RATIO if sel else 0)
 
 
 ## 条带命中测试：每张牌只有露出的条带可命中（各框末张整张），返回命中的牌或 null。
@@ -290,6 +380,9 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		var card := _hit_card_at(event.position)
 		if card == null:
+			# 双击手牌区空白（未命中任何牌）：清空选择（把选中的牌全部放回）
+			if event.double_click and event.button_index == MOUSE_BUTTON_LEFT:
+				clear_selection()
 			return
 		if event.button_index == MOUSE_BUTTON_LEFT:
 			_on_card_left_press(card)

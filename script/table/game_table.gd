@@ -3,9 +3,12 @@ extends Control
 ## 单机：GameEngine 纯逻辑驱动 + AiPolicy 电脑；联机：TableView（可见性裁剪视图，
 ## 信号/查询面与引擎同构）驱动，AI 与他人动作来自服务器回放（本类只做呈现与转发）。
 ## 组件分工：HandArea（手牌区）/ PileViewer（牌堆弹层）/ ActionBar（操作按钮条）/
-## TrumpRankPicker（叫主点数面板）/ CrownAnimator（皇冠动画）——各自持有职责状态。
+## TrumpRankPicker（叫主点数面板）/ CrownAnimator（皇冠动画）/
+## BidBubbles（叫分对话气泡）/ DealAnimator（发牌动画）——各自持有职责状态。
 ## 刷新纪律：_refresh() 是唯一刷新入口，仅由引擎信号处理器调用；
 ## 按钮界面只由 *_required 处理器重建（ActionBar.reset 幂等清理）。
+## 发牌动画：开局播放（单机开局/下一局、联机 game_start；快照恢复不播），期间
+## _render_hand 挂起，动画结束回调统一放行（DealAnimator 持有过渡牌面）。
 
 
 const HUMAN_SEAT := 0
@@ -36,6 +39,9 @@ var _trick_history := TrickHistoryPanel.new()
 var _crown_anim := CrownAnimator.new()
 var _trump_picker: TrumpRankPicker = null
 var _trump_reveal := TrumpReveal.new()  ## 竞叫结束揭主动画（皇冠+主R牌双飞）
+var _bid_bubbles := BidBubbles.new()    ## 叫分对话气泡（_refresh_seats 状态驱动）
+var _deal_animator := DealAnimator.new()  ## 发牌动画（开局/下一局；快照恢复不播）
+var _deal_active := false               ## 发牌动画进行中（_render_hand 挂起）
 var _discard_button: Button = null       ## 扣底确认按钮（计数文案更新用）
 var _pending_trump_suit := -1
 var _last_trick_winner := -1
@@ -48,6 +54,7 @@ var _ai_delay_scale := 1.0  ## AI 延迟缩放（UI 测试调小以加速；_run
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var bid_center_label: Label = $BidCenterLabel
+@onready var background: ColorRect = $Background
 @onready var sidebar: InfoSidebar = $Sidebar
 @onready var toast_label: Label = $ToastLabel
 @onready var hint_label: Label = $BottomArea/HintLabel
@@ -82,6 +89,8 @@ func _ready() -> void:
 	add_child(_trick_timer)
 
 	sidebar.menu_pressed.connect(_on_menu)
+	sidebar.settings_pressed.connect(_on_settings)
+	background.gui_input.connect(_on_background_input)
 	UiStyle.pad_button(result_next_button)
 	UiStyle.pad_button(result_menu_button)
 	result_next_button.pressed.connect(_on_next_game)
@@ -117,12 +126,50 @@ func _ready() -> void:
 	for seat in seat_panels:
 		var panel: SeatPanel = seat_panels[seat]
 		panel.setup(seat)  # 注入座位号（印章定位/测试断言用）
+	_bid_bubbles.setup(self)
 
 	if _online:
 		_setup_online()
+		# game_start（新局）播放发牌动画；snapshot（重连恢复）不播
+		var will_deal: bool = _net.has_pending_game() \
+			and str(_net.pending_game.get("t", "")) != NetProto.SNAPSHOT
+		_deal_active = will_deal
 		_net.start_pending()  # 灌入 game_start/snapshot → 同步信号链完成首帧刷新
+		if will_deal:
+			_start_deal_animation()
 	else:
+		_deal_active = true
 		engine.start_session()  # 同步发出首个 auction_required，由处理器完成首帧刷新
+		_start_deal_animation()
+
+
+## ============================= 设置（主菜单/牌桌共用弹层） =============================
+
+func _on_settings() -> void:
+	SettingsDialog.create(get_tree().root, func(): _render_hand())
+
+
+## 双击牌桌空白（背景层）：清空手牌选择（把选中的牌全部放回）
+func _on_background_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.double_click \
+			and event.button_index == MOUSE_BUTTON_LEFT:
+		hand_area.clear_selection()
+
+
+## ============================= 发牌动画 =============================
+
+## 开局发牌动画：先做一次真实渲染（展开目标位的测量来源）并隐藏真实牌面，
+## 动画结束回调里重渲放行。播放期间 _render_hand 全部挂起。
+func _start_deal_animation() -> void:
+	_deal_active = true
+	hand_area.render(engine.get_hand(HUMAN_SEAT), engine.trump)
+	hand_area.set_widgets_visible(false)
+	_deal_animator.play(self, hand_area, seat_panels, engine.get_hand(HUMAN_SEAT), _on_deal_done)
+
+
+func _on_deal_done() -> void:
+	_deal_active = false
+	_render_hand()
 
 
 func _on_menu() -> void:
@@ -184,7 +231,8 @@ func _on_net_error(msg: String) -> void:
 		_show_play_bar()
 
 
-## 下一局（房主开新局）/ 重连恢复：原地重灌对局（NetClient 路由调用）
+## 下一局（房主开新局）/ 重连恢复：原地重灌对局（NetClient 路由调用）。
+## game_start（新局）播放发牌动画；snapshot（重连恢复）直接灌入不播
 func _on_net_game_started(data: Dictionary) -> void:
 	result_panel.visible = false
 	_trick_timer.stop()  # 上一局结算停留可能未到期（重连恢复路径），防御性停表
@@ -194,12 +242,15 @@ func _on_net_game_started(data: Dictionary) -> void:
 	_clear_trick_area()
 	_crown_anim.clear()
 	_trump_reveal.clear()
+	_deal_animator.clear()
 	hand_area.end_select()
 	if str(data.t) == NetProto.SNAPSHOT:
+		_deal_active = false
 		engine.restore(data)
 		_toast("已重连，对局状态已恢复")
 	else:
 		engine.load_game(data)
+		_start_deal_animation()
 
 
 ## ============================= 引擎信号处理 =============================
@@ -571,17 +622,10 @@ func _refresh_top_bar() -> void:
 func _refresh_seats() -> void:
 	for seat in seat_panels:
 		var panel: SeatPanel = seat_panels[seat]
-		# 庄家由皇冠动画标记，面板不显示「抓牌/庄」文字
+		# 庄家由皇冠动画标记，面板不显示「抓牌/庄」文字；叫分/放弃由气泡呈现（不占状态行）
 		var status := ""
-		match engine.phase:
-			GameEngine.Phase.AUCTION:
-				if engine.has_passed(seat):
-					status = "已放弃"
-				elif engine.bid_value(seat) > 0:
-					status = "叫 %d" % engine.bid_value(seat)
-			GameEngine.Phase.TRICKS:
-				if _last_trick_winner == seat:
-					status = "✓ 上轮赢"
+		if engine.phase == GameEngine.Phase.TRICKS and _last_trick_winner == seat:
+			status = "✓ 上轮赢"
 		panel.set_info(seat_names[seat], "%d 张" % engine.hand_count(seat), status)
 		var is_turn: bool = (engine.phase == GameEngine.Phase.AUCTION and engine.auction.turn == seat) \
 			or (engine.phase == GameEngine.Phase.TRICKS and engine.turn_seat == seat)
@@ -589,6 +633,12 @@ func _refresh_seats() -> void:
 		panel.set_void_trump(engine.trump_void_seats[seat])  # 【无主】公示印章（7.3）
 	# 人类 0 号位无面板：印章盖在手牌区上方左侧（与历史按钮同列）
 	human_void_stamp.visible = engine.trump_void_seats[HUMAN_SEAT]
+	# 叫分对话气泡：状态驱动（每座位最新表态，更高分出现时清低分气泡；
+	# 拍卖结束即全清）
+	if engine.phase == GameEngine.Phase.AUCTION:
+		_bid_bubbles.apply(engine.auction.bids, engine.current_highest_bid())
+	else:
+		_bid_bubbles.clear_all()
 
 
 func _refresh_trick_area() -> void:
@@ -676,6 +726,8 @@ func _clear_bottom_cards() -> void:
 
 
 func _render_hand() -> void:
+	if _deal_active:
+		return  # 发牌动画进行中：真实渲染挂起（动画结束回调统一放行）
 	hand_area.render(engine.get_hand(HUMAN_SEAT), engine.trump)
 
 
@@ -687,7 +739,9 @@ func _on_next_game() -> void:
 	_last_trick_winner = -1
 	_trick_display_cleared = false
 	_clear_trick_area()
+	_deal_animator.clear()
 	engine.start_next_game()
+	_start_deal_animation()
 
 
 ## ============================= 结算面板 =============================

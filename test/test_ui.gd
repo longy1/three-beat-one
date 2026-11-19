@@ -584,3 +584,208 @@ func test_trump_reveal_flies_to_sidebar(test) -> void:
 	test.check(has_card, "落位后信息栏显示 ♠9 牌面")
 	test.check(not table._trump_reveal.active, "落位后动画结束")
 	await _release_table(table)
+
+
+## 发牌动画：开局播放（_deal_active），结束后放行真实渲染（19 张牌面就位）
+func test_deal_animation_lifecycle(test) -> void:
+	var table = await _spawn_table()
+	test.check(table._deal_active and table._deal_animator.active, "开局即处于发牌动画中")
+	var tree: SceneTree = Engine.get_main_loop()
+	var deadline := Time.get_ticks_msec() + 8000
+	while table._deal_active and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	test.check(not table._deal_active, "动画结束（放行真实渲染）")
+	var widgets := 0
+	for c in table.hand_area.get_children():
+		if c is CardWidget and not c.is_queued_for_deletion():
+			widgets += 1
+	test.eq(widgets, 19, "结束后手牌 19 张真实牌面")
+	await _release_table(table)
+
+
+## 发牌动画为表现层：动画进行中对局照常推进（不阻塞逻辑）
+func test_deal_animation_non_blocking(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	test.check(table._deal_active, "动画进行中")
+	# 动画进行中提交当前回合的表态（回合由初始 AI 计时推进情况自适应）
+	var turn: int = eng.auction.turn
+	eng.submit_bid(turn, GameEngine.BID_PASS)
+	test.check(eng.auction.has_passed(turn), "动画期间引擎照常推进")
+	await _release_table(table)
+
+
+## 叫分对话气泡：叫分/放弃以气泡呈现（带尾巴指向座位），姓名版状态行腾空；
+## 更高分出现清除低分气泡；拍卖结束全清
+func test_bid_bubbles_replace_seat_status(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	# 同帧驱动全部表态（无 await：避开 UI AI 计时与测试直驱的竞速）
+	_deal(eng, 0)
+	var dealer: int = eng.dealer_seat
+	# 庄家底叫 130 → 气泡呈现；姓名版不再显示叫分
+	var dealer_bubble = table._bid_bubbles._bubbles[dealer]
+	test.check(dealer_bubble.visible and dealer_bubble._label.text == "130", "庄家底叫 130 气泡")
+	test.eq(str(table.seat_panels[1].get_node("VBox/StatusLabel").text), "",
+		"叫分不展示在姓名版状态行")
+	# 更高叫分：低分气泡被清除，字号随分值增大
+	eng.submit_bid(1, 155)
+	test.check(not dealer_bubble.visible, "130 气泡被 155 取代（清除）")
+	var b1 = table._bid_bubbles._bubbles[1]
+	test.check(b1.visible and b1._label.text == "155", "155 气泡呈现")
+	test.check(int(b1._label.get_theme_font_size("font_size")) > BidBubbles.FONT_MIN,
+		"叫分越大字号越大")
+	# 放弃：气泡「不要」
+	eng.submit_bid(2, GameEngine.BID_PASS)
+	var b2 = table._bid_bubbles._bubbles[2]
+	test.check(b2.visible and b2._label.text == "不要", "放弃气泡")
+	# 拍卖结束（庄家弃权后仅剩 155）：气泡全清
+	eng.submit_bid(3, GameEngine.BID_PASS)
+	eng.submit_bid(dealer, GameEngine.BID_PASS)
+	test.eq(int(eng.phase), int(Phase.TRUMP), "拍卖结束")
+	test.check(not b1.visible and not b2.visible, "拍卖结束气泡全清")
+	await _release_table(table)
+
+
+## 便捷操作（用户需求）：双击手牌区空白清空选择（把选中的牌全部放回）
+func test_double_click_blank_clears_selection(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)
+	eng.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	# 扣底模式：底牌入手即选中（8 张）→ 双击区内空白（首张牌左缘之外）清空
+	test.eq(table.hand_area.selected.size(), 8, "翻底预选 8 张")
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	ev.double_click = true
+	ev.position = Vector2(20, 60)
+	table.hand_area._gui_input(ev)
+	test.eq(table.hand_area.selected.size(), 0, "双击空白清空选择")
+	await _release_table(table)
+
+
+## 触摸两指单击出牌（用户需求）：与右键出牌等效——撤销手势期间触摸模拟的
+## 鼠标点选副作用（恢复手势前选择），再按当前选择提交
+func test_two_finger_tap_plays_selection(test) -> void:
+	var table = await _spawn_table()
+	var eng: GameEngine = table.engine
+	_deal(eng, 0)
+	for s in [1, 2, 3]:
+		eng.submit_bid(s, GameEngine.BID_PASS)
+	eng.submit_bid(0, GameEngine.BID_PASS)
+	table._pending_trump_suit = Card.Suit.SPADE
+	table._submit_human_trump(Card.RANK_9)
+	table.hand_area.selected.clear()
+	var hand: Array = eng.hands[0]
+	for i in range(8):
+		table.hand_area.selected.append(hand[hand.size() - 1 - i])
+	table._submit_human_discard()
+	await tree_pause()
+	test.eq(int(eng.phase), int(Phase.TRICKS), "进入出牌阶段（人类领出）")
+	# 选中 1 张作为领出
+	var lead: Card = eng.hands[0][0]
+	table.hand_area.clear_selection()
+	table.hand_area.select_cards([lead])
+	# 两指手势：指 0 按下（快照 [lead]）→ 触摸模拟的鼠标点选误选另一张 → 指 1 按下
+	var rect: Rect2 = table.hand_area.get_global_rect()
+	var t1 := InputEventScreenTouch.new()
+	t1.index = 0
+	t1.pressed = true
+	t1.position = rect.get_center()
+	table.hand_area._input(t1)
+	var other: Card = eng.hands[0][1]
+	var idx: int = table.hand_area._hit_cards.find(other)
+	var emu := InputEventMouseButton.new()
+	emu.button_index = MOUSE_BUTTON_LEFT
+	emu.pressed = true
+	emu.position = Vector2(table.hand_area._hit_x[idx] + 5, 60)
+	table.hand_area._gui_input(emu)
+	table.hand_area._drag_selecting = false
+	var t2 := InputEventScreenTouch.new()
+	t2.index = 1
+	t2.pressed = true
+	t2.position = rect.get_center() + Vector2(30, 0)
+	table.hand_area._input(t2)
+	# 两指依次抬起 → 恢复快照并提交出牌
+	t1.pressed = false
+	table.hand_area._input(t1)
+	t2.pressed = false
+	table.hand_area._input(t2)
+	await tree_pause()
+	# 领出已入局（后续 AI 跟牌竞速：可能仍在出牌轮，也可能已整轮结算）
+	var played: Card = null
+	if eng.current_plays.size() >= 1:
+		played = eng.current_plays[0].cards[0]
+	elif eng.trick_history.size() >= 1:
+		played = eng.trick_history[0].plays[0].cards[0]
+	test.check(played != null and played.same_card(lead),
+		"两指单击触发出牌，出的是手势前的选择（副作用已撤销）")
+	await _release_table(table)
+
+
+## 手牌呈现设置（用户需求）：主牌框在左/右、点数从大到小/从小到大（花色分组从左到右不变）
+func test_hand_layout_settings(test) -> void:
+	var table = await _spawn_table()
+	var prev_side: int = AppSettings.main_side
+	var prev_order: int = AppSettings.sort_order
+	var hand := [
+		C(Card.Suit.SPADE, Card.RANK_9, 0),  # 主（R=9）
+		C(Card.Suit.JOKER, Card.RANK_BIG_JOKER, 0),
+		C(Card.Suit.HEART, Card.RANK_A, 0),
+		C(Card.Suit.HEART, Card.RANK_5, 0),
+		C(Card.Suit.CLUB, Card.RANK_K, 0),
+	]
+	var trump := TrumpInfo.new(Card.Suit.SPADE, Card.RANK_9)
+	var ha = table.hand_area
+	# 默认：主牌框在左、从大到小
+	AppSettings.main_side = AppSettings.MainSide.LEFT
+	AppSettings.sort_order = AppSettings.SortOrder.BIG_FIRST
+	ha.render(hand, trump)
+	test.check(ha._hit_cards[0].is_joker(), "主牌框在左（视觉首张为主牌）")
+	test.eq(int(ha._hit_cards[2].rank), int(Card.RANK_A), "副牌从大到小（♥A 先于 ♥5）")
+	# 主牌框在右
+	AppSettings.main_side = AppSettings.MainSide.RIGHT
+	ha.render(hand, trump)
+	test.check(not ha._hit_cards[0].is_joker(), "主牌框在右（视觉首张为副牌）")
+	# 从小到大
+	AppSettings.sort_order = AppSettings.SortOrder.SMALL_FIRST
+	ha.render(hand, trump)
+	test.eq(int(ha._hit_cards[0].rank), int(Card.RANK_5), "副牌从小到大（♥5 先于 ♥A）")
+	AppSettings.main_side = prev_side
+	AppSettings.sort_order = prev_order
+	await _release_table(table)
+
+
+## 设置弹层（用户需求）：循环切换按钮翻转设置、保存并回调；【完成】关闭
+func test_settings_dialog_toggles(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var prev_path: String = AppSettings.cfg_path
+	AppSettings.cfg_path = "user://test_settings_dialog.cfg"
+	var prev_side: int = AppSettings.main_side
+	var prev_order: int = AppSettings.sort_order
+	var changed := {"n": 0}
+	var dialog := SettingsDialog.create(tree.root, func(): changed.n += 1)
+	var buttons: Array = []
+	for c in dialog.get_children()[0].get_children():
+		if c is Button:
+			buttons.append(c)
+	test.eq(buttons.size(), 2, "两个循环切换按钮（完成按钮在中央容器内）")
+	var main_btn: Button = buttons[0]
+	var order_btn: Button = buttons[1]
+	var side_before: int = AppSettings.main_side
+	main_btn.pressed.emit()
+	test.check(int(AppSettings.main_side) != side_before, "切换主牌框位置")
+	test.eq(int(changed.n), 1, "变更回调触发（保存生效）")
+	var order_before: int = AppSettings.sort_order
+	order_btn.pressed.emit()
+	test.check(int(AppSettings.sort_order) != order_before, "切换排序方向")
+	test.eq(int(changed.n), 2, "变更回调再次触发")
+	AppSettings.main_side = prev_side
+	AppSettings.sort_order = prev_order
+	AppSettings.cfg_path = prev_path
+	dialog.queue_free()
+	await tree.process_frame
