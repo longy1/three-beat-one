@@ -9,16 +9,18 @@ extends RefCounted
 ## 扣底广播只发座位与新张数。
 ##
 ## 客户端 → 服务器：
-##   hello   { nick }                          连接后首条；重连同昵称且房间存活时自动重连回房
-##                                             （前台复活也走 hello：后台标签页恢复后补发）。
-##                                             昵称即重连身份键：掉线后昵称随房间宽限保留
-##                                             （重连窗口内同昵称 hello 即回房，含对静默
-##                                             在线成员的立即接管），窗口外才释放复用
+##   hello   { nick, token? }                  连接后首条；token 为会话令牌（首连缺省，
+##                                             服务器签发于 hello_ok 回执，客户端随
+##                                             后续 hello 必带）。token 即重连身份键：
+##                                             命中存活房间成员即回房（掉线宽限保留、
+##                                             旧连接静默未扫出均可）；同昵称但 token
+##                                             不符 = 其他设备在用该昵称，被拒——在线
+##                                             成员不可被同昵称顶座。前台复活也走 hello
 ##   create  { }                               新建房间（建者为房主，0 号位）
 ##   join    { code }                          凭房间码加入
 ##   sit     { seat }                          大厅落座：空位挪入、他人占座互换（房主身份跟人走）；
 ##                                             对局中拒绝。座位变更经 room_state 广播
-##   leave   { }                               主动退出（房间立即结算关闭）
+##   leave    { }                              主动退出（房间立即结算关闭）
 ##   start   { fill_ai }                       房主开始对局；人数不满时 fill_ai=true 电脑补位
 ##   next    { }                               房主开下一局
 ##   act     { kind, ... }                     人类操作：bid{value} / trump{suit,rank} /
@@ -26,8 +28,9 @@ extends RefCounted
 ##   ping    { }                               心跳（服务器回 pong）
 ##
 ## 服务器 → 客户端：
-##   hello_ok      { nick, rejoined }                                        rejoined=true 表示已重连回存活房间
-##                                                                           （客户端自动重连的成功判定依据）
+##   hello_ok      { nick, rejoined, token }   rejoined=true 表示已重连回存活房间
+##                                           （客户端自动重连的成功判定依据）；token =
+##                                           签发的会话令牌（仅回执下发，任何广播不含）
 ##   room_state    { code, members[{seat,name,is_ai,offline}], owner_seat, status, rejoined }
 ##   game_start    { round, dealer, my_hand, counts, members, cumulative }   真座位空间，客户端旋转
 ##   snapshot      { ...game_start 全量公开状态（重连恢复） }                 真座位空间

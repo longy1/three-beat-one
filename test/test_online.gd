@@ -1,12 +1,15 @@
 extends UiTestBase
 ## 联机功能测试（M4）：真实 WebSocket 回环（同进程服务端 + 客户端）。
-## 覆盖：存储持久化/昵称在线占用制（含 trim 归一与掉线释放复用）、房间守卫（重复建房/加入/满员/对局中/
-## 非房主开局等错误路径）、房间生命周期（不满开局拒绝→补 AI→完整对局→分数落盘广播→
-## 退出关房）、可见性（回放消息不含他人牌面/底牌）、超时托管、断线重连与宽限、
-## 客户端自动重连（等待弹层→同昵称回房恢复）、后台标签页复活（旧连接消息原路回房）、
-## 离线座位快托管与重连重挂计时、多局累计（庄位轮换/下一局重建/跨局累计分）、
-## 注入强牌局的确定性旋转与人类操作路径、各阶段重连快照矩阵、
-## UI 级联机牌桌（真实场景接管 + 人类经 UI 提交 + 退出弹层回主菜单）。
+## 覆盖：存储持久化（追加日志库）/昵称在线占用制（含 trim 归一与掉线释放复用）、
+## 房间守卫（重复建房/加入/满员/对局中/非房主开局等错误路径）、房间生命周期
+## （不满开局拒绝→补 AI→完整对局→分数落盘广播→退出关房）、可见性（回放消息不含
+## 他人牌面/底牌）、超时托管、断线重连与宽限、会话令牌重连（同 token 接管回房、
+## 在线成员不可被同昵称顶座、离线成员同昵称承接）、客户端自动重连（等待弹层→
+## 令牌回房恢复）、后台标签页复活（旧连接消息原路回房）、离线座位快托管与重连
+## 重挂计时、服务端重启不散房（同端口同存储重建→房间恢复→token 重连打完）、
+## 多局累计（庄位轮换/下一局重建/跨局累计分）、注入强牌局的确定性旋转与人类操作
+## 路径、各阶段重连快照矩阵、UI 级联机牌桌（真实场景接管 + 人类经 UI 提交 +
+## 退出弹层回主菜单）。
 ## 服务端计时按 time_scale=0.02 缩放（AI 节拍 ~0.014s、人类托管 ~0.4s、
 ## 离线快托管 ~0.1s、离线宽限 180s→~3.6s）；心跳判定阈值默认 60s（后台标签页容忍）。
 
@@ -253,17 +256,17 @@ func test_nick_uniqueness(a) -> void:
 	_ensure_server()
 	var first := _make_client("测甲唯一", "C_uniq_a")
 	a.check(await _wait_hello(first), "首登成功")
-	# 同时在线：第二人用同昵称被拒
+	# 同时在线：第二人用同昵称被拒（文案指向「其他设备登录」）
 	var dup := _make_client("测甲唯一", "C_uniq_dup")
 	var err := await _wait_error(dup)
-	a.check(err.contains("已被占用"), "在线同昵称被拒：%s" % err)
+	a.check(err.contains("其他设备"), "在线同昵称被拒：%s" % err)
 	# trim 归一：带首尾空格的昵称按去空格形态做占用判定
 	var spaced := _make_client("  测乙空格  ", "C_uniq_sp")
 	a.check(await _wait_hello(spaced), "带空格昵称注册成功")
 	a.eq(spaced.my_name, "测乙空格", "hello_ok 回执为 trim 后昵称")
 	var dup2 := _make_client("测乙空格", "C_uniq_sp2")
 	err = await _wait_error(dup2)
-	a.check(err.contains("已被占用"), "trim 后同昵称被拒：%s" % err)
+	a.check(err.contains("其他设备"), "trim 后同昵称被拒：%s" % err)
 	var ai := _make_client(NetProto.AI_NAME_PREFIX + "甲", "C_uniq_ai")
 	err = await _wait_error(ai)
 	a.check(err.contains("电脑"), "电脑前缀昵称被拒：%s" % err)
@@ -824,8 +827,10 @@ func test_ui_online_table(a) -> void:
 	await _free_clients()
 
 
-## 客户端自动重连：掉线（auto_reconnect 开启）→ 等待重连弹层 → 定时重试同昵称回房
-## → 快照恢复继续打完；对方收到 离线→上线 的 presence 提示
+## 客户端自动重连：掉线（auto_reconnect 开启）→ 等待重连弹层 → 定时重试
+## 凭会话令牌回房 → 快照恢复继续打完。
+## 注：令牌化后重连首试即回房（服务端未及扫出掉线也在线成员凭 token 接管），
+## 对方侧的 离线→上线 presence 提示不再必然出现——该断言已随令牌化移除
 func test_client_auto_reconnect(a) -> void:
 	_ensure_server()
 	var host := _make_client("测甲自连", "C_ar_a")
@@ -841,25 +846,16 @@ func test_client_auto_reconnect(a) -> void:
 		"进入出牌阶段")
 	var room := _room_by_code(code)
 	var hist_before: int = room.engine.trick_history.size()
-	var presence := {"offline": 0, "online": 0}
-	guest.member_presence.connect(func(_name: String, online: bool, _grace: int):
-		if online:
-			presence.online += 1
-		else:
-			presence.offline += 1)
 
-	# 掉线：进入等待重连（弹层出现），对方收到离线提示
+	# 掉线：进入等待重连（弹层出现）
 	host.drop_connection()
-	a.check(await _until(func(): return _any_offline(guest), 5.0), "对方收到 member_offline")
 	var tree: SceneTree = Engine.get_main_loop()
 	a.check(await _until(func(): return tree.root.get_node_or_null("ReconnectOverlay") != null, 5.0),
 		"等待重连弹层出现")
 
-	# 自动重试回房：rejoined、弹层关闭、快照恢复；服务端掉线标记未及扫出时首试收到
-	# 「昵称已被占用」类错误会被留待下轮重试（窗口内自愈）
-	a.check(await _until(func():
-		return bool(host.room_state.get("rejoined", false)) and presence.online > 0, 20.0),
-		"自动重连回房且对方收到上线提示")
+	# 自动重试回房：rejoined、弹层关闭、快照恢复
+	a.check(await _until(func(): return bool(host.room_state.get("rejoined", false)), 20.0),
+		"自动重连回房")
 	a.check(await _until(func(): return tree.root.get_node_or_null("ReconnectOverlay") == null, 5.0),
 		"回房后等待弹层关闭")
 	a.check(host.view != null and host.view.phase == GameEngine.Phase.TRICKS, "快照恢复到出牌阶段")
@@ -967,36 +963,131 @@ func test_offline_turn_fast_and_rearm(a) -> void:
 	await _free_clients()
 
 
-## 同昵称快速接管：在线成员的 peer 静默超阈（断连未被扫描判出的窗口期，半开 TCP
-## 发送不报错只能等静默超时）时，同昵称 hello 立即接管座位回房——昵称保留窗口内
-## 重连首试即成功，不必等服务端判离线
-func test_nick_takeover_on_stale(a) -> void:
+## 会话令牌重连（token 即重连身份键）：同 token 的新连接（自动重连/旧连接静默
+## 未扫出）立即回房接管；同昵称但 token 不符（其他设备）在成员在线时被拒——
+## 在线成员不可被同昵称顶座；成员离线（宽限期）后同昵称可承接（覆盖应用重启等
+## 令牌丢失的合法回归）；合法归属者凭 token 随时夺回座位
+func test_token_rejoin_and_nick_guard(a) -> void:
 	_ensure_server()
-	var first := _make_client("测甲接管", "C_tk_a")
+	var first := _make_client("测甲令牌", "C_tk_a")
 	a.check(await _wait_hello(first), "首次 hello")
 	var code := await _create_room(first)
 	a.check(code != "", "建房")
 	var room := _room_by_code(code)
-	var old_pid: int = room.members[0].peer_id
-	# 接管阈值置 0：任何在线成员的同昵称 hello 都走接管分支（确定性触发，
-	# 避开 sweep 判离线的竞态；sweep 自身判死阈值 60s 不受影响）
-	_manager.takeover_stale = 0.0
-	var second := _make_client("测甲接管", "C_tk_b")
-	a.check(await _wait_hello(second), "同昵称 hello")
-	a.check(await _until(func(): return bool(second.room_state.get("rejoined", false)), 5.0),
-		"静默在线成员被同昵称立即接管回房")
+	var first_token: String = first.session_token
+	a.check(first_token != "", "客户端持有会话令牌")
+	a.eq(str(room.members[0].token), first_token, "房间成员记录会话令牌")
+
+	# 在线成员：同昵称但无匹配令牌的其他设备被拒（不可顶座）
+	var other := _make_client("测甲令牌", "C_tk_b")
+	var err := await _wait_error(other)
+	a.check(err.contains("其他设备"), "在线成员同昵称无令牌被拒：%s" % err)
+
+	# 同 token 新连接（旧连接静默未扫出的自动重连场景）：立即接管回房
+	var re := _make_client("测甲令牌", "C_tk_c")
+	re.session_token = first_token
+	a.check(await _wait_hello(re), "同令牌 hello")
+	a.check(await _until(func(): return bool(re.room_state.get("rejoined", false)), 5.0),
+		"同令牌立即接管回房")
 	a.check(room.members[0].offline == false, "接管后成员保持在线（无离线闪烁）")
 	var holders := 0
 	for pid in _manager._peer_nick:
-		if _manager._peer_nick[pid] == "测甲接管":
+		if _manager._peer_nick[pid] == "测甲令牌":
 			holders += 1
 	a.eq(holders, 1, "旧 peer 昵称映射已释放（无双重占用）")
-	_manager.takeover_stale = _manager.TAKEOVER_STALE
-	# 多个扫描周期后房间仍存活、成员不误标离线（旧 peer 映射已释放，不再被探测判死）
+
+	# 合法归属者凭 token 夺回：设备重连同令牌 → 顶回后面的连接
+	re.drop_connection()
+	a.check(await _until(func(): return bool(room.members[0].offline), 5.0), "断连判离线")
+	var again := _make_client("测甲令牌", "C_tk_d")
+	again.session_token = first_token
+	a.check(await _wait_hello(again), "原设备凭令牌重连")
+	a.check(await _until(func(): return bool(again.room_state.get("rejoined", false)), 5.0),
+		"令牌夺回座位（rejoined）")
+	a.check(room.members[0].offline == false, "夺回后成员恢复在线")
+
+	# 离线成员：同昵称无令牌可承接（应用重启/令牌丢失场景）
+	again.drop_connection()
+	a.check(await _until(func(): return bool(room.members[0].offline), 5.0), "再次离线")
+	var third := _make_client("测甲令牌", "C_tk_e")  # 新会话新令牌
+	a.check(await _wait_hello(third), "同昵称无令牌 hello")
+	a.check(await _until(func(): return bool(third.room_state.get("rejoined", false)), 5.0),
+		"离线成员同昵称承接回房")
+	# 房间存活、成员在线
 	var tree: SceneTree = Engine.get_main_loop()
 	await tree.create_timer(0.3).timeout
-	a.check(_room_by_code(code) != null, "接管后房间存活")
-	a.check(room.members[0].offline == false, "扫描不误判接管后成员离线")
+	a.check(_room_by_code(code) != null, "房间存活")
+	a.check(room.members[0].offline == false, "承接后成员在线")
+	await _cleanup_room()
+	await _free_clients()
+
+
+## 服务端进程重启不散房：销毁服务端（模拟进程退出）→ 同端口 + 同存储文件重建
+## （新 store 实例经日志回放恢复）→ 进行中房间与对局状态恢复（成员离线、令牌保留）
+## → 客户端自动重连凭 token 回房、快照恢复 → 对局继续打完
+func test_server_restart_keeps_rooms(a) -> void:
+	_ensure_server()
+	var host := _make_client("测甲重启", "C_rs_a")
+	host.auto_reconnect = true  # 本用例显式开启自动重连（掉线进等待重连流程）
+	var guest := _make_client("测乙重启", "C_rs_b")
+	guest.auto_reconnect = true
+	a.check(await _wait_hello(host), "房主 hello")
+	a.check(await _wait_hello(guest), "客人 hello")
+	var code := await _create_room(host)
+	a.check(code != "", "建房")
+	a.check(await _join_room(guest, code), "入座")
+	a.check(await _start_fill(host), "开局")
+	a.check(await _drive_until(host, func(): return host.view != null \
+			and host.view.phase == GameEngine.Phase.TRICKS, 30.0), "进入出牌阶段")
+	var room := _room_by_code(code)
+	var hist_before: int = room.engine.trick_history.size()
+	var host_token: String = host.session_token
+	# 重启前缩短重连重试间隔（断线后立即重试，不为等待窗口拖慢用例）
+	host._retry_timer.wait_time = 0.1
+	guest._retry_timer.wait_time = 0.1
+
+	# 进程重启：销毁服务端，同端口 + 同存储文件重建（新 store 实例 = 日志回放）
+	_manager.queue_free()
+	var tree: SceneTree = Engine.get_main_loop()
+	await tree.process_frame
+	await tree.create_timer(0.2).timeout  # 端口释放
+	_store = load("res://server/store.gd").new(_store_path)
+	_manager = load("res://server/room_manager.gd").new()
+	_manager.name = "OnlineTestServerRestarted"
+	tree.root.add_child(_manager)
+	_manager.sweep_interval = 0.05
+	_manager.heartbeat_timeout = 60.0
+	_manager.time_scale = 0.02
+	var start_err: Error = _manager.start(_port, _store)
+	a.check(start_err == OK, "服务端重启成功")
+
+	# 房间恢复：同码、对局状态保留、成员离线待重连、令牌保留
+	var room2: Node = _room_by_code(code)
+	a.check(room2 != null, "房间已恢复（重启不散房）")
+	if room2 == null:
+		await _free_clients()
+		return
+	a.check(room2.engine.phase == GameEngine.Phase.TRICKS, "恢复到出牌阶段")
+	a.check(room2.engine.trick_history.size() >= hist_before, "对局轮次保留")
+	a.check(bool(room2.members[0].offline), "恢复成员离线（原连接随进程消亡）")
+	a.eq(str(room2.members[0].token), host_token, "会话令牌保留")
+
+	# 客户端自动重连：凭 token 回房 + 快照恢复（对局继续，期间离线回合已被托管）
+	a.check(await _until(func(): return host.view != null \
+			and bool(host.room_state.get("rejoined", false)), 15.0), "房主重连回房")
+	a.check(await _until(func(): return guest.view != null \
+			and bool(guest.room_state.get("rejoined", false)), 15.0), "客人重连回房")
+	a.check(not bool(room2.members[0].offline), "重连后房主在线（宽限取消）")
+	_check_view_matches_server(a, host, room2)
+
+	# 对局继续打完（跨重启的完整生命周期）
+	var result := await _wait_game_over(host, 90.0)
+	a.check(not result.is_empty(), "重启后对局完整打完")
+	_check_view_matches_server(a, host, room2)
+	var sum := 0
+	for p in result.payments:
+		sum += int(p)
+	a.eq(sum, 0, "收益和为零")
 	await _cleanup_room()
 	await _free_clients()
 
@@ -1081,3 +1172,56 @@ func _check_privacy(a, recorded: Array) -> void:
 			# 快照只在本人是庄家时允许 kitty/buried；此处对局中重连的接收方不定，
 			# 只断言：不含任何他人手牌字段
 			a.check(not msg.has("hands"), "快照不得含他人手牌")
+
+
+## 联机菜单「最近成功连接」：真实连接成功（hello_ok）即记录地址（去重置顶、
+## 封顶 5 条、落盘）；重开实例读回；点按历史条目填入地址框
+func test_online_menu_recent_addrs(a) -> void:
+	_ensure_server()
+	var cfg_file := "user://test_online_menu_cfg.ini"
+	if FileAccess.file_exists(cfg_file):
+		DirAccess.remove_absolute(cfg_file)
+	var tree: SceneTree = Engine.get_main_loop()
+	var menu = load("res://scene/menu/online_menu.tscn").instantiate()
+	tree.root.add_child(menu)
+	await tree.process_frame
+	menu.cfg_path = cfg_file
+	menu._load_cfg()
+	menu.nick_edit.text = "测甲菜单"
+	menu.addr_edit.text = "ws://127.0.0.1:%d" % _port
+	# 真实连接路径：_submit → hello_ok 记录最近地址；room_state 到达前置 proceeding（不切场景）
+	menu._submit("")
+	menu._proceeding = true
+	a.check(await _until(func(): return menu._recent.size() == 1, 5.0), "连接成功记录地址")
+	var my_addr := "ws://127.0.0.1:%d" % _port
+	a.eq(str(menu._recent[0]), my_addr, "记录的地址即提交地址")
+	# 去重置顶 + 封顶
+	for i in 7:
+		menu._record_recent_addr("ws://fake%d" % i)
+	a.eq(menu._recent.size(), 5, "封顶 5 条")
+	a.eq(str(menu._recent[0]), "ws://fake6", "新地址置顶")
+	a.check(not menu._recent.has(my_addr), "旧地址被挤出")
+	a.check(menu._recent_row.visible, "列表行可见")
+	# 落盘重读（ConfigFile 持久化）
+	var menu2 = load("res://scene/menu/online_menu.tscn").instantiate()
+	tree.root.add_child(menu2)
+	await tree.process_frame
+	menu2.cfg_path = cfg_file
+	menu2._load_cfg()
+	a.eq(menu2._recent.size(), 5, "重开实例读回最近列表")
+	var btns := []
+	for c in menu2._recent_row.get_children():
+		if c is Button and not c.is_queued_for_deletion():
+			btns.append(c)
+	a.check(btns.size() >= 2, "最近行渲染为条目按钮")
+	(btns[1] as Button).pressed.emit()
+	a.eq(menu2.addr_edit.text, str(menu2._recent[1]), "点按条目填入地址框")
+	# 收尾：菜单与连接释放、测试房间清理
+	menu._proceeding = true
+	if menu._net != null:
+		menu._net.queue_free()
+	menu.queue_free()
+	menu2.queue_free()
+	await tree_pause()
+	await _cleanup_room()
+	await _free_clients()

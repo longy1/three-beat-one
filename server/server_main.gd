@@ -1,8 +1,9 @@
 extends Node
 ## 联机服务器入口（M4）：无头 Godot 进程跑本场景，承载 WebSocket 监听与房间逻辑。
 ## 启动：Godot --headless --path . res://server/server_main.tscn [-- --port 9080]
-## 数据：user://sanhax_server/store.json（房间留档/房间累计分，重启不丢；昵称在线占用不落盘）；
-## 进行中的房间随进程消亡（重启即解散，分数已持久）。
+## 数据：user://sanhax_server/store.jsonl（追加日志库：房间留档/房间累计分/进行中房间
+## 快照，重启不丢；昵称在线占用不落盘）；进行中的房间随进程重启恢复——成员离线、
+## 会话令牌保留，客户端自动重连凭 token 回房。
 
 
 func _ready() -> void:

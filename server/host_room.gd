@@ -9,8 +9,10 @@ extends Node
 ## 超时托管：人类轮次倒计时，超时由 AI 纯模块按该座位手牌代打（auto=true 广播）。
 ## 离线快托管：掉线座位的回合改用短超时（OFFLINE_TURN_TIMEOUT），他人不必干等。
 ## 断线宽限：成员掉线标 offline 并开宽限计时，期间其回合由托管代打、对局继续；
-## 宽限内同昵称 hello（或旧连接任意消息复活）即回房（对局中发公开状态快照），
+## 宽限内凭会话令牌 hello（或旧连接任意消息复活）即回房（对局中发公开状态快照），
 ## 回合计时若在走则重挂满正常时长给足决策窗口；逾期按退出关房。
+## 服务端重启不散房：每次成功变更即全量序列化落盘（store.save_live_room），
+## 启动时 restore_from 重建（成员离线、令牌保留，客户端凭 token 重连回房）。
 ## 主动 leave 立即关房（所有成员收到 room_closed → 结算弹窗 → 主菜单）。
 
 
@@ -98,12 +100,24 @@ func owner_seat() -> int:
 	return 0
 
 
-func add_member(nick: String, peer_id: int) -> int:
+func add_member(nick: String, peer_id: int, token := "") -> int:
 	for s in members.size():
 		if members[s] == null:
-			members[s] = {"seat": s, "name": nick, "is_ai": false, "peer_id": peer_id, "offline": false}
+			members[s] = {"seat": s, "name": nick, "is_ai": false, "peer_id": peer_id,
+				"offline": false, "token": token}
+			_persist()
 			return s
 	return -1
+
+
+## 会话令牌 → 成员（重连身份键；AI 成员无令牌）。未命中返回 null。
+func member_by_token(token: String):
+	if token == "":
+		return null
+	for m in members:
+		if m != null and str(m.get("token", "")) == token:
+			return m
+	return null
 
 
 func member_by_name(nick: String):
@@ -141,6 +155,7 @@ func sit(nick: String, seat: int) -> String:
 	members[my_seat] = target
 	mine.seat = seat
 	members[seat] = mine
+	_persist()
 	return ""
 
 
@@ -177,8 +192,10 @@ func start_game(fill_ai: bool) -> String:
 			return "人数不满（%d/%d）" % [human_count(), GameEngine.PLAYER_COUNT]
 		for s in members.size():
 			if members[s] == null:
-				members[s] = {"seat": s, "name": AI_NAMES[s], "is_ai": true, "peer_id": 0, "offline": false}
+				members[s] = {"seat": s, "name": AI_NAMES[s], "is_ai": true, "peer_id": 0,
+					"offline": false, "token": ""}
 	_begin_engine_game()
+	_persist()
 	return ""
 
 
@@ -189,6 +206,7 @@ func next_game() -> String:
 	if not engine.start_next_game():
 		return "本局尚未结束"
 	_broadcast_game_start()
+	_persist()
 	return ""
 
 
@@ -196,10 +214,12 @@ func next_game() -> String:
 func _test_start_with_deal(dealer: int, test_hands: Array, test_kitty: Array) -> void:
 	for s in members.size():
 		if members[s] == null:
-			members[s] = {"seat": s, "name": AI_NAMES[s], "is_ai": true, "peer_id": 0, "offline": false}
+			members[s] = {"seat": s, "name": AI_NAMES[s], "is_ai": true, "peer_id": 0,
+				"offline": false, "token": ""}
 	engine.start_session_with_deal(dealer, test_hands, test_kitty)
 	status = STATUS_GAME
 	_broadcast_game_start()
+	_persist()
 
 
 func _begin_engine_game() -> void:
@@ -251,6 +271,7 @@ func mark_offline(seat: int) -> void:
 	if m == null or m.is_ai or m.offline:
 		return
 	m.offline = true
+	_persist()
 	broadcast({"t": NetProto.MEMBER_OFFLINE, "seat": seat, "name": m.name, "grace": OFFLINE_GRACE})
 	if _turn_seat == seat and _turn_timer.time_left > OFFLINE_TURN_TIMEOUT * time_scale:
 		_turn_timer.wait_time = OFFLINE_TURN_TIMEOUT * time_scale
@@ -267,6 +288,7 @@ func reconnect(peer_id: int, nick: String) -> void:
 	m.peer_id = peer_id
 	m.offline = false
 	_cancel_grace_timer(m.seat)
+	_persist()
 	broadcast_room_state(true)
 	if _turn_seat == m.seat:
 		_turn_timer.wait_time = _turn_timeout_for(_turn_kind) * time_scale
@@ -336,6 +358,7 @@ func _apply_bid(seat: int, value: int, auto: bool, peer_id := 0) -> void:
 	if not verdict.ok:
 		_reject(peer_id, verdict.error)
 		return
+	_persist()
 	broadcast(_act_msg(NetProto.KIND_BID, seat, auto, {"value": value}))
 
 
@@ -345,6 +368,7 @@ func _apply_trump(seat: int, suit: int, rank: int, auto: bool, peer_id := 0) -> 
 	if not verdict.ok:
 		_reject(peer_id, verdict.error)
 		return
+	_persist()
 	broadcast(_act_msg(NetProto.KIND_TRUMP, seat, auto, {"suit": suit, "rank": rank}))
 	# 翻底：底牌仅其庄家私有下发（规则 2）；之后进入扣底阶段
 	var m = members[seat]
@@ -359,6 +383,7 @@ func _apply_discard(seat: int, cards: Array, auto: bool, peer_id := 0) -> void:
 		_reject(peer_id, verdict.error)
 		return
 	# 所扣之牌保密：广播不含牌面，只发座位与新张数
+	_persist()
 	broadcast(_act_msg(NetProto.KIND_DISCARD, seat, auto, {}))
 
 
@@ -376,6 +401,7 @@ func _apply_play(seat: int, cards: Array, auto: bool, peer_id := 0) -> void:
 	var payload := {"cards": NetProto.keys_of(cards), "role": int(verdict.role)}
 	if verdict.get("dump", false):
 		payload["dump"] = true
+	_persist()
 	broadcast(_act_msg(NetProto.KIND_PLAY, seat, auto, payload))
 
 
@@ -463,9 +489,15 @@ func _on_play_required(seat: int) -> void:
 func _ai_play(seat: int) -> void:
 	if not _ai_still_valid(seat, GameEngine.Phase.TRICKS):
 		return
-	var cards: Array = AiPlay.choose_play(engine.hands[seat], engine.trump, engine.current_plays,
-		seat, engine.banker_seat, engine.trick_history, engine.trump_void_seats)
+	var cards: Array = _ai_play_cards(seat)
 	_apply_play(seat, cards, false)
+
+
+## AI/托管出牌决策（共用）：纯模块按该座位手牌决策，附庄家剩牌量（守门放宽依据）
+func _ai_play_cards(seat: int) -> Array:
+	return AiPlay.choose_play(engine.hands[seat], engine.trump, engine.current_plays,
+		seat, engine.banker_seat, engine.trick_history, engine.trump_void_seats,
+		engine.hand_count(engine.banker_seat))
 
 
 ## AI 延迟动作的前置守卫：房间仍在、对局仍在、仍轮到该座位该阶段
@@ -544,9 +576,7 @@ func _on_turn_timeout() -> void:
 			var cards: Array = AiPlay.choose_discard(engine.hands[seat], engine.trump, GameEngine.BOTTOM_SIZE)
 			_apply_discard(seat, cards, true)
 		NetProto.KIND_PLAY:
-			var cards: Array = AiPlay.choose_play(engine.hands[seat], engine.trump, engine.current_plays,
-				seat, engine.banker_seat, engine.trick_history, engine.trump_void_seats)
-			_apply_play(seat, cards, true)
+			_apply_play(seat, _ai_play_cards(seat), true)
 
 
 ## ============================= 结算 =============================
@@ -564,6 +594,7 @@ func _on_game_over(result: Dictionary) -> void:
 		if m != null:
 			rows.append({"name": m.name, "delta": int(result.payments[s])})
 	_store.add_scores(code, rows)
+	_persist()
 	var result_out: Dictionary = _ser_result(result)
 	broadcast({"t": NetProto.GAME_OVER, "result": result_out})
 	broadcast({"t": NetProto.SCORES, "rows": _store.room_scores(code)})
@@ -635,6 +666,182 @@ func _ser_trick_history() -> Array:
 	return out
 
 
+## ============================= 服务端重启不散房（序列化/恢复） =============================
+
+## 全量状态落盘（每次成功变更后 _persist 调用）：成员（含会话令牌）+ 引擎。
+## 只写本地存储、不进任何广播——令牌不出服务端。
+func serialize() -> Dictionary:
+	var member_list: Array = []
+	for m in members:
+		if m == null:
+			continue
+		member_list.append({"seat": int(m.seat), "name": str(m.name), "is_ai": bool(m.is_ai),
+			"offline": bool(m.offline), "token": str(m.get("token", ""))})
+	return {"owner_name": owner_name, "status": status, "members": member_list, "engine": _ser_engine()}
+
+
+## 从落盘快照重建（RoomManager 启动恢复）：成员离线（原连接随进程消亡）、
+## 令牌保留（客户端凭 token 重连回房）；宽限计时重挂；待办回合重新调度
+func restore_from(data: Dictionary) -> void:
+	owner_name = str(data.get("owner_name", ""))
+	status = str(data.get("status", STATUS_LOBBY))
+	members = [null, null, null, null]
+	for m in data.get("members", []):
+		var seat: int = int(m.seat)
+		if seat < 0 or seat >= members.size():
+			continue
+		members[seat] = {"seat": seat, "name": str(m.name), "is_ai": bool(m.is_ai),
+			"peer_id": 0, "offline": true, "token": str(m.get("token", ""))}
+	_engine_restore(data.get("engine", {}))
+	for m in members:
+		if m != null and not m.is_ai:
+			_arm_grace_timer(m.seat)
+	_resume_pending_turn()
+
+
+## 引擎全量序列化（牌以 Card.key() 串传输，与协议同构）
+func _ser_engine() -> Dictionary:
+	var d := {
+		phase = engine.phase,
+		round_index = engine.round_index,
+		dealer_seat = engine.dealer_seat,
+		banker_seat = engine.banker_seat,
+		contract = engine.contract,
+		hands = [],
+		kitty = NetProto.keys_of(engine.kitty),
+		buried = NetProto.keys_of(engine.buried),
+		buried_points = engine.buried_points,
+		auction_bids = engine.auction.bids.duplicate(true),
+		auction_turn = engine.auction.turn,
+		current_plays = _ser_current_plays(),
+		trick_history = _ser_trick_history(),
+		trump_void_seats = engine.trump_void_seats.duplicate(),
+		leader_seat = engine.leader_seat,
+		turn_seat = engine.turn_seat,
+		captured_points = engine.captured_points,
+		koudi_points = engine.koudi_points,
+		cumulative = engine.cumulative.duplicate(),
+	}
+	for s in GameEngine.PLAYER_COUNT:
+		# LOBBY 阶段引擎尚未发牌（hands 为空）：序列化为空手牌
+		d.hands.append(NetProto.keys_of(engine.hands[s]) if s < engine.hands.size() else [])
+	if engine.trump != null:
+		d.trump = {"suit": engine.trump.suit, "rank": engine.trump.rank}
+	if not engine.last_game_result.is_empty():
+		d.last_game_result = _ser_result(engine.last_game_result)
+	return d
+
+
+## 引擎恢复：日志回放走 JSON 往返，整型字段逐一还原（浮点失真防护与
+## NetClient._normalize_result 同口径）
+func _engine_restore(d: Dictionary) -> void:
+	engine.phase = int(d.get("phase", GameEngine.Phase.IDLE))
+	engine.round_index = int(d.get("round_index", 0))
+	engine.dealer_seat = int(d.get("dealer_seat", -1))
+	engine.banker_seat = int(d.get("banker_seat", -1))
+	engine.contract = int(d.get("contract", 0))
+	engine.hands = []
+	for hs in d.get("hands", []):
+		engine.hands.append(NetProto.cards_of(hs))
+	engine.kitty = NetProto.cards_of(d.get("kitty", []))
+	engine.buried = NetProto.cards_of(d.get("buried", []))
+	engine.buried_points = int(d.get("buried_points", 0))
+	engine.auction.bids = []
+	for b in d.get("auction_bids", []):
+		engine.auction.bids.append({"value": int(b.value), "passed": bool(b.passed)})
+	engine.auction.turn = int(d.get("auction_turn", -1))
+	engine.current_plays = []
+	for p in d.get("current_plays", []):
+		engine.current_plays.append({"seat": int(p.seat), "cards": NetProto.cards_of(p.cards),
+			"role": int(p.role)})
+	engine.trick_history = []
+	for th in d.get("trick_history", []):
+		var plays: Array = []
+		for p in th.plays:
+			plays.append({"seat": int(p.seat), "cards": NetProto.cards_of(p.cards), "role": int(p.role)})
+		engine.trick_history.append({"plays": plays, "winner": int(th.winner)})
+	engine.trump_void_seats = []
+	for v in d.get("trump_void_seats", [false, false, false, false]):
+		engine.trump_void_seats.append(bool(v))
+	engine.leader_seat = int(d.get("leader_seat", -1))
+	engine.turn_seat = int(d.get("turn_seat", -1))
+	engine.captured_points = int(d.get("captured_points", 0))
+	engine.koudi_points = int(d.get("koudi_points", 0))
+	engine.cumulative = []
+	for c in d.get("cumulative", [0, 0, 0, 0]):
+		engine.cumulative.append(int(c))
+	if d.get("trump") != null:
+		engine.trump = TrumpInfo.new(int(d.trump.suit), int(d.trump.rank))
+	if d.get("last_game_result") != null:
+		engine.last_game_result = _deser_result(d.last_game_result)
+
+
+## 终局结果反序列化（_ser_result 的逆：trump 字典 → TrumpInfo、整型还原）
+func _deser_result(r: Dictionary) -> Dictionary:
+	var out := r.duplicate(true)
+	out.round = int(r.round)
+	out.dealer_seat = int(r.dealer_seat)
+	out.banker_seat = int(r.banker_seat)
+	out.contract = int(r.contract)
+	out.trump = TrumpInfo.new(int(r.trump.suit), int(r.trump.rank)) if r.trump != null else null
+	out.captured_points = int(r.captured_points)
+	out.koudi_points = int(r.koudi_points)
+	out.buried_points = int(r.buried_points)
+	out.captured_total = int(r.captured_total)
+	out.total_score = int(r.total_score)
+	out.level = int(r.level)
+	var payments: Array = []
+	for p in r.payments:
+		payments.append(int(p))
+	out.payments = payments
+	var cumulative: Array = []
+	for c in r.cumulative:
+		cumulative.append(int(c))
+	out.cumulative = cumulative
+	return out
+
+
+## 恢复后按当前阶段重新调度待办回合（引擎信号不会因恢复自动发出）：
+## AI 座位重新调度代打；人类座位（恢复后均离线）重挂快托管计时
+func _resume_pending_turn() -> void:
+	match engine.phase:
+		GameEngine.Phase.AUCTION:
+			_arm_seat_turn(engine.auction.turn, NetProto.KIND_BID, TIMEOUT_BID)
+		GameEngine.Phase.TRUMP:
+			_arm_seat_turn(engine.banker_seat, NetProto.KIND_TRUMP, TIMEOUT_TRUMP)
+		GameEngine.Phase.DISCARD:
+			_arm_seat_turn(engine.banker_seat, NetProto.KIND_DISCARD, TIMEOUT_DISCARD)
+		GameEngine.Phase.TRICKS:
+			_arm_seat_turn(engine.turn_seat, NetProto.KIND_PLAY, TIMEOUT_PLAY)
+		_:
+			pass
+
+
+func _arm_seat_turn(seat: int, kind: String, timeout: float) -> void:
+	var m = members[seat] if seat >= 0 and seat < members.size() else null
+	if m == null:
+		return
+	if m.is_ai:
+		var delay := AI_DISCARD_DELAY if kind == NetProto.KIND_DISCARD else AI_DELAY
+		match kind:
+			NetProto.KIND_BID:
+				_schedule_ai(delay, func(): _ai_bid(seat))
+			NetProto.KIND_TRUMP:
+				_schedule_ai(delay, func(): _ai_trump(seat))
+			NetProto.KIND_DISCARD:
+				_schedule_ai(delay, func(): _ai_discard(seat))
+			NetProto.KIND_PLAY:
+				_schedule_ai(delay, func(): _ai_play(seat))
+	else:
+		_arm_turn_timer(seat, _human_timeout(timeout, m), kind)
+
+
+## 状态落盘（服务端重启不散房）：每次成功变更即保存全量快照；已关房不落
+func _persist() -> void:
+	if _store != null and status != "CLOSED":
+		_store.save_live_room(code, serialize())
+
+
 ## ============================= 关房 =============================
 
 func close(reason: String) -> void:
@@ -643,6 +850,8 @@ func close(reason: String) -> void:
 	status = "CLOSED"
 	_disarm_turn_timer()
 	_ai_timer.stop()
+	if _store != null:
+		_store.clear_live_room(code)
 	broadcast({"t": NetProto.ROOM_CLOSED, "reason": reason, "rows": _store.room_scores(code)})
 	closed.emit(self)
 	queue_free()

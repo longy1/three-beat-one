@@ -37,6 +37,11 @@ var view: TableView = null           ## 对局视图（进牌桌时由 game_tabl
 var my_seat := -1                    ## 真座位（0~3）；旋转基准
 var my_name := ""
 var hello_done := false              ## 服务器已确认昵称（hello_ok 到达）
+## 会话令牌（重连身份键）：首次连接生成，此后每条 hello 必带；hello_ok 回执签发后
+## 覆盖保存。同 token 命中存活房间成员即回房——自动重连跨连接存活（本实例内），
+## 应用重启视为新会话（新 token）：在线成员不可被顶座，宽限期内凭同昵称回房
+## （服务端扫描判离线后承接）
+var session_token := ""
 var room_state: Dictionary = {}      ## 最近一次 room_state（真座位空间，大厅按座位直排）
 var scores_rows: Array = []          ## 房间累计分（服务器权威，弹窗数据源）
 var pending_game: Dictionary = {}    ## 待进牌桌的 game_start / snapshot
@@ -76,10 +81,10 @@ func _ready() -> void:
 	add_child(_retry_timer)
 
 
-## 前台复活：回前台立即补发 hello，服务端按同昵称回房（幂等，重复 hello 无副作用）
+## 前台复活：回前台立即补发 hello，服务端按会话令牌/昵称回房（幂等，重复 hello 无副作用）
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_FOCUS_IN and _connected and hello_done and not _reconnecting:
-		send_msg({"t": NetProto.HELLO, "nick": my_name})
+		_send_hello()
 
 
 ## ============================= 连接与请求 =============================
@@ -87,12 +92,28 @@ func _notification(what: int) -> void:
 ## 发起连接；连上后自动 hello（昵称注册/重连判定在服务器）
 func connect_to(url: String, nick: String) -> Error:
 	my_name = nick
+	if session_token == "":
+		session_token = _gen_token()
 	_url = url
 	_peer = WebSocketMultiplayerPeer.new()
 	var err := _peer.create_client(url)
 	if err != OK:
 		return err
 	return OK
+
+
+func _send_hello() -> void:
+	send_msg({"t": NetProto.HELLO, "nick": my_name, "token": session_token})
+
+
+## 会话令牌：随机 16 字节十六进制（会话级防顶座凭据，非加密强度——服务定位为本地/可信小服）
+func _gen_token() -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var out := ""
+	for i in 32:
+		out += "%x" % rng.randi_range(0, 15)
+	return out
 
 
 func request_create() -> void:
@@ -328,7 +349,7 @@ func _process(_delta: float) -> void:
 		if not _connected:
 			_connected = true
 			_hb.start()
-			send_msg({"t": NetProto.HELLO, "nick": my_name})
+			_send_hello()
 		# 消息处理器可能置空 _peer（重连放弃/ERR 换连接）：每次出包前复查
 		while _peer != null and _peer.get_available_packet_count() > 0:
 			var packet := _peer.get_packet()
@@ -355,6 +376,8 @@ func _handle(msg: Dictionary) -> void:
 		NetProto.HELLO_OK:
 			my_name = str(msg.nick)
 			hello_done = true
+			if msg.has("token"):
+				session_token = str(msg.token)  # 服务器签发/确认的会话令牌
 			if _reconnecting:
 				if bool(msg.get("rejoined", false)):
 					_finish_reconnect()  # 已回房，room_state/snapshot 随后到达

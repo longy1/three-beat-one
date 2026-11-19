@@ -13,10 +13,6 @@ extends Node
 const PORT_DEFAULT := 9080
 const SWEEP_INTERVAL := 5.0        ## 掉线扫描周期（秒）
 const HEARTBEAT_TIMEOUT := 60.0    ## 无任何消息判掉线的阈值（秒；容忍 Web 后台标签页暂停主循环）
-## 同昵称接管阈值（秒）：在线成员的 peer 静默超此值即视为断连，同昵称 hello 可立即
-## 接管其座位（无需等扫描判离线）——断连瞬间服务端未必察觉（半开 TCP 发送不报错），
-## 该阈值保证「昵称保留窗口内重连首试即回房」。客户端 5s 心跳 ×3 余量。
-const TAKEOVER_STALE := 15.0
 const CODE_LEN := 4
 ## 房间码字符集：去混淆（无 I/L/O/0/1）
 const CODE_CHARS := "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
@@ -24,7 +20,6 @@ const CODE_CHARS := "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 ## 测试可调
 var sweep_interval := SWEEP_INTERVAL
 var heartbeat_timeout := HEARTBEAT_TIMEOUT
-var takeover_stale := TAKEOVER_STALE
 ## 传导给房间的计时缩放（超时托管/离线宽限/AI 节拍）
 var time_scale := 1.0
 
@@ -32,6 +27,7 @@ var _peer: WebSocketMultiplayerPeer
 var _store: RefCounted = null
 var _rooms := {}           # 房间码 → host_room 节点
 var _peer_nick := {}       # peer_id → 昵称（hello 后有效；在线占用判定）
+var _peer_token := {}      # peer_id → 会话令牌（hello 签发后有效；随成员落座写入 member）
 var _peer_last_seen := {}  # peer_id → 毫秒时间戳
 var _sweep_timer: Timer
 
@@ -51,7 +47,30 @@ func start(port: int, store: RefCounted) -> Error:
 	else:
 		# -s 测试环境：树尚未激活（_initialize 同步段），推迟到下一帧启动
 		_sweep_timer.start.call_deferred()
+	_restore_rooms()
 	return OK
+
+
+## 服务端重启不散房：恢复落盘的进行中房间——成员离线、会话令牌保留，
+## 客户端自动重连凭 token 回房（无 token 凭同昵称在扫描判离线后承接）；
+## 待办回合重挂计时/AI 调度，宽限计时重挂（无人回归按超时解散）
+func _restore_rooms() -> void:
+	for code in _store.live_rooms():
+		var data: Dictionary = _store.live_rooms()[code]
+		var room: Node = load("res://server/host_room.gd").new()
+		room.name = "Room_" + str(code)
+		room.setup(self, str(code), str(data.get("owner_name", "")), _store)
+		room.time_scale = time_scale
+		room.closed.connect(_on_room_closed)
+		add_child(room)
+		room.restore_from(data)
+		_rooms[str(code)] = room
+
+
+## 房间状态落盘（服务端重启不散房）：host_room 每次成功变更后调用
+func persist_room(room: Node) -> void:
+	if _store != null:
+		_store.save_live_room(room.code, room.serialize())
 
 
 func listening_port() -> int:
@@ -141,16 +160,11 @@ func _try_revive(peer_id: int) -> void:
 			return
 
 
-## peer 静默判定：无活跃记录或距上次消息超过接管阈值（同昵称接管用）
-func _peer_stale(peer_id: int) -> bool:
-	var last: int = int(_peer_last_seen.get(peer_id, 0))
-	return _now_ms() - last > takeover_stale * 1000.0
-
-
-## 释放 peer 的昵称占用与活跃记录（同昵称接管旧 peer 时调用；
+## 释放 peer 的昵称/令牌占用与活跃记录（重连接管旧 peer、扫描判死时调用；
 ## 对已离线成员的旧 peer 是安全空操作）
 func _release_peer(peer_id: int) -> void:
 	_peer_nick.erase(peer_id)
+	_peer_token.erase(peer_id)
 	_peer_last_seen.erase(peer_id)
 
 
@@ -160,33 +174,69 @@ func _on_hello(peer_id: int, msg: Dictionary) -> void:
 	if check != "":
 		_send(peer_id, {"t": NetProto.ERR, "msg": check})
 		return
+	var token := str(msg.get("token", ""))
 	# 同 peer 重复 hello（客户端重试）：直接确认
 	if _peer_nick.get(peer_id, "") == nick:
 		_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick})
 		return
-	# 断线重连（昵称即身份键）：同昵称命中存活房间成员 → 回房。两种情形：
-	# - 离线（宽限期内）：昵称随房间成员资格保留，直接回房；
-	# - 在线但其 peer 静默超阈：断连尚未被扫描判出（半开 TCP 发送不报错，只能等
-	#   静默超时），为让「昵称保留窗口内重连首试即回房」，释放旧 peer 映射并立即接管。
+	# 会话令牌重连（token 即重连身份键）：命中存活房间成员即回房。两种情形：
+	# - 离线（宽限期内）：成员资格随房间保留，直接回房；
+	# - 在线但其旧 peer 静默（断连未被扫描判出，半开 TCP 发送不报错）：同一令牌
+	#   即同一设备的新连接，立即释放旧 peer 映射接管座位——重连首试即回房。
+	# 同昵称但 token 不符 = 其他设备在用该昵称：走下方占用拒绝（在线成员不可顶座）；
+	# 座位的合法归属者凭 token 随时夺回。
+	if token != "":
+		for room in _rooms.values():
+			var m = room.member_by_token(token)
+			if m != null and not m.is_ai:
+				_release_peer(m.peer_id)
+				_peer_nick[peer_id] = m.name
+				_peer_token[peer_id] = token
+				# rejoined=true：客户端自动重连以此判定回房成功（协议层字段）
+				_send(peer_id, {"t": NetProto.HELLO_OK, "nick": m.name, "rejoined": true})
+				room.reconnect(peer_id, m.name)
+				return
+	# 占用判定（在线占用制）：昵称只与「同时在线」互斥——
+	# - 存活房间成员（在线）：凭会话令牌保护，同昵称无令牌者拒绝；
+	# - 存活房间成员（离线宽限保留中）：断连旧会话，同昵称可承接（覆盖应用重启/
+	#   页面刷新后令牌丢失的合法回归——扫描判离线 ≤ 探测周期，稍候即回房）；
+	# - 未进房连接持有同名昵称：拒绝。
+	# 昵称保留窗口 = 重连窗口：房间解散或主动退出（以及未进房连接静默清理）后才释放
+	# 复用；不落任何历史注册表。
+	var holder_room: Node = null
+	var holder = null
 	for room in _rooms.values():
 		var m = room.member_by_name(nick)
-		if m == null or m.is_ai:
-			continue
-		if m.offline or _peer_stale(m.peer_id):
-			_release_peer(m.peer_id)
-			_peer_nick[peer_id] = nick
-			# rejoined=true：客户端自动重连以此判定回房成功（协议层字段）
-			_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick, "rejoined": true})
-			room.reconnect(peer_id, nick)
-			return
-	# 在线占用制：昵称只与「同时在线」互斥——持有者 peer 活跃（静默未超阈）时拒绝同昵称；
-	# 昵称保留窗口 = 重连窗口（宽限期内随房间保留 / 静默超阈可接管），房间解散或主动退出
-	# （以及未进房连接的静默清理）后才释放复用；不落任何历史注册表。
-	if _peer_nick.values().has(nick):
-		_send(peer_id, {"t": NetProto.ERR, "msg": "昵称「%s」已被占用" % nick})
+		if m != null and not m.is_ai:
+			holder_room = room
+			holder = m
+			break
+	if holder != null and not bool(holder.offline):
+		_send(peer_id, {"t": NetProto.ERR, "msg": "该昵称已在其他设备登录"})
+		return
+	if holder == null and _peer_nick.values().has(nick):
+		_send(peer_id, {"t": NetProto.ERR, "msg": "该昵称已在其他设备登录"})
 		return
 	_peer_nick[peer_id] = nick
-	_send(peer_id, {"t": NetProto.HELLO_OK, "nick": nick})
+	_peer_token[peer_id] = token if token != "" else _gen_token()
+	var reply := {"t": NetProto.HELLO_OK, "nick": nick, "token": _peer_token[peer_id]}
+	if holder != null:
+		# 离线成员同昵称承接：立即回房（房间重连分支先于一切占用语义）
+		_release_peer(holder.peer_id)
+		reply.rejoined = true
+		_send(peer_id, reply)
+		holder_room.reconnect(peer_id, nick)
+		return
+	_send(peer_id, reply)
+
+
+func _gen_token() -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var out := ""
+	for i in 32:
+		out += "%x" % rng.randi_range(0, 15)
+	return out
 
 
 func _on_create(peer_id: int) -> void:
@@ -204,7 +254,7 @@ func _on_create(peer_id: int) -> void:
 	room.time_scale = time_scale
 	room.closed.connect(_on_room_closed)
 	add_child(room)
-	room.add_member(nick, peer_id)
+	room.add_member(nick, peer_id, str(_peer_token.get(peer_id, "")))
 	_store.record_room(code, nick)
 	_rooms[code] = room
 	_send(peer_id, room.build_room_state())
@@ -233,7 +283,7 @@ func _on_join(peer_id: int, msg: Dictionary) -> void:
 	if room.human_count() >= 4:
 		_send(peer_id, {"t": NetProto.ERR, "msg": "房间已满（4/4）"})
 		return
-	room.add_member(nick, peer_id)
+	room.add_member(nick, peer_id, str(_peer_token.get(peer_id, "")))
 	room.broadcast_room_state()
 
 
@@ -258,7 +308,7 @@ func _on_leave(peer_id: int) -> void:
 	if room == null:
 		return
 	var nick: String = _peer_nick.get(peer_id, "")
-	_peer_nick.erase(peer_id)
+	_release_peer(peer_id)
 	room.close("「%s」主动退出" % nick)
 
 
@@ -313,6 +363,7 @@ func _on_sweep() -> void:
 	for peer in dead:
 		var nick: String = _peer_nick.get(peer, "")
 		_peer_nick.erase(peer)
+		_peer_token.erase(peer)
 		_peer_last_seen.erase(peer)
 		var room := _room_of_nick(nick)
 		if room != null:

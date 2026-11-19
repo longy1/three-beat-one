@@ -42,10 +42,12 @@ while IFS= read -r f; do
     core/*.gd) add test_card test_trump test_combo test_follow test_trick test_game test_flow; add_arch ;;  # core 新文件兜底
     # ── 表现层 ──
     script/table/*.gd|scene/table/*.tscn|script/ui_style.gd) add test_components test_ui; add_arch ;;
+    script/app_settings.gd) add test_components; add_arch ;;
     script/menu/online_menu.gd|scene/menu/online_menu.tscn) add test_online; add_arch ;;
     script/menu/main_menu.gd|scene/menu/main_menu.tscn) add test_ui; add_arch ;;  # 主菜单含「自检」入口
     script/menu/*.gd|scene/menu/*.tscn) add test_ui; add_arch ;;
     net/*.gd) add test_online; add_arch ;;
+    server/store.gd) add test_store test_online; add_arch ;;
     server/*.gd) add test_online; add_arch ;;
     # ── 测试自身：改动哪个套件跑哪个 ──
     test/test_*.gd) add "$(basename "${f%.gd}")"; add_arch ;;
