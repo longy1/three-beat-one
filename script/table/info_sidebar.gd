@@ -5,12 +5,16 @@ extends PanelContainer
 
 
 signal menu_pressed
+signal settings_pressed  ## 设置入口（牌桌右下信息栏；主菜单另有同款入口）
 
 
 func _ready() -> void:
 	var menu_button: Button = $VBox/MenuButton
 	UiStyle.pad_button(menu_button)  # 文字与按钮边框留空 ≥ 半字号（UI 规范）
 	menu_button.pressed.connect(func(): menu_pressed.emit())
+	var settings_button: Button = $VBox/SettingsButton
+	UiStyle.pad_button(settings_button)
+	settings_button.pressed.connect(func(): settings_pressed.emit())
 	set_trump(null)
 
 

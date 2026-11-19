@@ -53,6 +53,12 @@ custom_minimum_size = Vector2(420, 52)
 theme_override_font_sizes/font_size = 24
 text = "联机对战"
 
+[node name="SettingsButton" type="Button" parent="Center/Panel/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(320, 52)
+theme_override_font_sizes/font_size = 24
+text = "设置"
+
 [node name="SelfTestButton" type="Button" parent="Center/Panel/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(320, 52)

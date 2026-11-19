@@ -7,11 +7,17 @@ extends Control
 func _ready() -> void:
 	$Center/Panel/VBox/StartButton.pressed.connect(_on_start)
 	$Center/Panel/VBox/OnlineButton.pressed.connect(_on_online)
+	$Center/Panel/VBox/SettingsButton.pressed.connect(_on_settings)
 	$Center/Panel/VBox/SelfTestButton.pressed.connect(_on_self_test)
 	$Center/Panel/VBox/QuitButton.pressed.connect(_on_quit)
 	if OS.has_feature("web"):
 		$Center/Panel/VBox/QuitButton.visible = false
 		$Center/Panel/VBox/SelfTestButton.visible = false
+
+
+## 游戏设置（与牌桌右下信息栏入口共用弹层；设置项即时保存生效）
+func _on_settings() -> void:
+	SettingsDialog.create(get_tree().root, func(): pass)
 
 
 func _on_start() -> void:
