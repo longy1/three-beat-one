@@ -62,29 +62,30 @@ func play(root: Control, hand_area: HandArea, my_hand: Array,
 		back.position = deck_center - CardWidget.SIZE_NORMAL / 2.0 + Vector2(i * 2.0, -i * 2.0)
 		_deck_stack.add_child(back)
 	# 我方汇聚槽（提前算好：发牌顺序紧凑行，居中于手牌区）与预建正面牌（隐藏待落位）。
-	# 行基线 y 与真实手牌行同步（取测量位任一牌的全局中心 y——同排固定 HAND_BASE_Y；
-	# 旧版「手牌区中心上方 8px」比实际手牌行偏高，用户报告改同步）
+	# 卡尺寸/步距随 HandArea（手机分支 96×134、步距 40·12）；行基线 y 与真实手牌行
+	# 同步（取测量位任一牌的全局中心 y——同排固定基线）
+	var card_size: Vector2 = hand_area.hand_card_size
 	var clump_center := Vector2(hand_area.get_global_rect().get_center().x,
 		hand_area.get_global_rect().get_center().y)
 	for pos: Vector2 in positions.values():
 		clump_center.y = pos.y
 		break
 	var n := my_hand.size()
-	var gather_spacing: float = HandArea.SPACING_MAX
+	var gather_spacing: float = hand_area.spacing_max
 	if n > 1:
 		gather_spacing = clampf(
-			(hand_area.get_global_rect().size.x - 2.0 * CardWidget.SIZE_NORMAL.x) / (n - 1.0),
-			HandArea.SPACING_MIN, HandArea.SPACING_MAX)
+			(hand_area.get_global_rect().size.x - 2.0 * card_size.x) / (n - 1.0),
+			hand_area.spacing_min, hand_area.spacing_max)
 	_clump_holder = Control.new()
 	_clump_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_clump_holder.z_index = 42
 	root.add_child(_clump_holder)
 	for i in n:
 		var card: Card = my_hand[i]
-		var w := CardWidget.create(card, true)
+		var w := CardWidget.create_sized(card, true, card_size)
 		w.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		w.modulate.a = 0.0
-		w.position = clump_center - CardWidget.SIZE_NORMAL / 2.0 \
+		w.position = clump_center - card_size / 2.0 \
 			+ Vector2((i - (n - 1) / 2.0) * gather_spacing, 0)
 		_clump_holder.add_child(w)
 		_clump.append(w)
@@ -114,7 +115,7 @@ func play(root: Control, hand_area: HandArea, my_hand: Array,
 		return
 	for w in _clump:
 		var tw := root.create_tween()
-		tw.tween_property(w, "position", clump_center - CardWidget.SIZE_NORMAL / 2.0, \
+		tw.tween_property(w, "position", clump_center - card_size / 2.0, \
 			COLLAPSE_DUR / speed).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	await tree.create_timer(COLLAPSE_DUR / speed).timeout
 	if not _guard():
@@ -133,7 +134,7 @@ func play(root: Control, hand_area: HandArea, my_hand: Array,
 		_clump_holder.move_child(_clump[order[k]], k)
 	for idx in _clump.size():
 		var tw := root.create_tween()
-		tw.tween_property(_clump[idx], "position", targets[idx] - CardWidget.SIZE_NORMAL / 2.0, \
+		tw.tween_property(_clump[idx], "position", targets[idx] - card_size / 2.0, \
 			EXPAND_DUR / speed).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	await tree.create_timer(EXPAND_DUR / speed).timeout
 	if not _guard():
@@ -153,7 +154,7 @@ func _clump_target(positions: Dictionary, card: Card, idx: int) -> Vector2:
 	for pos: Vector2 in positions.values():
 		y = pos.y
 		break
-	return Vector2(rect.position.x + 36 + idx * HandArea.SPACING_MAX, y)
+	return Vector2(rect.position.x + 36 + idx * _hand_area.spacing_max, y)
 
 
 ## 每个等待点后的安全守卫：场景退出/被清理即终止动画链

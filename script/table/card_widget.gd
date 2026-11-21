@@ -12,27 +12,28 @@ const SELECTED_COLOR := Color(1.0, 0.85, 0.3)
 const SIZE_NORMAL := Vector2(72, 100)
 const SIZE_MEDIUM := Vector2(60, 86)
 const SIZE_SMALL := Vector2(52, 76)
+const SIZE_BAR := Vector2(36, 50)  ## 手机版顶栏主牌位（MobileTopBar 主牌槽）
 
-## 角标与中央花色布局（三档尺寸，索引同 size_kind：0 NORMAL / 1 SMALL / 2 MEDIUM）：
+## 角标与中央花色布局（四档尺寸，索引同 size_kind：0 NORMAL / 1 SMALL / 2 MEDIUM / 3 BAR）：
 ## 角标 = 点数、花色两行，各居其半区水平居中（共享同一条竖直中轴——Noto 里花色字形
 ## 为全角、点数为半角，只有居中能保证竖线对齐）；卡牌旋转对称，右下角同款 180° 镜像
-const CORNER_FONT := [15, 13, 14]
-const CORNER_WIDTH := [18.0, 14.0, 16.0]    ## 角标列宽（两行共用的竖直中轴）
-const CORNER_HEIGHT := [44.0, 34.0, 38.0]   ## 角标区总高（每行各占一半）
-const CENTER_FONT := [26, 18, 22]           ## 中央花色字号（调小让位上下角标，牌面正中）
+const CORNER_FONT := [15, 13, 14, 11]
+const CORNER_WIDTH := [18.0, 14.0, 16.0, 12.0]    ## 角标列宽（两行共用的竖直中轴）
+const CORNER_HEIGHT := [44.0, 34.0, 38.0, 26.0]   ## 角标区总高（每行各占一半）
+const CENTER_FONT := [26, 18, 22, 14]             ## 中央花色字号（调小让位上下角标，牌面正中）
 
-## 王牌装饰布局（三档尺寸，索引同 size_kind：0 NORMAL / 1 SMALL / 2 MEDIUM）：
+## 王牌装饰布局（四档尺寸，索引同 size_kind：0 NORMAL / 1 SMALL / 2 MEDIUM / 3 BAR）：
 ## 经典小丑牌版式——左右两列竖排 JOKER（右列 180° 倒置，无「大/王」角标，
 ## 红黑两色区分大小王），像素小丑居中（Balatro 像素风参考，纯色块程序化绘制）。
 ## 字母字号小于点数、字距紧凑；字母列贴左上角起排（右列镜像贴右下角）。
 ## 字母用等宽字体（Roboto Mono 子集，仅 J/O/K/E/R 五字形，1.2KB）——Noto 的比例
 ## 拉丁字形墨迹中心互有偏差，竖排会错位；等宽同 advance + 居中 = 墨迹成列
 const JOKER_LETTER_FONT_FILE := preload("res://font/RobotoMono-Regular.subset.ttf")
-const JOKER_LETTER_FONT := [11, 8, 9]
-const JOKER_LETTER_POS := [Vector2(6, 3), Vector2(4, 3), Vector2(5, 3)]
-const JOKER_LETTER_SIZE := [Vector2(16, 65), Vector2(12, 50), Vector2(14, 55)]
-const JOKER_JESTER_CELL := [3.0, 2.0, 2.0]
-const JOKER_JESTER_POS := [Vector2(24, 33), Vector2(18, 27), Vector2(22, 32)]
+const JOKER_LETTER_FONT := [11, 8, 9, 7]
+const JOKER_LETTER_POS := [Vector2(6, 3), Vector2(4, 3), Vector2(5, 3), Vector2(3, 2)]
+const JOKER_LETTER_SIZE := [Vector2(16, 65), Vector2(12, 50), Vector2(14, 55), Vector2(10, 36)]
+const JOKER_JESTER_CELL := [3.0, 2.0, 2.0, 1.6]
+const JOKER_JESTER_POS := [Vector2(24, 33), Vector2(18, 27), Vector2(22, 32), Vector2(14, 18)]
 
 var card: Card = null
 var face_up := true
@@ -81,6 +82,7 @@ func _refresh() -> void:
 
 	var small := custom_minimum_size == SIZE_SMALL
 	var medium := custom_minimum_size == SIZE_MEDIUM
+	var bar := custom_minimum_size == SIZE_BAR
 
 	if not face_up or card == null:
 		style.bg_color = BACK_COLOR
@@ -95,7 +97,7 @@ func _refresh() -> void:
 	var color := RED_COLOR if is_red else BLACK_COLOR
 	style.bg_color = Color(0.98, 0.97, 0.93)
 
-	var size_kind := 2 if medium else (1 if small else 0)  # 0 normal / 1 small / 2 medium
+	var size_kind := 3 if bar else (2 if medium else (1 if small else 0))  # 0 normal / 1 small / 2 medium / 3 bar
 	# 角标：点数上、花色下，两行各居其半区水平居中，共用同一条竖直中轴；
 	# 卡牌旋转对称——右下角同款角标 180° 镜像。
 	# 王牌无角标（经典小丑牌只有 JOKER 字样，红黑两色区分大小王）

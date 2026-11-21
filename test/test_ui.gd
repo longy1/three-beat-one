@@ -848,8 +848,8 @@ func test_settings_dialog_toggles(test) -> void:
 	await tree.process_frame
 
 
-## 手机版 UI（仅移动端生效 + PC 调试入口）：手牌区加宽至约 90% 屏宽、
-## 信息栏默认收起（右上角「信息」按钮展开/收起浮层）；桌面版布局不变
+## 手机版 UI 独立分支（PC 调试入口强制开启验证）：顶栏当局信息 bar、无右侧栏、
+## 大手牌贴底（96×134/步距 40·12）、宽 ≈90% 屏宽；桌面版布局完全还原
 func test_mobile_layout_mode(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	AppSettings.mobile_ui = true  # 强制开启（headless 桌面环境无移动端特性）
@@ -858,15 +858,16 @@ func test_mobile_layout_mode(test) -> void:
 	await tree.process_frame
 	await tree.process_frame
 	var bottom: Control = table.get_node("BottomArea")
-	test.eq(float(bottom.offset_right), -128.0, "手机版手牌区加宽（右缘 -128 ≈ 90% 屏宽）")
-	test.check(not table.sidebar.visible, "信息栏默认收起")
-	test.check(table._sidebar_toggle.visible, "右上角「信息」切换按钮可见")
-	table._sidebar_toggle.pressed.emit()
-	test.check(table.sidebar.visible, "点按钮展开信息栏浮层")
-	test.eq(str(table._sidebar_toggle.text), "收起", "展开后按钮文案为「收起」")
-	table._sidebar_toggle.pressed.emit()
-	test.check(not table.sidebar.visible, "再点收起")
-	test.eq(str(table._sidebar_toggle.text), "信息", "收起后按钮文案为「信息」")
+	test.check(table._mobile_bar != null and table._mobile_bar.visible, "手机版顶栏当局信息 bar 生效")
+	test.check(not table.sidebar.visible, "手机版无右侧信息栏")
+	test.check(not table.get_node("TopBar").visible, "桌面版顶栏隐藏（局况入 bar）")
+	test.eq(float(bottom.offset_left), 64.0, "底部区左缘 64（手牌 ≈90% 屏宽）")
+	test.eq(float(bottom.offset_right), -64.0, "底部区右缘 -64")
+	test.eq(table.hand_area.hand_card_size, Vector2(96, 134), "手机大手牌 96×134")
+	test.eq(float(table.hand_area.spacing_max), 40.0, "手机步距上限 40（用户调整）")
+	test.eq(float(table.hand_area.hand_base_y), 30.0, "手牌贴底基线")
+	test.eq(table.trick_anchors[0], Vector2(0.5, 0.60), "出牌十字居中（手机锚点组）")
+	test.check(table._mobile_bar.trump_slot_center() != Vector2.ZERO, "顶栏主牌槽可测量（揭主落点）")
 	table.queue_free()
 	await tree.process_frame
 	AppSettings.mobile_ui = false  # 还原（桌面版布局口径）
@@ -874,7 +875,51 @@ func test_mobile_layout_mode(test) -> void:
 	tree.root.add_child(table2)
 	await tree.process_frame
 	await tree.process_frame
-	test.eq(float(table2.get_node("BottomArea").offset_right), -220.0, "桌面版保持让位信息栏")
+	test.eq(float(table2.get_node("BottomArea").offset_right), -220.0, "桌面版还原让位信息栏")
+	test.eq(table2.hand_area.hand_card_size, Vector2(72, 100), "桌面版手牌卡 72×100")
 	test.check(table2.sidebar.visible, "桌面版信息栏常显")
-	test.check(not table2._sidebar_toggle.visible, "桌面版隐藏切换按钮")
+	test.check(table2._mobile_bar == null, "桌面版无手机顶栏")
 	await _release_table(table2)
+
+
+## 手机「更多」面板：☰ 打开即喂当前状态（局数/累计/手牌统计），点窗外关闭；
+## 顶栏主牌槽语义同信息栏（未叫主占位 → 正 R 牌面）
+func test_mobile_more_panel(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	AppSettings.mobile_ui = true
+	var table = load("res://scene/table/game_table.tscn").instantiate()
+	tree.root.add_child(table)
+	await tree.process_frame
+	await tree.process_frame
+	_deal(table.engine, 0)
+	table._mobile_bar.more_pressed.emit()
+	await tree.process_frame
+	var panel: MobileMorePanel = table._more_panel
+	test.check(panel != null and panel.visible, "☰ 打开更多面板")
+	test.check("第" in panel._round_label.text, "面板展示局数")
+	test.check("甲" in panel._cumulative_label.text, "面板展示四家累计")
+	test.check(not panel._stats_main.text.is_empty(), "面板展示手牌统计")
+	# 顶栏主牌槽：未叫主占位 → 正 R 牌面（组件语义同信息栏）
+	table._mobile_bar.set_trump(Card.new(Card.Suit.SPADE, Card.RANK_9))
+	var slot_card := false
+	for c in table._mobile_bar._slot.get_children():
+		if c is CardWidget and c.card != null and c.card.rank == Card.RANK_9:
+			slot_card = true
+	test.check(slot_card, "顶栏主牌槽展示正 R 牌面")
+	table._mobile_bar.set_trump(null)
+	var slot_placeholder := false
+	for c in table._mobile_bar._slot.get_children():
+		if c is CardWidget and c.card == null:
+			slot_placeholder = true
+	test.check(slot_placeholder, "未叫主态顶栏槽位为牌背+问号占位")
+	# 点窗外关闭（控制器引用清空）
+	var evt := InputEventMouseButton.new()
+	evt.button_index = MOUSE_BUTTON_LEFT
+	evt.pressed = true
+	table._more_panel.get_parent().get_node("MorePanelDim").gui_input.emit(evt)
+	await tree.process_frame
+	test.check(table._more_panel == null, "点窗外关闭更多面板（引用清空）")
+	table.queue_free()
+	await tree.process_frame
+	AppSettings.mobile_ui = false
+	await _release_table(table)

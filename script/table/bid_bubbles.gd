@@ -27,17 +27,27 @@ const ANCHORS := {
 const TAIL_DIRS := {0: 0, 1: 1, 2: 2, 3: 3}
 
 var _bubbles := {}         # seat → Bubble
+var _anchors := ANCHORS    ## 锚点表（尾巴尖角位置；手机分支由控制器覆写为 MobileLayout.BUBBLE_ANCHORS）
 
 
-func setup(root: Control) -> void:
+func setup(root: Control, anchors := ANCHORS) -> void:
+	_anchors = anchors
 	for seat in 4:
 		var bubble := Bubble.new()
 		bubble.name = "BidBubble%d" % seat
 		bubble.seat = seat
+		bubble.anchors = anchors
 		bubble.z_index = 4
 		root.add_child(bubble)
 		_bubbles[seat] = bubble
 	clear_all()
+
+
+## 运行中切换锚点表（UI 分支切换：桌面 ANCHORS ⇄ MobileLayout.BUBBLE_ANCHORS）
+func set_anchors(anchors: Dictionary) -> void:
+	_anchors = anchors
+	for seat in _bubbles:
+		_bubbles[seat].anchors = anchors
 
 
 ## 全量幂等应用（控制器 _refresh_seats 每次刷新按引擎竞叫状态调用）：
@@ -69,6 +79,7 @@ class Bubble:
 	extends Control
 
 	var seat := -1
+	var anchors: Dictionary = BidBubbles.ANCHORS  ## 尾巴尖角锚点表（分支可覆写）
 	var _label: Label
 	var _style: StyleBoxFlat
 	var _tail_dir := 0
@@ -107,7 +118,7 @@ class Bubble:
 		var sz := (text_size + Vector2(PAD * 2, PAD * 2)).min(BidBubbles.MAX_SIZE)
 		size = sz
 		_label.size = sz
-		var anchor: Vector2 = BidBubbles.ANCHORS[seat] * get_parent().size
+		var anchor: Vector2 = anchors[seat] * get_parent().size
 		match _tail_dir:
 			0:  # 尾巴朝下（你）：气泡在锚点上方
 				position = anchor - Vector2(sz.x / 2.0, sz.y + BidBubbles.TAIL)

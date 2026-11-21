@@ -99,6 +99,7 @@ script/   表现层脚本（按模块划分子目录；ui_style.gd 为跨模块�
                crown_animator 皇冠动画 / trump_reveal 揭主双飞 / card_widget 卡牌 / crown_badge 皇冠 /
                void_stamp 无主印章 / dashed_frame 虚线框 / seat_panel 座位面板 / info_sidebar 信息栏 /
                bid_bubbles 叫分对话气泡 / deal_animator 发牌动画
+  mobile/        手机版 UI 分支：layout 布局常量组 / top_bar 当局信息顶栏 / more_panel「更多」面板
   menu/        界面流程模块：main_menu 主菜单 / online_menu 联机入口 / room_lobby 房间大厅 /
                scores_dialog 累计分数弹层 / reconnect_overlay 断线等待重连弹层 /
                settings_dialog 游戏设置弹层
@@ -242,8 +243,10 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
   （途中遮盖与排序后一致）；
   拍卖表态挂起至排序完成（`_on_auction_required` 动画期仅状态刷新，`_on_deal_done` 按引擎
   当前轮转补跑；下一局/game_start 先置 `_deal_active` 再触发引擎信号）；叫分气泡（含庄家
-  底叫 130）同样挂起至排序完成；发牌动画期间手牌虚线框隐藏、汇聚行与实际手牌行同 y；
-  叫分气泡尖角贴近
-  玩家面板（面板缘 6~12px）；手机版 UI（移动端特性 android/ios/web_android/web_ios 自动
-  启用 + 设置「手机版 UI（调试）」PC 入口）：手牌区 ≈90% 屏宽（BottomArea 右缘 -128）、
-  信息栏默认收起右上角按钮展开浮层，桌面版不变
+  底叫 130）同样挂起至排序完成；发牌动画期间手牌虚线框隐藏、汇聚行与实际手牌行同 y、
+  无飞牌（各家面板张数经 on_tick 逐拍 +1）；叫分气泡尖角贴近玩家面板（面板缘 6~12px）；
+  **手机版 UI 独立分支（2026-11-21，用户定夺：仅规则/流程复用，布局/尺寸/组件与桌面解耦）**：
+  顶栏当局信息 bar（局况/主牌小牌面/捉分 + 「更多」按钮）+ MorePanel（局数/累计/手牌统计/
+  设置/菜单）+ 大手牌贴底（96×134、步距 40·12、宽 ≈90% 屏）+ 出牌十字居中；常量组
+  `script/table/mobile/layout.gd`，应用器 `game_table._apply_layout_mode`（桌面原值捕获还原，
+  桌面版不动），移动端特性自动启用 + 设置「手机版 UI（调试）」PC 入口

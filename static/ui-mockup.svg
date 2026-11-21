@@ -272,60 +272,107 @@
   <text x="740" y="1812" font-size="12" fill="#e8b84a">心跳：客户端 5s ping，服务端 60s 无消息或发送失败判离线（进入宽限期；回连凭会话令牌/同昵称承接）</text>
 
   <!-- ══════════════════════════════════════════════════════════════ -->
-  <!-- ═══ 手机版变体屏（y 2160~2880）：仅移动端生效（android/ios/web_android/web_ios）；
-       PC 经设置「手机版 UI（调试）：关/开」开启验证（AppSettings.mobile_ui 持久化） ═══ -->
+    <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- ═══ 手机版 UI（独立分支粗稿，2026-11-21）：与桌面版仅共享规则与流程，
+       布局/尺寸/组件解耦各自迭代；横屏 1280×720 设计基准不变；桌面版完全不动 ═══ -->
   <rect y="2160" width="1280" height="720" fill="#0b2218"/>
   <line x1="0" y1="2160" x2="1280" y2="2160" stroke="#e8b84a" stroke-width="1.5" opacity="0.5"/>
-  <text x="16" y="2186" font-size="13" fill="#e8b84a">手机版变体屏（2026-11-21）：手牌区 ≈90% 屏宽｜右侧信息栏默认收起，右上角「信息」按钮展开（浮层）｜其余布局不变</text>
+  <text x="16" y="2184" font-size="13" fill="#e8b84a">手机版 UI（独立分支粗稿）：顶 bar 只放当局信息（庄/叫分、主牌、捉分），其它收进 ☰ 面板｜无右侧栏｜手牌更大贴底 ≈90%｜桌面版不动</text>
 
-  <!-- 顶栏（不变） -->
-  <rect x="12" y="2196" width="1036" height="32" rx="6" fill="#12291d" stroke="#2c4a38"/>
-  <text x="28" y="2217" font-size="15" fill="#d8e5dd">第 1 局 ｜ 出牌庄 丙 · 叫分 135</text>
-  <!-- 右上角「信息」切换按钮：手机版程序化创建（UiStyle.pad_button）；
-       点按翻转信息栏显隐，展开时文案「收起」 -->
-  <rect x="1186" y="2196" width="82" height="32" rx="6" fill="#1c3a2a" stroke="#e8b84a" stroke-width="1.5"/>
-  <text x="1227" y="2217" font-size="14" fill="#ffd140" text-anchor="middle">信息</text>
-  <text x="1178" y="2217" font-size="12" fill="#e8b84a" text-anchor="end">← 右上角切换按钮（默认收起）</text>
+  <!-- 顶部信息 bar（0~56，全宽）：仅当局信息——庄/叫分 + 主牌小牌面 + 捉分；其它收进 ☰「更多」面板 -->
+  <rect x="0" y="2160" width="1280" height="56" fill="#0d1f16"/>
+  <line x1="0" y1="2216" x2="1280" y2="2216" stroke="#2c4a38"/>
+  <text x="16" y="2194" font-size="15" fill="#d8e5dd">出牌庄 丙 · 叫分 135</text>
+  <rect x="300" y="2164" width="36" height="50" rx="5" fill="#f7f3e8" stroke="#888" opacity="0.45"/>
+  <text x="318" y="2196" font-size="20" fill="#ffd140" text-anchor="middle">?</text>
+  <text x="344" y="2194" font-size="13" fill="#9ab5a5">主牌（正 R）｜ 揭主飞入此位</text>
+  <text x="620" y="2194" font-size="14" fill="#e8f0ea">捉分 45</text>
+  <rect x="1188" y="2168" width="52" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1214" y="2196" font-size="16" fill="#d8e5dd" text-anchor="middle">☰</text>
+  <rect x="1248" y="2168" width="28" height="40" rx="6" fill="none" stroke="#e8b84a" stroke-dasharray="4 3"/>
+  <text x="1262" y="2194" font-size="12" fill="#e8b84a" text-anchor="middle">⛶</text>
+  <text x="1164" y="2194" font-size="12" fill="#9a824a" text-anchor="end">更多 →</text>
+  <text x="16" y="2242" font-size="12" fill="#8a7a4a">bar 只放当局信息：庄/叫分、主牌、捉分；局数/累计/手牌统计/设置/菜单收进 ☰「更多」面板（右侧浮层示意）；⛶ 为壳层 DOM 全屏按钮</text>
+  <text x="16" y="2262" font-size="12" fill="#8a7a4a">手牌贴底 12px ｜ 双虚线框随排序完成展现（同桌面口径）｜ 叫分气泡/发牌逐拍动画/设置项（主牌框左右/排序方向）全部沿用</text>
 
-  <!-- 座位面板（位置不变） -->
-  <rect x="446" y="2208" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
-  <text x="536" y="2246" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丙（电脑）</text>
-  <text x="536" y="2270" font-size="13" fill="#9ab5a5" text-anchor="middle">17 张</text>
-  <rect x="12" y="2404" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
-  <text x="102" y="2438" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丁（电脑）</text>
-  <rect x="880" y="2404" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
-  <text x="970" y="2438" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">乙（电脑）</text>
+  <!-- 丙（上带，SeatPanel 复用） -->
+  <rect x="550" y="2264" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="640" y="2302" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丙（电脑）</text>
+  <text x="640" y="2326" font-size="13" fill="#9ab5a5" text-anchor="middle">19 张</text>
+  <rect x="576" y="2376" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="583" y="2396" font-size="11" fill="#1a1a24">♠A</text>
+  <rect x="592" y="2376" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="599" y="2396" font-size="11" fill="#b32c2c">♥K</text>
+  <text x="700" y="2414" font-size="12" fill="#5a7a68">丙·出牌（十字上点）</text>
 
-  <!-- 信息栏展开态示意（浮层：anchor 0.838~1.0 不变，覆盖右缘；默认隐藏） -->
-  <rect x="1072" y="2208" width="196" height="648" rx="10" fill="#132b1f" opacity="0.55" stroke="#e8b84a" stroke-width="1.5" stroke-dasharray="6 4"/>
-  <text x="1170" y="2236" font-size="14" fill="#e8b84a" text-anchor="middle">信息栏（展开态示意）</text>
-  <text x="1170" y="2258" font-size="11" fill="#9a824a" text-anchor="middle">浮层覆盖右缘，再点「收起」隐藏</text>
-  <text x="1170" y="2278" font-size="11" fill="#9a824a" text-anchor="middle">主牌/统计/局面/设置/菜单照旧</text>
+  <!-- 丁（左缘）/ 乙（右缘）：无右栏后对称贴两缘 -->
+  <rect x="12" y="2448" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="102" y="2482" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">丁（电脑）</text>
+  <text x="102" y="2506" font-size="13" fill="#9ab5a5" text-anchor="middle">16 张</text>
+  <rect x="1088" y="2448" width="180" height="100" rx="8" fill="#162e22" stroke="#3a5c48"/>
+  <text x="1178" y="2482" font-size="16" fill="#e8f0ea" text-anchor="middle" font-weight="bold">乙（电脑）</text>
+  <text x="1178" y="2506" font-size="13" fill="#9ab5a5" text-anchor="middle">19 张</text>
+  <rect x="448" y="2464" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="455" y="2484" font-size="11" fill="#1a1a24">♣K</text>
+  <rect x="736" y="2464" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="743" y="2484" font-size="11" fill="#1a1a24">♦A</text>
+  <text x="640" y="2544" font-size="12" fill="#5a7a68" text-anchor="middle">出牌十字中心移到屏宽正中 (0.5, ~0.40)；乙/丁对称贴左右缘</text>
 
-  <!-- 底部区：手牌区加宽 12~1152（offset_right -220 → -128，净宽 1140 ≈ 89% 屏宽） -->
-  <rect x="12" y="2650" width="1140" height="216" rx="8" fill="none" stroke="#8fd0a8" stroke-width="1.5" stroke-dasharray="8 6"/>
-  <text x="24" y="2672" font-size="13" fill="#8fd0a8">底部区（12~1152，手牌净宽 ≈89% 屏宽；桌面版 12~1060 让位信息栏）</text>
-  <rect x="484" y="2654" width="120" height="44" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
-  <text x="544" y="2681" font-size="17" fill="#d8e5dd" text-anchor="middle">出 牌</text>
-  <rect x="616" y="2654" width="120" height="44" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
-  <text x="676" y="2681" font-size="17" fill="#d8e5dd" text-anchor="middle">放弃</text>
-  <!-- 手牌双虚线框（居中于加宽后的手牌区 582） -->
-  <text x="560" y="2736" font-size="12" fill="#9ab5a5" text-anchor="middle">主牌框</text>
-  <rect x="443" y="2740" width="220" height="106" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="7 5"/>
-  <rect x="453" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="469" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="485" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="501" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="517" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="533" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="549" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="565" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <text x="700" y="2736" font-size="12" fill="#9ab5a5" text-anchor="middle">副牌框</text>
-  <rect x="679" y="2740" width="150" height="106" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="7 5"/>
-  <rect x="689" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="705" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="721" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="737" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <rect x="753" y="2750" width="16" height="86" rx="3" fill="#f7f3e8" stroke="#888"/>
-  <text x="24" y="2868" font-size="12" fill="#5a7a68">移动端判定 = OS.has_feature 的 android/ios/web_android/web_ios；设置项 mobile_ui 可强制开启/关闭（PC 调试入口，ConfigFile 持久化）</text>
+  <!-- 你的出牌（手牌上方） -->
+  <rect x="560" y="2560" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
+  <text x="567" y="2580" font-size="11" fill="#1a1a24">♠9</text>
+  <text x="616" y="2598" font-size="12" fill="#5a7a68">你·出牌（十字下点）</text>
+
+  <!-- 操作按钮行（手牌正上方；按钮加大触屏友好） -->
+  <text x="416" y="2654" font-size="13" fill="#5a7a68" text-anchor="end">提示行 →</text>
+  <rect x="440" y="2624" width="150" height="52" rx="8" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="515" y="2658" font-size="19" fill="#d8e5dd" text-anchor="middle">出 牌</text>
+  <rect x="610" y="2624" width="150" height="52" rx="8" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="685" y="2658" font-size="19" fill="#d8e5dd" text-anchor="middle">放弃</text>
+
+  <!-- 90% 屏宽参考线（64~1216） -->
+  <line x1="64" y1="2600" x2="64" y2="2878" stroke="#8fd0a8" stroke-width="1" stroke-dasharray="5 5" opacity="0.7"/>
+  <line x1="1216" y1="2600" x2="1216" y2="2878" stroke="#8fd0a8" stroke-width="1" stroke-dasharray="5 5" opacity="0.7"/>
+  <text x="76" y="2618" font-size="12" fill="#8fd0a8">90% 屏宽参考</text>
+
+  <!-- 手牌区（贴底 12px；大卡 96×134，桌面 72×100 的 1.33 倍） -->
+  <text x="470" y="2718" font-size="13" fill="#9ab5a5" text-anchor="middle">主牌框</text>
+  <rect x="330" y="2724" width="280" height="154" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <rect x="342" y="2734" width="96" height="134" rx="7" fill="#f7f3e8" stroke="#888"/>
+  <text x="350" y="2776" font-size="17" fill="#1a1a24">2♠</text>
+  <rect x="366" y="2734" width="96" height="134" rx="7" fill="#f7f3e8" stroke="#888"/>
+  <text x="374" y="2776" font-size="17" fill="#b32c2c">2♥</text>
+  <rect x="390" y="2734" width="96" height="134" rx="7" fill="#f7f3e8" stroke="#888"/>
+  <text x="398" y="2776" font-size="17" fill="#1a1a24">2♣</text>
+  <text x="816" y="2718" font-size="13" fill="#9ab5a5" text-anchor="middle">副牌框</text>
+  <rect x="626" y="2724" width="380" height="154" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <rect x="638" y="2734" width="96" height="134" rx="7" fill="#f7f3e8" stroke="#888"/>
+  <text x="646" y="2776" font-size="17" fill="#1a1a24">A♠</text>
+  <rect x="662" y="2734" width="96" height="134" rx="7" fill="#f7f3e8" stroke="#888"/>
+  <text x="670" y="2776" font-size="17" fill="#b32c2c">K♥</text>
+  <rect x="686" y="2734" width="96" height="134" rx="7" fill="#f7f3e8" stroke="#888"/>
+  <text x="694" y="2776" font-size="17" fill="#1a1a24">Q♣</text>
+  <text x="1090" y="2776" font-size="12" fill="#5a7a68">卡 96×134（触摸目标≈52×72pt）</text>
+  <text x="1090" y="2798" font-size="12" fill="#5a7a68">选中上浮 27px（20% 牌高）</text>
+  <text x="1090" y="2820" font-size="12" fill="#5a7a68">步距 clamp 8~24 复用</text>
+  <text x="1090" y="2842" font-size="12" fill="#5a7a68">27 张扣底自动收紧</text>
+  <!-- ☰「更多」面板（打开态示意：居中弹层；粗稿画在右侧覆盖布局） -->
+  <rect x="880" y="2264" width="388" height="400" rx="10" fill="#132b1f" opacity="0.93" stroke="#e8b84a" stroke-width="1.5"/>
+  <text x="1074" y="2296" font-size="16" fill="#e8b84a" text-anchor="middle" font-weight="bold">更多</text>
+  <text x="900" y="2330" font-size="13" fill="#9ab5a5">第 1 局</text>
+  <text x="900" y="2358" font-size="13" fill="#e8f0ea">累计：甲 +3 ｜ 乙 -3</text>
+  <text x="900" y="2382" font-size="13" fill="#e8f0ea">　　　丙 +3 ｜ 丁 -3</text>
+  <line x1="900" y1="2404" x2="1248" y2="2404" stroke="#2c4a38"/>
+  <text x="900" y="2432" font-size="13" fill="#9ab5a5">手牌统计</text>
+  <text x="900" y="2458" font-size="13" fill="#e8f0ea">主 13 ｜ 副 ♥6 ♣4 ♦4</text>
+  <text x="900" y="2484" font-size="13" fill="#e8f0ea">5×2  7×3  8×1  9×3  10×2</text>
+  <text x="900" y="2510" font-size="13" fill="#e8f0ea">J×1  Q×1  K×2  A×2  2×2</text>
+  <text x="900" y="2536" font-size="13" fill="#e8f0ea" opacity="0.35">大王×0  小王×0（灰显=没有）</text>
+  <line x1="900" y1="2560" x2="1248" y2="2560" stroke="#2c4a38"/>
+  <rect x="900" y="2580" width="160" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="980" y="2606" font-size="14" fill="#d8e5dd" text-anchor="middle">设置</text>
+  <rect x="1088" y="2580" width="160" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1168" y="2606" font-size="14" fill="#d8e5dd" text-anchor="middle">返回主菜单</text>
+  <text x="1074" y="2648" font-size="11" fill="#9a824a" text-anchor="middle">点窗外 / ✕ 关闭（居中弹层，粗稿示意在右）</text>
 </svg>
+

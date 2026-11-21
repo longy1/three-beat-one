@@ -53,10 +53,15 @@ var _last_trump_shown = null             ## 上次送入信息栏的主牌（Tru
 var _ai_timer: Timer
 var _trick_timer: Timer
 var _ai_delay_scale := 1.0  ## AI 延迟缩放（UI 测试调小以加速；_run_ai 按比例设置 wait_time）
-var _mobile_ui := false               ## 手机版布局生效中（移动端设备特性或设置强制）
-var _sidebar_toggle: Button = null    ## 手机版右上角信息栏切换按钮（桌面版隐藏）
+var _mobile_ui := false                  ## 手机版 UI 分支生效中（设备特性或设置强制）
+var _mobile_bar: MobileTopBar = null     ## 手机版顶栏（当局信息 bar；桌面为 null）
+var _more_panel: MobileMorePanel = null  ## 手机版「更多」面板（打开态实例）
+var trick_anchors := TRICK_ANCHORS       ## 出牌显示锚点（手机分支切 MobileLayout.TRICK_ANCHORS）
+var _desktop_seat_anchors := {}          ## 桌面版座位锚点（_ready 捕获，切回桌面还原用）
+var _desktop_bottom := Vector4()         ## 桌面版底部区偏移（捕获同上）
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
+@onready var top_bar: Control = $TopBar
 @onready var bid_center_label: Label = $BidCenterLabel
 @onready var background: ColorRect = $Background
 @onready var sidebar: InfoSidebar = $Sidebar
@@ -131,6 +136,11 @@ func _ready() -> void:
 		var panel: SeatPanel = seat_panels[seat]
 		panel.setup(seat)  # 注入座位号（印章定位/测试断言用）
 	_bid_bubbles.setup(self)
+	# 捕获桌面版布局原值（手机分支切换后可还原；tscn 即桌面事实源）
+	var bottom: Control = $BottomArea
+	_desktop_bottom = Vector4(bottom.offset_left, bottom.offset_top, bottom.offset_right, bottom.offset_bottom)
+	for seat in seat_panels:
+		_desktop_seat_anchors[seat] = Vector2(seat_panels[seat].anchor_left, seat_panels[seat].anchor_top)
 	_apply_layout_mode()
 
 	if _online:
@@ -156,37 +166,110 @@ func _on_settings() -> void:
 		_render_hand())
 
 
-## ============================= 手机版 UI（仅移动端生效） =============================
+## ============================= UI 分支（桌面 / 手机版独立布局） =============================
 
-## 手机版布局：手牌区加宽至约 90% 屏宽（BottomArea 右缘 -220 → -128，不再让位
-## 信息栏）；右侧信息栏默认收起，右上角「信息」按钮展开/收起（浮层，腾出操作
-## 空间）。判定 = 移动端设备特性自动启用，或设置项强制开启（PC 调试入口，
-## AppSettings.effective_mobile_ui）；桌面版布局完全不变。
+## UI 分支应用器：手机版为独立 UI 分支（布局/尺寸/组件与桌面解耦各自迭代，
+## 仅游戏规则与流程复用）——顶栏当局信息 bar + 「更多」面板、无右侧栏、大手牌
+## 贴底（96×134，宽 ≈90% 屏）、出牌十字居中、乙/丁贴缘、按钮加大；桌面版完全
+## 保持场景原样。判定 = 移动端设备特性自动启用，或设置项强制开启（PC 调试入口，
+## AppSettings.effective_mobile_ui）。布局常量组见 MobileLayout。
 func _apply_layout_mode() -> void:
 	_mobile_ui = AppSettings.effective_mobile_ui()
 	var bottom: Control = $BottomArea
-	bottom.offset_right = -128.0 if _mobile_ui else -220.0
-	sidebar.visible = not _mobile_ui
-	if _sidebar_toggle == null:
-		_sidebar_toggle = Button.new()
-		_sidebar_toggle.text = "信息"
-		_sidebar_toggle.anchor_left = 1.0
-		_sidebar_toggle.anchor_right = 1.0
-		_sidebar_toggle.offset_left = -94.0
-		_sidebar_toggle.offset_right = -12.0
-		_sidebar_toggle.offset_top = 8.0
-		_sidebar_toggle.offset_bottom = 48.0
-		UiStyle.pad_button(_sidebar_toggle)
-		_sidebar_toggle.pressed.connect(_toggle_sidebar)
-		add_child(_sidebar_toggle)  # 树序后置：绘制在信息栏浮层之上
-	_sidebar_toggle.visible = _mobile_ui
-	_sidebar_toggle.text = "收起" if sidebar.visible else "信息"
+	if _mobile_bar != null:
+		_mobile_bar.queue_free()
+		_mobile_bar = null
+	if _more_panel != null:
+		_more_panel.queue_free()
+		_more_panel = null
+	if _mobile_ui:
+		_mobile_bar = MobileTopBar.new()
+		_mobile_bar.more_pressed.connect(_toggle_more_panel)
+		add_child(_mobile_bar)
+		sidebar.visible = false
+		top_bar.visible = false
+		bid_center_label.visible = false
+		bottom.offset_left = MobileLayout.BOTTOM_LEFT
+		bottom.offset_top = MobileLayout.BOTTOM_TOP
+		bottom.offset_right = MobileLayout.BOTTOM_RIGHT
+		bottom.offset_bottom = MobileLayout.BOTTOM_BOTTOM
+		action_bar.offset_bottom = 52.0
+		hint_label.offset_top = 56.0
+		hint_label.offset_bottom = 84.0
+		hand_area.offset_top = 92.0
+		hand_area.offset_bottom = -8.0
+		for seat in seat_panels:
+			var a: Vector2 = MobileLayout.SEAT_ANCHORS[seat]
+			seat_panels[seat].anchor_left = a.x
+			seat_panels[seat].anchor_top = a.y
+		trick_anchors = MobileLayout.TRICK_ANCHORS
+		hand_area.hand_card_size = MobileLayout.HAND_CARD_SIZE
+		hand_area.spacing_max = MobileLayout.SPACING_MAX
+		hand_area.spacing_min = MobileLayout.SPACING_MIN
+		hand_area.hand_base_y = MobileLayout.HAND_BASE_Y
+		action_bar.button_min = MobileLayout.BUTTON_MIN
+		action_bar.button_font = MobileLayout.BUTTON_FONT
+		_bid_bubbles.set_anchors(MobileLayout.BUBBLE_ANCHORS)
+		human_void_stamp.offset_left = 1120.0
+		human_void_stamp.offset_right = 1176.0
+		human_void_stamp.offset_top = -250.0
+		human_void_stamp.offset_bottom = -194.0
+	else:
+		sidebar.visible = true
+		top_bar.visible = true
+		bid_center_label.visible = true
+		bottom.offset_left = _desktop_bottom.x
+		bottom.offset_top = _desktop_bottom.y
+		bottom.offset_right = _desktop_bottom.z
+		bottom.offset_bottom = _desktop_bottom.w
+		action_bar.offset_bottom = 48.0
+		hint_label.offset_top = 54.0
+		hint_label.offset_bottom = 80.0
+		hand_area.offset_top = 86.0
+		hand_area.offset_bottom = -12.0
+		for seat in seat_panels:
+			var a: Vector2 = _desktop_seat_anchors[seat]
+			seat_panels[seat].anchor_left = a.x
+			seat_panels[seat].anchor_top = a.y
+		trick_anchors = TRICK_ANCHORS
+		hand_area.hand_card_size = CardWidget.SIZE_NORMAL
+		hand_area.spacing_max = HandArea.SPACING_MAX
+		hand_area.spacing_min = HandArea.SPACING_MIN
+		hand_area.hand_base_y = HandArea.HAND_BASE_Y
+		action_bar.button_min = Vector2(120, 44)
+		action_bar.button_font = 18
+		_bid_bubbles.set_anchors(BidBubbles.ANCHORS)
+		human_void_stamp.offset_left = 958.0
+		human_void_stamp.offset_right = 1014.0
+		human_void_stamp.offset_top = -232.0
+		human_void_stamp.offset_bottom = -176.0
+	# 分支切换重排手牌（开局引擎 hands 未发时不渲染，避免越界；开局后有牌随切随渲）
+	if not _deal_active and not engine.hands.is_empty():
+		_render_hand()
 
 
-## 右上角按钮：翻转信息栏显隐（手机版默认收起，点按展开为浮层）
-func _toggle_sidebar() -> void:
-	sidebar.visible = not sidebar.visible
-	_sidebar_toggle.text = "收起" if sidebar.visible else "信息"
+## ☰ 按钮：开「更多」面板（重复点按/点窗外/✕ 关闭）；打开即喂当前状态
+func _toggle_more_panel() -> void:
+	if _more_panel != null:
+		_more_panel.close()
+		_more_panel = null
+		return
+	_more_panel = MobileMorePanel.create(self, _on_settings, _on_menu)
+	_more_panel.closed.connect(func(): _more_panel = null)
+	_refresh()
+
+
+## 主牌展示位分派：桌面=信息栏槽位；手机=顶栏主牌槽（守卫自愈逻辑共用）
+func _set_trump_display(card: Card) -> void:
+	if _mobile_ui:
+		_mobile_bar.set_trump(card)
+	else:
+		sidebar.set_trump(card)
+
+
+## 主牌槽全局中心（揭主飞牌落点）
+func _trump_slot_center() -> Vector2:
+	return _mobile_bar.trump_slot_center() if _mobile_ui else sidebar.trump_slot_center()
 
 
 ## 双击牌桌空白（背景层）：清空手牌选择（把选中的牌全部放回）
@@ -352,7 +435,7 @@ func _on_discard_required(seat: int) -> void:
 	# 的防御性清理，回调不再触发），active 已复位 → 下次 _refresh 由守卫重渲——
 	# 根治旧版「落位回调丢失 + _last_trump_shown 引用比较永久跳过」的标识消失
 	var trump_card := Card.new(engine.trump.suit, engine.trump.rank)
-	_trump_reveal.play(self, trump_card, sidebar.trump_slot_center(), func():
+	_trump_reveal.play(self, trump_card, _trump_slot_center(), func():
 		_last_trump_shown = engine.trump
 		sidebar.set_trump(trump_card)
 		_trump_reveal.clear())
@@ -618,17 +701,23 @@ func _refresh_stats() -> void:
 		elif not c.is_joker():
 			suit_counts[c.suit] += 1
 	var bits: Array[String] = []
+	var main_text: String
+	var rank_rows: Array = _build_rank_rows(hand)
 	if trump == null:
 		for s in Card.NORMAL_SUITS:
 			bits.append("%s%d" % [suit_chars[s], suit_counts[s]])
-		var main_text: String = "未叫主 ｜ " + " ".join(bits)
-		var rank_rows := _build_rank_rows(hand)
-		sidebar.update_stats(main_text, rank_rows)
+		main_text = "未叫主 ｜ " + " ".join(bits)
 	else:
 		for s in Card.NORMAL_SUITS:
 			if s != trump.suit:
 				bits.append("%s%d" % [suit_chars[s], suit_counts[s]])
-		sidebar.update_stats("主 %d ｜ 副 %s" % [trump_count, " ".join(bits)], _build_rank_rows(hand))
+		main_text = "主 %d ｜ 副 %s" % [trump_count, " ".join(bits)]
+	# 统计分派：桌面=信息栏；手机=「更多」面板（打开期间实时更新）
+	if _mobile_ui:
+		if _more_panel != null:
+			_more_panel.update_stats(main_text, rank_rows)
+	else:
+		sidebar.update_stats(main_text, rank_rows)
 
 
 ## 各点数数量行（含王、2）：[{text, present}]
@@ -662,23 +751,38 @@ func _refresh_top_bar() -> void:
 		info += " ｜ 出牌庄 %s" % seat_names[engine.banker_seat]
 		if engine.contract > 0:
 			info += " ｜ 叫分 %d" % engine.contract
-	game_info.text = info
+	# 顶栏分派：桌面=原顶栏/中央提示/信息栏局面块；手机=当局信息 bar（局数/累计进「更多」面板）
+	if _mobile_ui:
+		var bar_text := ""
+		if engine.phase == GameEngine.Phase.AUCTION:
+			bar_text = "叫分中（最高 %d）" % engine.current_highest_bid()
+		elif engine.banker_seat >= 0:
+			bar_text = "出牌庄 %s · 叫分 %d" % [seat_names[engine.banker_seat], engine.contract]
+		else:
+			bar_text = "抓牌中…"
+		_mobile_bar.set_game_info(bar_text)
+		_mobile_bar.set_captured("捉分 %d" % engine.captured_points)
+	else:
+		game_info.text = info
 	if engine.phase != GameEngine.Phase.AUCTION:
 		bid_center_label.text = ""
-	# 主牌提示：一张「正 R」牌面放入信息栏（仅叫主变化时重建；揭主飞行期间跳过
+	# 主牌提示：一张「正 R」牌面放入主牌展示位（仅叫主变化时重建；揭主飞行期间跳过
 	# ——落位回调渲染；飞行被打断时 active 复位，此处守卫自愈重渲）
 	if engine.trump != _last_trump_shown and not _trump_reveal.active:
 		_last_trump_shown = engine.trump
-		if engine.trump != null:
-			sidebar.set_trump(Card.new(engine.trump.suit, engine.trump.rank))
-		else:
-			sidebar.set_trump(null)
-	# 信息栏「局面」块
+		_set_trump_display(Card.new(engine.trump.suit, engine.trump.rank) if engine.trump != null else null)
+	# 「局面」块：桌面=信息栏；手机=「更多」面板（打开期间实时更新）
 	var captured := "闲家捉分 %d" % engine.captured_points
 	if engine.koudi_points > 0:
 		captured += "（含抠底 %d）" % engine.koudi_points
-	sidebar.set_state(captured, "累计：甲 %+d ｜ 乙 %+d\n　　　丙 %+d ｜ 丁 %+d" \
-		% [engine.cumulative[0], engine.cumulative[1], engine.cumulative[2], engine.cumulative[3]])
+	if _mobile_ui:
+		if _more_panel != null:
+			_more_panel.set_state("第 %d 局" % engine.round_index,
+				"累计：甲 %+d ｜ 乙 %+d\n　　　丙 %+d ｜ 丁 %+d" \
+				% [engine.cumulative[0], engine.cumulative[1], engine.cumulative[2], engine.cumulative[3]])
+	else:
+		sidebar.set_state(captured, "累计：甲 %+d ｜ 乙 %+d\n　　　丙 %+d ｜ 丁 %+d" \
+			% [engine.cumulative[0], engine.cumulative[1], engine.cumulative[2], engine.cumulative[3]])
 
 
 func _refresh_seats() -> void:
@@ -735,7 +839,7 @@ func _refresh_trick_area() -> void:
 			widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			widget.position = Vector2(i * step, 0)
 			cards_row.add_child(widget)
-		var base: Vector2 = TRICK_ANCHORS[seat] * trick_area.size  # 相对锚点 × 层尺寸
+		var base: Vector2 = trick_anchors[seat] * trick_area.size  # 相对锚点 × 层尺寸（分支可切）
 		cards_row.size = Vector2(card_size.x + (play.cards.size() - 1) * step, card_size.y)
 		cards_row.position = base - cards_row.size / 2.0
 		trick_area.add_child(cards_row)

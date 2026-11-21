@@ -51,6 +51,18 @@
     中央牌叠保留作发牌来源示意），逐拍循环改为手牌在汇聚槽直接现身 + `on_tick(已发张数)`
     回调——控制器 `_deal_shown_count`/`_refresh_seats` 使各家座位面板张数从 0 张
     逐拍增长到 19 张（动画结束回归引擎权威值）；新增 `test_deal_animation_counts_tick`
+  - **手机版 UI 重做为独立分支**（`script/table/mobile/` 新增 layout/top_bar/more_panel、
+    `script/table/hand_area.gd`、`script/table/deal_animator.gd`、`script/table/action_bar.gd`、
+    `script/table/bid_bubbles.gd`、`script/table/card_widget.gd`、`script/table/game_table.gd`、
+    `test/test_ui.gd`、ui-mockup.svg；用户定夺：移动端是完全另一套 UI 规范，仅规则与流程复用）：
+    顶栏当局信息 bar（局况/主牌小牌面/捉分 + 「更多」按钮）——局数/四家累计/手牌统计/
+    设置/菜单收进 MobileMorePanel 居中弹层；大手牌 96×134 贴底、步距 40·12（用户调整：
+    间距更大）、宽 ≈90% 屏宽；出牌十字居中、乙/丁贴缘、按钮 150×52；CardWidget 新增
+    BAR 第四档（36×50 主牌槽）；HandArea/DealAnimator/ActionBar/BidBubbles 参数化
+    （hand_card_size/spacing/base_y/button_min/anchors，桌面默认不变）；替换旧版
+    「加宽+信息栏折叠」半套实现；`_apply_layout_mode` 变分支应用器（桌面原值捕获还原）；
+    重写 test_mobile_layout_mode + 新增 test_mobile_more_panel；修复新组件两处
+    （close 变量遮蔽方法名的编译错、_apply_layout_mode 开局 hands 未发时 _render_hand 越界）
   - **气泡尾巴与框一体化**（`script/table/bid_bubbles.gd`；用户报告接缝有描边横线）：
     尾巴填充三角底边向框体内推进越过边框（盖掉接缝段的框描边），描边只走两条斜边且
     起点取斜边与框外缘的交点——与框描边自然相接，接缝处整块填充无横线

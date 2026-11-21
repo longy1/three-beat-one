@@ -21,6 +21,13 @@ const SPACING_MAX := 24.0       ## 相邻牌步距上限（紧凑重叠：露左
 const SPACING_MIN := 8.0        ## 相邻牌步距下限（拥挤时收紧）
 const MIN_USABLE_WIDTH := 100.0 ## 尺寸低于此值视为布局未就绪
 
+## 可分支覆写的呈现参数（桌面默认 = 上方常量；手机分支由控制器按 MobileLayout
+## 设置——卡 96×134/步距 40·12/贴底基线，独立 UI 分支 [码4]）
+var hand_card_size := CardWidget.SIZE_NORMAL
+var spacing_max := SPACING_MAX
+var spacing_min := SPACING_MIN
+var hand_base_y := HAND_BASE_Y
+
 
 var select_mode := ""   # "" | "discard" | "play"；空串时交互关闭
 var selected: Array = []  # Array[Card]，选中的手牌（引用来自最近一次 render 的手牌）
@@ -138,13 +145,13 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 		return
 
 	var avail: float = size.x
-	var card_w := CardWidget.SIZE_NORMAL.x
-	var card_h := CardWidget.SIZE_NORMAL.y
+	var card_w := hand_card_size.x
+	var card_h := hand_card_size.y
 	var n := trump_cards.size() + side_cards.size()
-	var spacing := SPACING_MAX
+	var spacing := spacing_max
 	if n > 2:
 		spacing = (avail - LAYOUT_GAP - 4 * LAYOUT_PAD - 2 * card_w) / (n - 2)
-	spacing = clampf(spacing, SPACING_MIN, SPACING_MAX)
+	spacing = clampf(spacing, spacing_min, spacing_max)
 
 	var widths: Array = []
 	for g in groups:
@@ -157,6 +164,8 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 	var x := (avail - total) / 2.0
 	var frame_h := card_h + 2 * LAYOUT_PAD
 	var frame_y := 6.0  # 固定纵向位置：不随布局高度变化，避免整排手牌上下漂移
+	# 手牌基线（贴底口径由分支设置 hand_base_y）
+	var base_y := hand_base_y
 
 	_hit_cards.clear()
 	_hit_x.clear()
@@ -171,11 +180,11 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 		_frames.append(frame)
 		var cx: float = x + LAYOUT_PAD
 		for c in g:
-			var card_widget := CardWidget.create(c, true)
+			var card_widget := CardWidget.create_sized(c, true, hand_card_size)
 			var is_selected: bool = selected.has(c)
 			card_widget.set_selected(is_selected)
 			# 选中：金色边框 + 上浮 20% 牌高（交互规范）
-			card_widget.position = Vector2(cx, HAND_BASE_Y - (card_h * SELECT_LIFT_RATIO if is_selected else 0))
+			card_widget.position = Vector2(cx, base_y - (card_h * SELECT_LIFT_RATIO if is_selected else 0))
 			# 命中不由卡牌控件自理（整张矩形会在重叠区误命中），统一走 HandArea 条带测试
 			card_widget.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_widgets[c] = card_widget
@@ -368,18 +377,18 @@ func _resync_selection_visuals() -> void:
 		var sel: bool = selected.has(card)
 		if widget.selected != sel:
 			widget.set_selected(sel)
-			widget.position.y = HAND_BASE_Y \
-				- (CardWidget.SIZE_NORMAL.y * SELECT_LIFT_RATIO if sel else 0)
+			widget.position.y = hand_base_y \
+				- (hand_card_size.y * SELECT_LIFT_RATIO if sel else 0)
 
 
 ## 条带命中测试：每张牌只有露出的条带可命中（各框末张整张），返回命中的牌或 null。
 ## 条带互不相交，从右往左找到即返回；y 范围随选中上浮扩展（浮起的牌真占据了那块）
 func _hit_card_at(point: Vector2) -> Card:
-	var card_h := CardWidget.SIZE_NORMAL.y
+	var card_h := hand_card_size.y
 	for k in range(_hit_cards.size() - 1, -1, -1):
 		var card: Card = _hit_cards[k]
 		var lift := card_h * SELECT_LIFT_RATIO if selected.has(card) else 0.0
-		var y_top := HAND_BASE_Y - lift
+		var y_top := hand_base_y - lift
 		if point.x >= _hit_x[k] and point.x < _hit_x[k] + _hit_w[k] \
 				and point.y >= y_top and point.y < y_top + card_h:
 			return card
@@ -422,4 +431,4 @@ func _apply_card_visual(card: Card, sel: bool) -> void:
 	if widget == null:
 		return
 	widget.set_selected(sel)
-	widget.position.y = HAND_BASE_Y - (CardWidget.SIZE_NORMAL.y * SELECT_LIFT_RATIO if sel else 0)
+	widget.position.y = hand_base_y - (hand_card_size.y * SELECT_LIFT_RATIO if sel else 0)
