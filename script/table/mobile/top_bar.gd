@@ -17,6 +17,9 @@ var _more: Button
 
 
 func _ready() -> void:
+	# 全宽 bar（父=牌桌根）：右锚子件（「更多」按钮）基于此宽度定位
+	anchor_right = 1.0
+	offset_bottom = MobileLayout.BAR_HEIGHT
 	var bg := ColorRect.new()
 	bg.color = Color(0.05, 0.12, 0.09)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)

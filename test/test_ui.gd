@@ -868,6 +868,7 @@ func test_mobile_layout_mode(test) -> void:
 	test.eq(float(table.hand_area.hand_base_y), 30.0, "手牌贴底基线")
 	test.eq(table.trick_anchors[0], Vector2(0.5, 0.60), "出牌十字居中（手机锚点组）")
 	test.check(table._mobile_bar.trump_slot_center() != Vector2.ZERO, "顶栏主牌槽可测量（揭主落点）")
+	test.eq(float(table._mobile_bar.size.x), 1280.0, "顶栏全宽（右锚子件定位正确，「更多」按钮可见）")
 	test.eq(float((table._mobile_bar._more as Button).offset_right), -64.0,
 		"「更多」按钮避让壳层 ⛶ 全屏按钮（hitbox 右缘 10px/宽 46）")
 	table.queue_free()
