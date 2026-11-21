@@ -859,18 +859,32 @@ func test_mobile_layout_mode(test) -> void:
 	await tree.process_frame
 	var bottom: Control = table.get_node("BottomArea")
 	test.check(table._mobile_bar != null and table._mobile_bar.visible, "手机版顶栏当局信息 bar 生效")
+	test.eq(float(table._mobile_bar.offset_bottom), 56.0, "顶栏高 56（当局信息 bar）")
 	test.check(not table.sidebar.visible, "手机版无右侧信息栏")
 	test.check(not table.get_node("TopBar").visible, "桌面版顶栏隐藏（局况入 bar）")
 	test.eq(float(bottom.offset_left), 64.0, "底部区左缘 64（手牌 ≈90% 屏宽）")
 	test.eq(float(bottom.offset_right), -64.0, "底部区右缘 -64")
 	test.eq(table.hand_area.hand_card_size, Vector2(96, 134), "手机大手牌 96×134")
 	test.eq(float(table.hand_area.spacing_max), 40.0, "手机步距上限 40（用户调整）")
+	test.eq(float(table.hand_area.spacing_min), 12.0, "手机步距下限 12")
 	test.eq(float(table.hand_area.hand_base_y), 30.0, "手牌贴底基线")
 	test.eq(table.trick_anchors[0], Vector2(0.5, 0.60), "出牌十字居中（手机锚点组）")
+	test.check(table._bid_bubbles._anchors == MobileLayout.BUBBLE_ANCHORS, "气泡锚点切手机组（尖角贴面板）")
+	test.eq(table._mobile_bar._slot.size, CardWidget.SIZE_BAR, "主牌槽为 BAR 档 36×50")
 	test.check(table._mobile_bar.trump_slot_center() != Vector2.ZERO, "顶栏主牌槽可测量（揭主落点）")
 	test.eq(float(table._mobile_bar.size.x), 1280.0, "顶栏全宽（右锚子件定位正确，「更多」按钮可见）")
 	test.eq(float((table._mobile_bar._more as Button).offset_right), -64.0,
 		"「更多」按钮避让壳层 ⛶ 全屏按钮（hitbox 右缘 10px/宽 46）")
+	# 手机模式发牌/渲染链路照常：动画完成 → 19 张真实牌面、无渲染挂起
+	var deadline := Time.get_ticks_msec() + 8000
+	while table._deal_active and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	var widgets := 0
+	for c in table.hand_area.get_children():
+		if c is CardWidget and not c.is_queued_for_deletion():
+			widgets += 1
+	test.eq(widgets, 19, "手机模式发牌完成手牌 19 张")
+	test.check(not table.hand_area._render_pending, "手机模式渲染无挂起（布局就绪）")
 	table.queue_free()
 	await tree.process_frame
 	AppSettings.mobile_ui = false  # 还原（桌面版布局口径）
@@ -880,13 +894,88 @@ func test_mobile_layout_mode(test) -> void:
 	await tree.process_frame
 	test.eq(float(table2.get_node("BottomArea").offset_right), -220.0, "桌面版还原让位信息栏")
 	test.eq(table2.hand_area.hand_card_size, Vector2(72, 100), "桌面版手牌卡 72×100")
+	test.eq(float(table2.hand_area.spacing_max), 24.0, "桌面版步距上限还原 24")
+	test.eq(float(table2.hand_area.hand_base_y), 16.0, "桌面版手牌基线还原 16")
+	test.eq(table2.trick_anchors[0], Vector2(0.419, 0.55), "桌面版出牌十字还原")
+	test.check(table2._bid_bubbles._anchors == BidBubbles.ANCHORS, "桌面版气泡锚点还原")
 	test.check(table2.sidebar.visible, "桌面版信息栏常显")
 	test.check(table2._mobile_bar == null, "桌面版无手机顶栏")
 	await _release_table(table2)
 
 
-## 手机「更多」面板：☰ 打开即喂当前状态（局数/累计/手牌统计），点窗外关闭；
-## 顶栏主牌槽语义同信息栏（未叫主占位 → 正 R 牌面）
+## 虚线框随手牌基线（框顶 = 基线 − 内边距 10）：手机贴底 30 → 框 20，桌面 16 → 框 6——
+## 框与牌永不脱节（手机分支框错位 24px 的回归锁）
+func test_mobile_frame_alignment(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	for mode in [true, false]:
+		AppSettings.mobile_ui = mode
+		var table = load("res://scene/table/game_table.tscn").instantiate()
+		tree.root.add_child(table)
+		await tree.process_frame
+		await tree.process_frame
+		var label: String = "手机" if mode else "桌面"
+		var base: float = table.hand_area.hand_base_y
+		var frames: Array = []
+		var cards_y: Array = []
+		for c in table.hand_area.get_children():
+			if c is DashedRoundedFrame and not c.is_queued_for_deletion():
+				frames.append(c)
+			if c is CardWidget and not c.is_queued_for_deletion():
+				cards_y.append(float(c.position.y))
+		test.check(frames.size() >= 1, label + "模式渲染虚线框")
+		for f in frames:
+			test.eq(float((f as Control).position.y), base - 10.0, label + "框顶=基线−内边距（对齐）")
+		var lifted: float = table.hand_area.hand_card_size.y * table.hand_area.SELECT_LIFT_RATIO
+		var all_on_baseline := true
+		for y in cards_y:
+			if not is_equal_approx(y, base) and not is_equal_approx(y, base - lifted):
+				all_on_baseline = false
+		test.check(all_on_baseline, label + "卡牌 y 全部对齐基线（选中上浮除外）")
+		await _release_table(table)
+	AppSettings.mobile_ui = false
+
+
+## 对局中途切 UI 分支（PC 调试入口的实际用法）：手机 ⇄ 桌面状态与 UI 完整重建
+func test_mobile_mode_switch_midgame(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	AppSettings.mobile_ui = true
+	var table = load("res://scene/table/game_table.tscn").instantiate()
+	tree.root.add_child(table)
+	await tree.process_frame
+	await tree.process_frame
+	_deal(table.engine, 0)
+	var deadline := Time.get_ticks_msec() + 8000
+	while table._deal_active and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	# 手机 → 桌面：顶栏/面板销毁、信息栏恢复、手牌参数还原
+	AppSettings.mobile_ui = false
+	table._apply_layout_mode()
+	test.check(table._mobile_bar == null, "切桌面：手机顶栏销毁")
+	test.check(table.sidebar.visible, "切桌面：信息栏恢复")
+	test.eq(table.hand_area.hand_card_size, Vector2(72, 100), "切桌面：手牌卡还原")
+	var widgets_desktop := 0
+	for c in table.hand_area.get_children():
+		if c is CardWidget and not c.is_queued_for_deletion():
+			widgets_desktop += 1
+	test.eq(widgets_desktop, 19, "切桌面：手牌重渲 19 张")
+	# 桌面 → 手机：顶栏重建、手牌参数再切
+	AppSettings.mobile_ui = true
+	table._apply_layout_mode()
+	test.check(table._mobile_bar != null, "切回手机：顶栏重建")
+	test.check(not table.sidebar.visible, "切回手机：信息栏隐藏")
+	test.eq(table.hand_area.hand_card_size, Vector2(96, 134), "切回手机：手牌卡再切")
+	var widgets_mobile := 0
+	for c in table.hand_area.get_children():
+		if c is CardWidget and not c.is_queued_for_deletion():
+			widgets_mobile += 1
+	test.eq(widgets_mobile, 19, "切回手机：手牌重渲 19 张")
+	AppSettings.mobile_ui = false
+	table._apply_layout_mode()
+	await _release_table(table)
+
+
+## 手机「更多」面板：☰ 打开即喂当前状态（局数/累计/手牌统计），✕/点窗外/再点 ☰
+## 三种关闭方式，设置入口开设置弹层；顶栏局况/捉分分派与主牌槽语义同信息栏
 func test_mobile_more_panel(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	AppSettings.mobile_ui = true
@@ -895,6 +984,7 @@ func test_mobile_more_panel(test) -> void:
 	await tree.process_frame
 	await tree.process_frame
 	_deal(table.engine, 0)
+	# ☰ 开 → 再点 ☰ 关（toggle 语义）→ 再开
 	table._mobile_bar.more_pressed.emit()
 	await tree.process_frame
 	var panel: MobileMorePanel = table._more_panel
@@ -902,19 +992,29 @@ func test_mobile_more_panel(test) -> void:
 	test.check("第" in panel._round_label.text, "面板展示局数")
 	test.check("甲" in panel._cumulative_label.text, "面板展示四家累计")
 	test.check(not panel._stats_main.text.is_empty(), "面板展示手牌统计")
-	# 顶栏主牌槽：未叫主占位 → 正 R 牌面（组件语义同信息栏）
-	table._mobile_bar.set_trump(Card.new(Card.Suit.SPADE, Card.RANK_9))
-	var slot_card := false
-	for c in table._mobile_bar._slot.get_children():
-		if c is CardWidget and c.card != null and c.card.rank == Card.RANK_9:
-			slot_card = true
-	test.check(slot_card, "顶栏主牌槽展示正 R 牌面")
-	table._mobile_bar.set_trump(null)
-	var slot_placeholder := false
-	for c in table._mobile_bar._slot.get_children():
-		if c is CardWidget and c.card == null:
-			slot_placeholder = true
-	test.check(slot_placeholder, "未叫主态顶栏槽位为牌背+问号占位")
+	table._mobile_bar.more_pressed.emit()
+	await tree.process_frame
+	test.check(table._more_panel == null, "再点 ☰ 关闭（toggle 语义）")
+	# ✕ 按钮关闭 → 再开
+	table._mobile_bar.more_pressed.emit()
+	await tree.process_frame
+	panel = table._more_panel
+	test.check(panel != null, "再次打开")
+	panel._close_btn.pressed.emit()
+	await tree.process_frame
+	test.check(table._more_panel == null, "✕ 按钮关闭")
+	# 设置入口：开设置弹层（与桌面同口径），清理后继续
+	table._mobile_bar.more_pressed.emit()
+	await tree.process_frame
+	panel = table._more_panel
+	panel.settings_pressed.emit()
+	await tree.process_frame
+	test.check(tree.root.get_node_or_null("SettingsDialog") != null, "面板设置入口打开设置弹层")
+	tree.root.get_node_or_null("SettingsDialog").queue_free()
+	tree.root.get_node_or_null("SettingsDialogDim").queue_free()
+	await tree.process_frame
+	# 顶栏局况/捉分（当局信息 bar 分派）
+	test.check("捉分" in (table._mobile_bar._captured as Label).text, "顶栏展示捉分")
 	# 点窗外关闭（控制器引用清空）
 	var evt := InputEventMouseButton.new()
 	evt.button_index = MOUSE_BUTTON_LEFT
@@ -937,12 +1037,13 @@ func test_mobile_more_panel(test) -> void:
 			jokers += 1
 	var total: int = counts[0] + counts[1] + counts[2] + counts[3]
 	test.eq(total, 19 - jokers, "四门计数合计=手牌 19−王（叫主前王不计入）")
-	# 叫主后：主花色图标金色（main 标记）、王并入主牌数——先打完拍卖（同帧直驱避 AI 竞速）
+	# 拍卖+叫主（同帧直驱避 AI 竞速）：顶栏局况切「出牌庄」口径、统计主花色金色/含王
 	for s in [1, 2, 3]:
 		table.engine.submit_bid(s, GameEngine.BID_PASS)
 	table.engine.submit_bid(0, GameEngine.BID_PASS)
 	table.engine.submit_trump(0, Card.Suit.HEART, Card.RANK_9)
 	table._refresh()
+	test.check("出牌庄" in (table._mobile_bar._info as Label).text, "叫主后顶栏局况切出牌庄口径")
 	var heart_count := 0
 	for c in table.engine.get_hand(0):
 		if table.engine.trump.is_trump(c):

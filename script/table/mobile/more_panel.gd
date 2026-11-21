@@ -12,6 +12,7 @@ var _round_label: Label
 var _cumulative_label: Label
 var _stats_main: Label
 var _stats_grid: GridContainer
+var _close_btn: Button  ## ✕ 关闭按钮（测试断言用）
 
 
 ## 构建遮罩 + 居中面板并挂到 parent（控制器随后喂数据）；callers 接两个入口信号
@@ -30,6 +31,8 @@ static func create(parent: Control, on_settings: Callable, on_menu: Callable) ->
 		if event is InputEventMouseButton and event.pressed \
 				and event.button_index == MOUSE_BUTTON_LEFT:
 			panel.close())
+	panel.settings_pressed.connect(on_settings)
+	panel.menu_pressed.connect(on_menu)
 	panel._build(on_settings, on_menu)
 	return panel
 
@@ -72,6 +75,7 @@ func _build(on_settings: Callable, on_menu: Callable) -> void:
 	UiStyle.pad_button(close_btn)
 	close_btn.pressed.connect(func(): close())
 	title_row.add_child(close_btn)
+	_close_btn = close_btn
 	box.add_child(title_row)
 
 	_round_label = Label.new()
