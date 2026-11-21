@@ -11,6 +11,8 @@ const SLOT_SIZE := CardWidget.SIZE_BAR  ## 主牌槽（36×50，CARD 第四档�
 var _info: Label
 var _captured: Label
 var _slot: Control
+var _suit_icons: Array = []  ## 花色图标 Label ×4（与 set_suit_stats 条目对齐）
+var _suit_counts: Array = []  ## 花色数字 Label ×4
 var _more: Button
 
 
@@ -32,7 +34,7 @@ func _ready() -> void:
 
 	_info = Label.new()
 	_info.position = Vector2(16, 0)
-	_info.size = Vector2(280, 56)
+	_info.size = Vector2(268, 56)
 	_info.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_info.add_theme_font_size_override("font_size", 15)
 	_info.add_theme_color_override("font_color", Color(0.85, 0.9, 0.87))
@@ -42,19 +44,41 @@ func _ready() -> void:
 	_slot = Control.new()
 	_slot.custom_minimum_size = SLOT_SIZE
 	_slot.size = SLOT_SIZE
-	_slot.position = Vector2(304, 3)
+	_slot.position = Vector2(296, 3)
 	_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_slot)
 	set_trump(null)
 
 	_captured = Label.new()
-	_captured.position = Vector2(356, 0)
-	_captured.size = Vector2(160, 56)
+	_captured.position = Vector2(344, 0)
+	_captured.size = Vector2(96, 56)
 	_captured.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_captured.add_theme_font_size_override("font_size", 14)
 	_captured.add_theme_color_override("font_color", Color(0.91, 0.94, 0.92))
 	_captured.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_captured)
+
+	# 手牌统计（图标+数字 ×4，恒 4 组）：未叫主=四门花色数；叫主后=主牌数（金色
+	# 图标）+ 三门副花色数——王计入主牌数，与桌面「主 X ｜ 副 ♥a ♣b ♦c」同口径
+	var stat_x := 452.0
+	for i in 4:
+		var icon := Label.new()
+		icon.position = Vector2(stat_x + i * 52.0, 0)
+		icon.size = Vector2(20, 56)
+		icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		icon.add_theme_font_size_override("font_size", 15)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(icon)
+		_suit_icons.append(icon)
+		var count := Label.new()
+		count.position = Vector2(stat_x + i * 52.0 + 20, 0)
+		count.size = Vector2(30, 56)
+		count.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		count.add_theme_font_size_override("font_size", 15)
+		count.add_theme_color_override("font_color", Color(0.85, 0.9, 0.87))
+		count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(count)
+		_suit_counts.append(count)
 
 	_more = Button.new()
 	_more.text = "更多"
@@ -78,6 +102,25 @@ func set_game_info(text: String) -> void:
 ## 闲家捉分（当局进行值）
 func set_captured(text: String) -> void:
 	_captured.text = text
+
+
+## 手牌统计（图标+数字 ×4）：entries = [{icon: 花色字符, count: int, main: bool}]——
+## main（主牌花色）图标金色突出，红花色亮红、黑花色浅白（深底可读）
+func set_suit_stats(entries: Array) -> void:
+	for i in 4:
+		if i >= entries.size():
+			continue
+		var icon: Label = _suit_icons[i]
+		var count: Label = _suit_counts[i]
+		var main: bool = entries[i].get("main", false)
+		icon.text = entries[i]["icon"]
+		count.text = str(entries[i]["count"])
+		if main:
+			icon.modulate = Color(1, 0.9, 0.4)  # 主牌花色金色突出
+		elif entries[i]["icon"] in ["♥", "♦"]:
+			icon.modulate = Color(0.95, 0.45, 0.45)  # 红花色亮红
+		else:
+			icon.modulate = Color(0.85, 0.9, 0.87)  # 黑花色浅白（深底可读）
 
 
 ## 主牌展示（语义与 InfoSidebar.set_trump 一致）：null = 未叫主占位（微透明牌背+问号）

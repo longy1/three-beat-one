@@ -712,6 +712,16 @@ func _refresh_stats() -> void:
 			if s != trump.suit:
 				bits.append("%s%d" % [suit_chars[s], suit_counts[s]])
 		main_text = "主 %d ｜ 副 %s" % [trump_count, " ".join(bits)]
+	# 手机顶栏：花色图标+数字（叫主后主花色金色突出、王计入主牌数；未叫主=四门；
+	# 恒 4 组，与桌面「主 X ｜ 副 ♥a ♣b ♦c」同口径）
+	if _mobile_ui and _mobile_bar != null:
+		var entries: Array = []
+		if trump != null:
+			entries.append({"icon": suit_chars[trump.suit], "count": trump_count, "main": true})
+		for s in Card.NORMAL_SUITS:
+			if trump == null or s != trump.suit:
+				entries.append({"icon": suit_chars[s], "count": suit_counts[s], "main": false})
+		_mobile_bar.set_suit_stats(entries)
 	# 统计分派：桌面=信息栏；手机=「更多」面板（打开期间实时更新）
 	if _mobile_ui:
 		if _more_panel != null:

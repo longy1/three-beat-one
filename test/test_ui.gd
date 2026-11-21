@@ -919,6 +919,35 @@ func test_mobile_more_panel(test) -> void:
 	table._more_panel.get_parent().get_node("MorePanelDim").gui_input.emit(evt)
 	await tree.process_frame
 	test.check(table._more_panel == null, "点窗外关闭更多面板（引用清空）")
+	# 顶栏手牌统计（图标+数字 ×4）：_refresh_stats 分派——未叫主=四门花色数（王不计入）
+	table._refresh()
+	var icons: Array = []
+	for i in 4:
+		icons.append(str((table._mobile_bar._suit_icons[i] as Label).text))
+	var counts: Array = []
+	for i in 4:
+		counts.append(int((table._mobile_bar._suit_counts[i] as Label).text))
+	test.check(icons == ["♠", "♥", "♣", "♦"], "未叫主统计展示四门花色图标")
+	var jokers := 0
+	for c in table.engine.get_hand(0):
+		if c.is_joker():
+			jokers += 1
+	var total: int = counts[0] + counts[1] + counts[2] + counts[3]
+	test.eq(total, 19 - jokers, "四门计数合计=手牌 19−王（叫主前王不计入）")
+	# 叫主后：主花色图标金色（main 标记）、王并入主牌数——先打完拍卖（同帧直驱避 AI 竞速）
+	for s in [1, 2, 3]:
+		table.engine.submit_bid(s, GameEngine.BID_PASS)
+	table.engine.submit_bid(0, GameEngine.BID_PASS)
+	table.engine.submit_trump(0, Card.Suit.HEART, Card.RANK_9)
+	table._refresh()
+	var heart_count := 0
+	for c in table.engine.get_hand(0):
+		if table.engine.trump.is_trump(c):
+			heart_count += 1
+	var bar_main: Label = table._mobile_bar._suit_icons[0]
+	test.eq(str(bar_main.text), "♥", "叫主后首位图标为主花色")
+	test.check(bar_main.modulate.is_equal_approx(Color(1, 0.9, 0.4)), "主花色图标金色突出")
+	test.eq(int((table._mobile_bar._suit_counts[0] as Label).text), heart_count, "主牌数（含王）")
 	table.queue_free()
 	await tree.process_frame
 	AppSettings.mobile_ui = false

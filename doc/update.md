@@ -63,6 +63,10 @@
     「加宽+信息栏折叠」半套实现；`_apply_layout_mode` 变分支应用器（桌面原值捕获还原）；
     重写 test_mobile_layout_mode + 新增 test_mobile_more_panel；修复新组件两处
     （close 变量遮蔽方法名的编译错、_apply_layout_mode 开局 hands 未发时 _render_hand 越界）
+  - **手机顶栏加手牌统计**（`script/table/mobile/top_bar.gd`、`script/table/game_table.gd`；
+    用户需求：图标+数字展示）：花色图标着色（主花色金色突出/红门亮红/黑门浅白，深底可读）
+    + 数字 ×4 恒 4 组——未叫主=四门花色数（王不计入），叫主后=主花色数（含王）+ 三门副；
+    `_refresh_stats` 组装 entries 分派 set_suit_stats，桌面信息栏口径不变
   - **气泡尾巴与框一体化**（`script/table/bid_bubbles.gd`；用户报告接缝有描边横线）：
     尾巴填充三角底边向框体内推进越过边框（盖掉接缝段的框描边），描边只走两条斜边且
     起点取斜边与框外缘的交点——与框描边自然相接，接缝处整块填充无横线
