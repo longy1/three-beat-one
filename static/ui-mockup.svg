@@ -287,11 +287,11 @@
   <text x="318" y="2196" font-size="20" fill="#ffd140" text-anchor="middle">?</text>
   <text x="344" y="2194" font-size="13" fill="#9ab5a5">主牌（正 R）｜ 揭主飞入此位</text>
   <text x="620" y="2194" font-size="14" fill="#e8f0ea">捉分 45</text>
-  <rect x="1188" y="2168" width="52" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
-  <text x="1214" y="2196" font-size="16" fill="#d8e5dd" text-anchor="middle">☰</text>
-  <rect x="1248" y="2168" width="28" height="40" rx="6" fill="none" stroke="#e8b84a" stroke-dasharray="4 3"/>
-  <text x="1262" y="2194" font-size="12" fill="#e8b84a" text-anchor="middle">⛶</text>
-  <text x="1164" y="2194" font-size="12" fill="#9a824a" text-anchor="end">更多 →</text>
+  <rect x="1164" y="2168" width="52" height="40" rx="6" fill="#1c3a2a" stroke="#3a5c48"/>
+  <text x="1190" y="2196" font-size="16" fill="#d8e5dd" text-anchor="middle">☰</text>
+  <rect x="1224" y="2170" width="46" height="38" rx="6" fill="none" stroke="#e8b84a" stroke-dasharray="4 3"/>
+  <text x="1247" y="2195" font-size="14" fill="#e8b84a" text-anchor="middle">⛶</text>
+  <text x="1140" y="2194" font-size="12" fill="#9a824a" text-anchor="end">更多 →</text>
   <text x="16" y="2242" font-size="12" fill="#8a7a4a">bar 只放当局信息：庄/叫分、主牌、捉分；局数/累计/手牌统计/设置/菜单收进 ☰「更多」面板（右侧浮层示意）；⛶ 为壳层 DOM 全屏按钮</text>
   <text x="16" y="2262" font-size="12" fill="#8a7a4a">手牌贴底 12px ｜ 双虚线框随排序完成展现（同桌面口径）｜ 叫分气泡/发牌逐拍动画/设置项（主牌框左右/排序方向）全部沿用</text>
 
