@@ -687,8 +687,9 @@ func _refresh_seats() -> void:
 	# 人类 0 号位无面板：印章盖在手牌区上方左侧（与历史按钮同列）
 	human_void_stamp.visible = engine.trump_void_seats[HUMAN_SEAT]
 	# 叫分对话气泡：状态驱动（每座位最新表态，更高分出现时清低分气泡；
-	# 拍卖结束即全清）
-	if engine.phase == GameEngine.Phase.AUCTION:
+	# 拍卖结束即全清）。发牌/排序动画期间挂起不显示——庄家底叫 130 亦然，
+	# 排序完成后随拍卖呈现一起出现（用户需求）
+	if engine.phase == GameEngine.Phase.AUCTION and not _deal_active:
 		_bid_bubbles.apply(engine.auction.bids, engine.current_highest_bid())
 	else:
 		_bid_bubbles.clear_all()

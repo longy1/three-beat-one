@@ -639,12 +639,20 @@ func test_deal_animation_hides_frames(test) -> void:
 func test_bid_bubbles_replace_seat_status(test) -> void:
 	var table = await _spawn_table()
 	var eng: GameEngine = table.engine
-	# 同帧驱动全部表态（无 await：避开 UI AI 计时与测试直驱的竞速）
+	# 挂起 UI AI（延迟放大到测试期内不触发）：本用例直驱全部表态，避开 UI AI 竞速
+	table._ai_delay_scale = 1e9
 	_deal(eng, 0)
 	var dealer: int = eng.dealer_seat
-	# 庄家底叫 130 → 气泡呈现；姓名版不再显示叫分
 	var dealer_bubble = table._bid_bubbles._bubbles[dealer]
-	test.check(dealer_bubble.visible and dealer_bubble._label.text == "130", "庄家底叫 130 气泡")
+	# 发牌/排序动画期间：庄家底叫 130 气泡挂起（随排序完成一起出现）
+	test.check(not dealer_bubble.visible, "发牌动画期间底叫 130 气泡挂起")
+	var tree: SceneTree = Engine.get_main_loop()
+	var deadline := Time.get_ticks_msec() + 8000
+	while table._deal_active and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	# 排序完成 → 拍卖呈现放行：底叫 130 气泡出现；姓名版不再显示叫分
+	test.check(dealer_bubble.visible and dealer_bubble._label.text == "130",
+		"排序完成后庄家底叫 130 气泡")
 	test.eq(str(table.seat_panels[1].get_node("VBox/StatusLabel").text), "",
 		"叫分不展示在姓名版状态行")
 	# 更高叫分：低分气泡被清除，字号随分值增大

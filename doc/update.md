@@ -41,6 +41,10 @@
   - **发牌汇聚行与实际手牌行同 y**（`script/table/deal_animator.gd`）：行基线由「手牌区
     中心上方 8px」改为取测量位任一牌的全局中心 y（HAND_BASE_Y 同排）——汇聚/收拢/展开
     与最终手牌位置完全同步，展开落位无纵向跳动（`_clump_target` 防御分支同口径）
+  - **叫分气泡挂起至排序完成**（`script/table/game_table.gd`、`test/test_ui.gd`）：底叫 130
+    此前在发牌动画期间即出现（`_refresh_seats` 状态驱动 apply 未被门控）——气泡 apply 加
+    `not _deal_active` 条件，排序完成后随拍卖呈现一起出现；用例改断言「动画期挂起 →
+    排序完成后 130 出现」，并以放大 `_ai_delay_scale` 挂起 UI AI 避免补跑竞速
 
 ## 2026-11-20
 
