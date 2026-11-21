@@ -6,6 +6,35 @@
 > 里程碑级决策仍归《三打哈-Godot工程计划.md》，本文档只收代码注释层的历史注记。
 > 条目按日期倒序，新条目置顶；每条注明迁出前所在的文件。
 
+## 2026-11-21
+
+- TODO.md 牌桌表现层批次二实现（用户需求：修复 6 项 TODO、本地提交后清理，分三提交落地）：
+  - **牌背重绘**（`script/table/card_widget.gd`、`script/table/info_sidebar.gd`、`test/test_components.gd`）：
+    背面去「哈」字，新增 `CardBackPattern` 内部类程序化经典花背（浅色内缩圆角内框 + 45° 双向
+    斜线菱形格纹 + 中央菱形徽章，斜线与内框矩形求交裁剪不出格）；`create/create_sized` 移除
+    back_mark 参数（唯一显式传参方 info_sidebar 未叫主态同步）；牌背用例改断言「纹样存在 +
+    无文字标记」
+  - **主牌标识守卫自愈**（`script/table/game_table.gd`、`script/table/trump_reveal.gd`）：
+    `_on_discard_required` 移除 `_last_trump_shown` 预标记、`_trump_reveal.play` 提前到
+    `_refresh` 之前，落位回调记 `_last_trump_shown` 并 `set_trump`；`_refresh_top_bar` 守卫加
+    `not _trump_reveal.active` 条件（飞行中跳过、打断后自愈重渲）；`TrumpReveal` 存 tween 引用、
+    `clear()` kill——根治「落位回调丢失 + 引用比较永久跳过」的标识消失（旧版 `active` 标记声明未用）
+  - **发牌逐张 + 排序平滑 + AI 挂起**（`script/table/deal_animator.gd` 重写、`script/table/game_table.gd`）：
+    逐拍一张（TICK 0.2s / FLIGHT 0.18s，替代整轮飞入后一次性成坨），汇聚槽提前计算
+    （发牌顺序紧凑行），落位 0.08s 淡入现身；展开前按目标位 x 升序 `move_child` 重排
+    `_clump_holder` 子节点（途中遮盖 = 排序后遮盖）、各牌同长 EXPAND_DUR 平移；拍卖表态挂起：
+    `_on_auction_required` 在 `_deal_active` 时仅刷新即返回、`_on_deal_done` 按引擎轮转补跑
+    （下一局/game_start 先置 `_deal_active` 再触发引擎信号——旧版 `_on_next_game` 在信号后才置位）
+  - **气泡尖角贴面板**（`script/table/bid_bubbles.gd`）：ANCHORS 调整——甲 (0.419,0.640)→(0.419,0.669)、
+    乙 (0.520,0.408)→(0.678,0.408)、丙 (0.419,0.230)→(0.419,0.208)、丁 (0.316,0.408)→(0.159,0.408)
+    （锚点即尾巴尖角，距玩家面板/手牌区缘 6~12px）
+  - **手机版 UI**（`script/app_settings.gd`、`script/menu/settings_dialog.gd`、
+    `script/table/game_table.gd`、`test/test_ui.gd`、`static/ui-mockup.svg`、字体子集重跑）：
+    `AppSettings.mobile_ui`（"ui" 分区持久化）+ `is_mobile_device`（android/ios/web_android/
+    web_ios）+ `effective_mobile_ui`；设置第三行「手机版 UI（调试）：关/开」（设置弹层用例
+    2→3 按钮同步）；`game_table._apply_layout_mode`：手机版手牌区右缘 -220→-128（≈90% 屏宽）+
+    信息栏默认收起 + 右上角「信息/收起」切换按钮；新增 `test_mobile_layout_mode`（含桌面还原口径）
+
 ## 2026-11-20
 
 - TODO.md 批量实现（用户需求：把指定 10 项 TODO 全部实现后 push 并部署，过程与经验统一记录本文档）。

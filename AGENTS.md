@@ -11,7 +11,9 @@
 
 - **已完成**：M1 规则引擎（牌/牌型/跟杀垫/一轮结算）、M2 单机完整对局（拍卖→叫主→翻底扣底→逐轮出牌→抠底→分级收益→庄位轮换）+ 贪心 AI + 牌桌 UI；2026-11-16 完成全项目重构（死代码清理、兜底根治、core/UI 模块拆分、Web 导出与浏览器验收工作流）；2026-11-17 Web 验收闭环（根治静态 preload 致导出脚本失效）+ 规则 7.3（无主公示/主牌甩打）+ 交互改进（底牌入手即选中、选牌跨轮保留、主牌副花色分组排序）；2026-11-18 完成 M4 联机对战（C/S 架构：无头 Godot 服务器 + WebSocket + 可见性裁剪同步 + 超时托管 + 断线重连，见 doc/coding.md §1.10~12）+ 同日断线重连闭环（客户端自动重连等待弹层、服务端 180s 宽限 + 旧连接复活 + 离线快托管、底牌浮层层级修正）；2026-11-20 完成 TODO 批次（闲家垫牌守门按庄家剩牌量动态放宽、重连身份令牌化 + 占用文案、
   服务端进程重启不散房、存储升级单文件追加日志库、发牌动画、叫分对话气泡、设置面板、
-  双击清选/两指出牌、联机菜单最近成功连接）
+  双击清选/两指出牌、联机菜单最近成功连接）；2026-11-21 完成牌桌表现层批次二
+  （牌背程序化花背重绘、主牌标识守卫自愈、发牌逐张入手 + 排序同长平移 + AI 叫分
+  挂起至排序完成、气泡尖角贴面板、手机版 UI 布局与调试入口）
 - **待启动**：M3 AI 强化与胜率分析（蒙特卡洛）、M5 部署上线（联机服务器公网部署）
 
 ## 2. 技术栈与环境
@@ -26,7 +28,7 @@
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（顺序全量，约 100s；全部通过退出码 0；当前 14 套件 163 用例，含联机回环与存储套件）
+# 单元/规则测试（顺序全量，约 100s；全部通过退出码 0；当前 14 套件 164 用例，含联机回环与存储套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
 
 # 并行全量（push 前必跑；分片并发墙钟 ~25s，分片数默认 = 逻辑核数封顶 8，可 N=6 覆盖）
@@ -100,7 +102,7 @@ script/   表现层脚本（按模块划分子目录；ui_style.gd 为跨模块�
   menu/        界面流程模块：main_menu 主菜单 / online_menu 联机入口 / room_lobby 房间大厅 /
                scores_dialog 累计分数弹层 / reconnect_overlay 断线等待重连弹层 /
                settings_dialog 游戏设置弹层
-  app_settings.gd  AppSettings：游戏设置单一事实源（主牌框左右/排序方向，ConfigFile 持久化）
+  app_settings.gd  AppSettings：游戏设置单一事实源（主牌框左右/排序方向/手机版 UI 调试开关，ConfigFile 持久化）
   ui_style.gd  UiStyle：跨模块共享的布局锚点常量（MAIN_TABLE_CENTER）与半字号按钮留空
 scene/    场景（与 script/ 子模块一一对应）
   table/       game_table.tscn（内引 seat_panel/info_sidebar 子场景与牌桌组件脚本）
@@ -109,7 +111,7 @@ font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 too
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
 test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ suite_registry.gd（套件注册单一事实源）
-          + test_*.gd（14 套件 163 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环、
+          + test_*.gd（14 套件 164 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环、
           test_store.gd 存储套件）+ run_tests.gd + smoke_ui.gd
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
 doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md、coding.md（编码规范，编码时查阅）、update.md（代码变更史归档）
@@ -231,3 +233,14 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
   AppSettings 即时保存 user://settings.cfg）；双击空白清空选择、触屏两指单击出牌
   （首指按下即快照选择，恢复快照撤销触摸模拟点选副作用）；联机菜单「最近成功连接」
   连接成功即记录（去重置顶、封顶 5 条）
+- **牌桌表现层批次二（2026-11-21）**：牌背去「哈」字改程序化经典花背纹样（CardBackPattern：
+  内框 + 45° 菱形格纹 + 中央徽章，`CardWidget` 移除 back_mark，零素材约束维持）；信息栏主牌
+  标识守卫自愈（`_refresh_top_bar` 以 `engine.trump != _last_trump_shown and not
+  _trump_reveal.active` 放行——揭主落位回调渲染，飞行被 clear() 打断时 active 复位自愈重渲，
+  根治标识消失）；发牌动画逐拍一张（TICK 0.2s/张：3 背面飞闲家 + 1 背面飞入我方汇聚槽，
+  落位翻正现身），展开前按目标位 x 升序重排 z、各牌同长平移（途中遮盖与排序后一致）；
+  拍卖表态挂起至排序完成（`_on_auction_required` 动画期仅状态刷新，`_on_deal_done` 按引擎
+  当前轮转补跑；下一局/game_start 先置 `_deal_active` 再触发引擎信号）；叫分气泡尖角贴近
+  玩家面板（面板缘 6~12px）；手机版 UI（移动端特性 android/ios/web_android/web_ios 自动
+  启用 + 设置「手机版 UI（调试）」PC 入口）：手牌区 ≈90% 屏宽（BottomArea 右缘 -128）、
+  信息栏默认收起右上角按钮展开浮层，桌面版不变
