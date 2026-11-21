@@ -38,6 +38,9 @@
     `test/test_ui.gd`；用户报告截图）：汇聚/收拢/展开阶段牌未分区排序、双虚线框位与牌不对齐——
     动画期间整体隐藏（`HandArea.set_frames_visible`，测量渲染后即藏），`_on_deal_done` 放行
     真实渲染（排序完成）后再展现；新增 `test_deal_animation_hides_frames` 用例
+  - **发牌汇聚行与实际手牌行同 y**（`script/table/deal_animator.gd`）：行基线由「手牌区
+    中心上方 8px」改为取测量位任一牌的全局中心 y（HAND_BASE_Y 同排）——汇聚/收拢/展开
+    与最终手牌位置完全同步，展开落位无纵向跳动（`_clump_target` 防御分支同口径）
 
 ## 2026-11-20
 

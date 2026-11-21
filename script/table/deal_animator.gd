@@ -70,8 +70,14 @@ func play(root: Control, hand_area: HandArea, seat_panels: Dictionary, my_hand: 
 		w.visible = false
 		root.add_child(w)
 		_fliers.append(w)
-	# 我方汇聚槽（提前算好：发牌顺序紧凑行，居中于手牌区）与预建正面牌（隐藏待落位）
-	var clump_center: Vector2 = hand_area.get_global_rect().get_center() + Vector2(0, -8)
+	# 我方汇聚槽（提前算好：发牌顺序紧凑行，居中于手牌区）与预建正面牌（隐藏待落位）。
+	# 行基线 y 与真实手牌行同步（取测量位任一牌的全局中心 y——同排固定 HAND_BASE_Y；
+	# 旧版「手牌区中心上方 8px」比实际手牌行偏高，用户报告改同步）
+	var clump_center := Vector2(hand_area.get_global_rect().get_center().x,
+		hand_area.get_global_rect().get_center().y)
+	for pos: Vector2 in positions.values():
+		clump_center.y = pos.y
+		break
 	var n := my_hand.size()
 	var gather_spacing: float = HandArea.SPACING_MAX
 	if n > 1:
@@ -160,12 +166,16 @@ func play(root: Control, hand_area: HandArea, seat_panels: Dictionary, my_hand: 
 
 
 ## 展开目标位：按牌对号取测量位（发牌时引擎手牌序 = 动画顺序），缺失时
-## 按索引均布于手牌区（防御）
+## 按索引均布于手牌区（防御；y 仍取测量行基线，与真实手牌行同步）
 func _clump_target(positions: Dictionary, card: Card, idx: int) -> Vector2:
 	if positions.has(card):
 		return positions[card]
 	var rect: Rect2 = _hand_area.get_global_rect()
-	return Vector2(rect.position.x + 36 + idx * HandArea.SPACING_MAX, rect.get_center().y)
+	var y := rect.get_center().y
+	for pos: Vector2 in positions.values():
+		y = pos.y
+		break
+	return Vector2(rect.position.x + 36 + idx * HandArea.SPACING_MAX, y)
 
 
 ## 飞行目标：闲家 = 座位面板中心；我 = 手牌区中心（防御兜底）
