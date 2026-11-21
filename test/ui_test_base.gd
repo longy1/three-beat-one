@@ -7,6 +7,9 @@ extends TestBase
 ## 实例化一个干净的牌桌场景并等两帧（布局就绪）；把 AI/停留计时器调快
 func _spawn_table():
 	var tree: SceneTree = Engine.get_main_loop()
+	# 显式桌面口径：用户真实 settings.cfg 的 mobile_ui（试用时写入）不得污染测试
+	#（手机分支用例随后显式覆写为 true）
+	AppSettings.mobile_ui = false
 	var table = load("res://scene/table/game_table.tscn").instantiate()
 	tree.root.add_child(table)
 	await tree.process_frame

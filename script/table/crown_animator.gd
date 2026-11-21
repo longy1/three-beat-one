@@ -25,7 +25,7 @@ func play(root: Control, seat: int, seat_panels: Dictionary) -> void:
 	_crown = CrownBadge.new()
 	_crown.size = CROWN_SIZE
 	_crown.pivot_offset = CROWN_SIZE / 2.0
-	_crown.position = UiStyle.MAIN_TABLE_CENTER * root.size - CROWN_SIZE / 2.0  # 主牌桌区域正中央
+	_crown.position = UiStyle.table_center(root) * root.size - CROWN_SIZE / 2.0  # 主牌桌区域正中央
 	_crown.scale = Vector2(4, 4)
 	_crown.z_index = 60
 	root.add_child(_crown)

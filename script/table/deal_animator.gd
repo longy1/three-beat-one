@@ -55,7 +55,7 @@ func play(root: Control, hand_area: HandArea, my_hand: Array,
 	_deck_stack.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_deck_stack.z_index = 40
 	root.add_child(_deck_stack)
-	var deck_center: Vector2 = UiStyle.MAIN_TABLE_CENTER * root.size
+	var deck_center: Vector2 = UiStyle.table_center(root) * root.size
 	for i in 3:
 		var back := CardWidget.create(null, false, true)
 		back.mouse_filter = Control.MOUSE_FILTER_IGNORE

@@ -186,6 +186,14 @@ func _apply_layout_mode() -> void:
 		_mobile_bar = MobileTopBar.new()
 		_mobile_bar.more_pressed.connect(_toggle_more_panel)
 		add_child(_mobile_bar)
+		# 重建顶栏后守卫基线失效：置空让 _refresh 守卫自愈重渲主牌（防重建丢主牌显示）
+		_last_trump_shown = null
+		# 结算面板居屏幕正中（手机无右侧栏偏置；桌面分支锚回十字中心）
+		var rc: Vector2 = UiStyle.table_center(self)
+		result_panel.anchor_left = rc.x
+		result_panel.anchor_right = rc.x
+		result_panel.anchor_top = rc.y
+		result_panel.anchor_bottom = rc.y
 		sidebar.visible = false
 		top_bar.visible = false
 		bid_center_label.visible = false
@@ -239,6 +247,11 @@ func _apply_layout_mode() -> void:
 		action_bar.button_min = Vector2(120, 44)
 		action_bar.button_font = 18
 		_bid_bubbles.set_anchors(BidBubbles.ANCHORS)
+		# 结算面板锚回桌面十字中心（tscn 原值）
+		result_panel.anchor_left = UiStyle.MAIN_TABLE_CENTER.x
+		result_panel.anchor_right = UiStyle.MAIN_TABLE_CENTER.x
+		result_panel.anchor_top = UiStyle.MAIN_TABLE_CENTER.y
+		result_panel.anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
 		human_void_stamp.offset_left = 958.0
 		human_void_stamp.offset_right = 1014.0
 		human_void_stamp.offset_top = -232.0
@@ -870,10 +883,10 @@ func _show_bottom_cards() -> void:
 	_clear_bottom_cards()
 	var panel := PanelContainer.new()
 	panel.name = "BottomCards"
-	panel.anchor_left = UiStyle.MAIN_TABLE_CENTER.x
-	panel.anchor_right = UiStyle.MAIN_TABLE_CENTER.x
-	panel.anchor_top = UiStyle.MAIN_TABLE_CENTER.y
-	panel.anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
+	panel.anchor_left = UiStyle.table_center(self).x
+	panel.anchor_right = UiStyle.table_center(self).x
+	panel.anchor_top = UiStyle.table_center(self).y
+	panel.anchor_bottom = UiStyle.table_center(self).y
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.z_index = 1

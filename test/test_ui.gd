@@ -869,6 +869,7 @@ func test_mobile_layout_mode(test) -> void:
 	test.eq(float(table.hand_area.spacing_min), 12.0, "手机步距下限 12")
 	test.eq(float(table.hand_area.hand_base_y), 30.0, "手牌贴底基线")
 	test.eq(table.trick_anchors[0], Vector2(0.5, 0.60), "出牌十字居中（手机锚点组）")
+	test.eq(table.result_panel.anchor_left, 0.5, "结算面板居屏幕正中（手机无右栏偏置）")
 	test.check(table._bid_bubbles._anchors == MobileLayout.BUBBLE_ANCHORS, "气泡锚点切手机组（尖角贴面板）")
 	test.eq(table._mobile_bar._slot.size, CardWidget.SIZE_BAR, "主牌槽为 BAR 档 36×50")
 	test.check(table._mobile_bar.trump_slot_center() != Vector2.ZERO, "顶栏主牌槽可测量（揭主落点）")
@@ -897,6 +898,7 @@ func test_mobile_layout_mode(test) -> void:
 	test.eq(float(table2.hand_area.spacing_max), 24.0, "桌面版步距上限还原 24")
 	test.eq(float(table2.hand_area.hand_base_y), 16.0, "桌面版手牌基线还原 16")
 	test.eq(table2.trick_anchors[0], Vector2(0.419, 0.55), "桌面版出牌十字还原")
+	test.check(is_equal_approx(float(table2.result_panel.anchor_left), 0.419), "桌面版结算面板锚回十字中心")
 	test.check(table2._bid_bubbles._anchors == BidBubbles.ANCHORS, "桌面版气泡锚点还原")
 	test.check(table2.sidebar.visible, "桌面版信息栏常显")
 	test.check(table2._mobile_bar == null, "桌面版无手机顶栏")
@@ -979,10 +981,7 @@ func test_mobile_mode_switch_midgame(test) -> void:
 func test_mobile_more_panel(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	AppSettings.mobile_ui = true
-	var table = load("res://scene/table/game_table.tscn").instantiate()
-	tree.root.add_child(table)
-	await tree.process_frame
-	await tree.process_frame
+	var table = await _spawn_table()
 	_deal(table.engine, 0)
 	# ☰ 开 → 再点 ☰ 关（toggle 语义）→ 再开
 	table._mobile_bar.more_pressed.emit()
@@ -1045,6 +1044,16 @@ func test_mobile_more_panel(test) -> void:
 	table.engine.submit_trump(0, Card.Suit.HEART, Card.RANK_9)
 	table._refresh()
 	test.check("出牌庄" in (table._mobile_bar._info as Label).text, "叫主后顶栏局况切出牌庄口径")
+	# 揭主落位集成：飞牌落进顶栏主牌槽（守卫自愈 + 落位回调渲染，桌面同链路）；
+	# 拍卖可能被 AI 竞速抢先定庄，按引擎实际主牌校验槽位牌面
+	await tree.create_timer(0.3).timeout
+	var slot_trump := false
+	var trump: TrumpInfo = table.engine.trump
+	for c in table._mobile_bar._slot.get_children():
+		if c is CardWidget and c.card != null and trump != null \
+				and c.card.suit == trump.suit and c.card.rank == trump.rank:
+			slot_trump = true
+	test.check(trump != null and slot_trump, "揭主落位后顶栏主牌槽显示正 R 牌面")
 	var heart_count := 0
 	for c in table.engine.get_hand(0):
 		if table.engine.trump.is_trump(c):
@@ -1053,7 +1062,5 @@ func test_mobile_more_panel(test) -> void:
 	test.eq(str(bar_main.text), "♥", "叫主后首位图标为主花色")
 	test.check(bar_main.modulate.is_equal_approx(Color(1, 0.9, 0.4)), "主花色图标金色突出")
 	test.eq(int((table._mobile_bar._suit_counts[0] as Label).text), heart_count, "主牌数（含王）")
-	table.queue_free()
-	await tree.process_frame
 	AppSettings.mobile_ui = false
 	await _release_table(table)

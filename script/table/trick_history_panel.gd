@@ -51,10 +51,10 @@ func setup(root: Control) -> void:
 	popup.visible = false
 	popup.mouse_filter = Control.MOUSE_FILTER_STOP
 	popup.z_index = 10
-	popup.anchor_left = UiStyle.MAIN_TABLE_CENTER.x
-	popup.anchor_right = UiStyle.MAIN_TABLE_CENTER.x
-	popup.anchor_top = UiStyle.MAIN_TABLE_CENTER.y
-	popup.anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
+	popup.anchor_left = UiStyle.table_center(root).x
+	popup.anchor_right = UiStyle.table_center(root).x
+	popup.anchor_top = UiStyle.table_center(root).y
+	popup.anchor_bottom = UiStyle.table_center(root).y
 	popup.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	popup.grow_vertical = Control.GROW_DIRECTION_BOTH
 	# 半字号留空（§7）：面板最大字号 16 → content margin 8；底色沿用主题面板样式

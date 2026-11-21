@@ -38,7 +38,7 @@ func play(root: Control, trump_card: Card, target: Vector2, on_done: Callable) -
 	clear()
 	active = true
 	_card_widget = CardWidget.create(trump_card, true)
-	_card_widget.position = UiStyle.MAIN_TABLE_CENTER * root.size - CardWidget.SIZE_NORMAL / 2.0
+	_card_widget.position = UiStyle.table_center(root) * root.size - CardWidget.SIZE_NORMAL / 2.0
 	_card_widget.scale = Vector2(CENTER_SCALE, CENTER_SCALE)
 	_card_widget.z_index = 60
 	root.add_child(_card_widget)

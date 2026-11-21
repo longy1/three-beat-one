@@ -26,6 +26,14 @@ static func center_anchor(node: Node) -> Vector2:
 	return SCREEN_CENTER
 
 
+## 牌桌内居中锚（按 UI 分支）：桌面 = 主牌桌十字中心（让位右侧栏，历史口径）；
+## 手机分支 = 屏幕正中（无右侧栏偏置）——牌桌内所有程序化居中组件统一走此锚
+static func table_center(node: Node) -> Vector2:
+	if AppSettings.effective_mobile_ui():
+		return SCREEN_CENTER
+	return MAIN_TABLE_CENTER
+
+
 ## 给按钮设置四向内边距 = 字号/2（至少 6px），保证文字不贴按钮边框
 static func pad_button(b: Button) -> void:
 	var fs: int = b.get_theme_font_size("font_size")

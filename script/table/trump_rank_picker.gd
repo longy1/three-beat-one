@@ -9,10 +9,10 @@ signal rank_picked(rank: int)
 
 func _ready() -> void:
 	# 居中规范：锚点 = 主牌桌十字中心，grow 向四周自适应（尺寸随内容）
-	anchor_left = UiStyle.MAIN_TABLE_CENTER.x
-	anchor_right = UiStyle.MAIN_TABLE_CENTER.x
-	anchor_top = UiStyle.MAIN_TABLE_CENTER.y
-	anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
+	anchor_left = UiStyle.table_center(self).x
+	anchor_right = UiStyle.table_center(self).x
+	anchor_top = UiStyle.table_center(self).y
+	anchor_bottom = UiStyle.table_center(self).y
 	grow_horizontal = Control.GROW_DIRECTION_BOTH
 	grow_vertical = Control.GROW_DIRECTION_BOTH
 	var vbox := VBoxContainer.new()

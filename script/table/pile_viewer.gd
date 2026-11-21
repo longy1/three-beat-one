@@ -87,10 +87,10 @@ func _build_popup(root: Control, popup_name: String) -> PanelContainer:
 	popup.z_index = 10
 	popup.mouse_entered.connect(hide_timer.stop)
 	popup.mouse_exited.connect(request_hide)
-	popup.anchor_left = UiStyle.MAIN_TABLE_CENTER.x
-	popup.anchor_right = UiStyle.MAIN_TABLE_CENTER.x
-	popup.anchor_top = UiStyle.MAIN_TABLE_CENTER.y
-	popup.anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
+	popup.anchor_left = UiStyle.table_center(root).x
+	popup.anchor_right = UiStyle.table_center(root).x
+	popup.anchor_top = UiStyle.table_center(root).y
+	popup.anchor_bottom = UiStyle.table_center(root).y
 	popup.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	popup.grow_vertical = Control.GROW_DIRECTION_BOTH
 	root.add_child(popup)

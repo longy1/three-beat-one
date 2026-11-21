@@ -70,6 +70,20 @@
     每拍自检 canvas style 与视口不符则硬设再补发——全屏过渡期引擎读瞬态 clientWidth 把
     canvas CSS 锁死在错误尺寸（画面占左上 62.5%、下方右侧黑边，IAB 复现）；
     **IAB 全屏行为非标准，真机复验为准**
+  - **手机版居中锚与主牌重建防御**（`script/ui_style.gd`、`script/table/` 七处、
+    `script/table/game_table.gd`；用户报告：结算面板偏左、顶栏主牌占位）：新增
+    `UiStyle.table_center`（桌面=十字中心不变，手机=屏幕正中），牌桌内七处
+    MAIN_TABLE_CENTER 硬编码全部切换（结算面板/底牌弹层/牌堆与历史弹层/叫主面板/
+    中央牌叠/皇冠/揭主出现点）；`_apply_layout_mode` 切换结算面板锚并置
+    `_last_trump_shown = null`（重建顶栏后守卫自愈重渲主牌）
+  - **测试基建防污染**（`test/ui_test_base.gd`）：`_spawn_table` 显式
+    `AppSettings.mobile_ui = false`——用户真实 settings.cfg 试用写入的
+    mobile_ui=true 会经 _static_init 污染全部桌面 spawn（曾致 23 个捉分断言空/
+    印章位置假失败）；移动端用例覆盖扩充：test_mobile_frame_alignment（框牌
+    对齐回归锁）、test_mobile_mode_switch_midgame（对局中切分支）、揭主落位
+    集成断言（顶栏槽显示正 R 牌面）与更多面板 toggle/✕/设置入口断言；
+    修复 MobileMorePanel 入口未接线（settings/menu_pressed 未连 Callable——
+    面板按钮点了无反应的产品级 bug）
   - **手机顶栏加手牌统计**（`script/table/mobile/top_bar.gd`、`script/table/game_table.gd`；
     用户需求：图标+数字展示）：花色图标着色（主花色金色突出/红门亮红/黑门浅白，深底可读）
     + 数字 ×4 恒 4 组——未叫主=四门花色数（王不计入），叫主后=主花色数（含王）+ 三门副；
