@@ -27,42 +27,36 @@ const ANCHORS := {
 const TAIL_DIRS := {0: 0, 1: 1, 2: 2, 3: 3}
 
 var _bubbles := {}         # seat → Bubble
-var _anchors := ANCHORS    ## 锚点表（尾巴尖角位置；手机分支由控制器覆写为 MobileLayout.BUBBLE_ANCHORS）
-var font_min := FONT_MIN   ## 底叫 130 的字号（UI 分支由控制器覆写，桌面还原回常量）
+var _anchors := ANCHORS    ## 锚点表（尾巴尖角位置；布局档案下发，桌面缺省=类常量）
+var font_min := FONT_MIN   ## 底叫 130 的字号（布局档案下发）
 var font_max := FONT_MAX   ## 封顶 200 的字号
 var font_pass := FONT_PASS ## 放弃气泡字号
-var max_size := MAX_SIZE   ## 气泡尺寸上限（手机分支覆写为 MobileLayout.BUBBLE_MAX_SIZE）
+var max_size := MAX_SIZE   ## 气泡尺寸上限
 
 
-func setup(root: Control, anchors := ANCHORS) -> void:
-	_anchors = anchors
+## 应用布局档案（分支切换）：锚点表与尺度组一次性下发（锚点进各气泡、字号梯度
+## 进 apply、尺寸上限下发各气泡 _layout 用）
+func apply_layout(p: TableLayoutProfile) -> void:
+	_anchors = p.bubble_anchors
+	font_min = p.bubble_font_min
+	font_max = p.bubble_font_max
+	font_pass = p.bubble_font_pass
+	max_size = p.bubble_max_size
+	for seat in _bubbles:
+		_bubbles[seat].anchors = _anchors
+		_bubbles[seat].max_size = max_size
+
+
+func setup(root: Control) -> void:
 	for seat in 4:
 		var bubble := Bubble.new()
 		bubble.name = "BidBubble%d" % seat
 		bubble.seat = seat
-		bubble.anchors = anchors
+		bubble.anchors = _anchors
 		bubble.z_index = 4
 		root.add_child(bubble)
 		_bubbles[seat] = bubble
 	clear_all()
-
-
-## 运行中切换锚点表（UI 分支切换：桌面 ANCHORS ⇄ MobileLayout.BUBBLE_ANCHORS）
-func set_anchors(anchors: Dictionary) -> void:
-	_anchors = anchors
-	for seat in _bubbles:
-		_bubbles[seat].anchors = anchors
-
-
-## 运行中切换尺度组（UI 分支切换：桌面默认=类常量，手机=MobileLayout.BUBBLE_*）：
-## 字号梯度进 apply，尺寸上限下发各气泡（_layout 布局用）
-func set_metrics(p_font_min: int, p_font_max: int, p_font_pass: int, p_max_size: Vector2) -> void:
-	font_min = p_font_min
-	font_max = p_font_max
-	font_pass = p_font_pass
-	max_size = p_max_size
-	for seat in _bubbles:
-		_bubbles[seat].max_size = p_max_size
 
 
 ## 全量幂等应用（控制器 _refresh_seats 每次刷新按引擎竞叫状态调用）：
@@ -95,7 +89,7 @@ class Bubble:
 
 	var seat := -1
 	var anchors: Dictionary = BidBubbles.ANCHORS  ## 尾巴尖角锚点表（分支可覆写）
-	var max_size: Vector2 = BidBubbles.MAX_SIZE   ## 尺寸上限（分支可覆写，set_metrics 下发）
+	var max_size: Vector2 = BidBubbles.MAX_SIZE   ## 尺寸上限（布局档案下发）
 	var _label: Label
 	var _style: StyleBoxFlat
 	var _tail_dir := 0

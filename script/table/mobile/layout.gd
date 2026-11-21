@@ -1,8 +1,8 @@
 class_name MobileLayout
 extends RefCounted
 ## 手机版 UI 分支的布局常量组（独立分支：布局/尺寸/组件与桌面版解耦各自迭代，
-## 仅游戏规则与流程复用）。数值均按 720p 设计基准，由控制器 _apply_layout_mode
-## 应用（桌面还原值取自场景/tscn 原值，不在此处）[码4]。
+## 仅游戏规则与流程复用）。数值均按 720p 设计基准，经 TableLayoutProfile.mobile()
+## 汇入布局档案后由各组件 apply_layout 应用（桌面档案捕获自场景/tscn，不在此处）[码4]。
 
 ## 手牌卡尺寸（桌面 SIZE_NORMAL 72×100；iPhone 触摸目标 ≈52×72pt）
 const HAND_CARD_SIZE := Vector2(96, 134)

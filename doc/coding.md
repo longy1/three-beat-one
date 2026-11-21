@@ -98,22 +98,24 @@
 - **左下按钮区（不随牌变动）**：【历史】= 点击打开**出牌历史面板**（`TrickHistoryPanel`，2026-11-17 重做）：居中弹层以**十字形**展示一轮四家出牌（与牌桌出牌摆位座位方位同构、窗口更小，赢家 ✓ 金标），默认**最后一轮**；中央下方 【<<】【<】【>】【>>】 四按钮翻第一页/上一页/下一页/最后一轮（边界禁用）；右上角 ✕ 或**点击窗口外**（全屏微暗遮罩，`MOUSE_FILTER_STOP` 透明拦截）关闭；打开期间新轮结算由 `trick_settled → _refresh → refresh` 状态驱动就地收敛页码；【牌堆】= 仅庄家是自己且进入出牌阶段后显示（「历史」右侧同一行），悬停弹出**底牌堆 2 行 × 4 张**（`engine.buried`，仅自己可见；弹层归 `PileViewer`）。**悬停弹层机制（2026-11-17 历史面板重做后仅剩【牌堆】按钮悬停路径；座位面板悬停路径已移除）**：事件驱动 + 粘滞——显示随 `mouse_entered` 一次调用，隐藏靠 0.1s 延迟计时器（粘滞时长 2026-11-17 用户定夺为 0.1s；弹层悬停仍保持打开，重悬停即可再次查看），**不用周期轮询**（`mouse_entered/exited` 本就是引擎逐帧悬停判定的结果，自建轮询属 §1 禁止的定时兜底）。
 - 一轮结算后牌面（含 ✓赢家）停留 **1.5 秒后主动清空出牌桌**（TRICK_PAUSE 由 `_trick_timer.timeout` 统一触发清空，不依赖下一手替换）；末轮停留后才弹结算面板。
 - **发牌动画（DealAnimator，2026-11-21 重做节奏）**：开局（单机开局/下一局、联机 game_start；重连快照不播）中央背面牌叠 → **逐拍一张一张发（TICK 0.2s/张，无飞行牌）**：每拍自己手牌在**汇聚槽**现身一张（提前算好：发牌顺序紧凑行，间距复用 SPACING_MIN/MAX clamp，行基线与真实手牌行同 y），各家座位面板张数经 on_tick 逐拍 +1（0 张起步，动画结束回归引擎权威值）→ 到齐后停顿 → 两边往中间收拢到一张 → 展开到真实牌序布局：展开前按目标位 x 升序重排容器子节点（**途中遮盖关系与排序后一致**——右牌盖左牌，与 HandArea 渲染 z 序相同），每张以**相同时长**（EXPAND_DUR）平移至测量位，结束后重渲替换无跳变。目标位取自控制器先做的一次**测量渲染**（HandArea.card_positions，随后 set_widgets_visible 隐藏真实牌面、set_frames_visible(false) 隐藏虚线框——牌未分区排序前框位与牌不对齐，动画结束放行真实渲染（排序完成）后再展现），动画结束回调重渲放行——不复制布局数学（单一事实源仍是 HandArea._do_render）；播放期间 `_render_hand` 经 `_deal_active` 统一挂起，且**拍卖表态一并挂起**（`_on_auction_required` 在 `_deal_active` 时仅做状态刷新即返回——AI 不叫分、人类不出拍卖条、叫分气泡同样挂起至排序完成（含庄家底叫 130）；`_on_deal_done` 按引擎当前轮转补跑；下一局/联机 game_start 须在引擎信号前置位 `_deal_active`）——排序完成前 AI 不开始叫分（用户需求），**表现层不阻塞对局逻辑**（引擎仍可被测试直驱）；speed 缩放供测试与冒烟。
-- **手机版 UI 独立分支（2026-11-21，用户定夺：与桌面版仅共享规则与流程，布局/尺寸/组件解耦各自迭代）**：判定 = `AppSettings.effective_mobile_ui()`——移动端设备特性（android/ios/web_android/web_ios）自动启用，或设置面板「手机版 UI（调试）」强制开启（PC 调试入口，ConfigFile 持久化）。分支应用器 = 控制器 `_apply_layout_mode`（桌面还原值在 `_ready` 捕获、tscn 即桌面事实源；布局常量组 = `script/table/mobile/layout.gd` MobileLayout）：
+- **手机版 UI 独立分支（2026-11-21 确立；2026-11-22 依赖注入重构）**：判定 = `AppSettings.effective_mobile_ui()`——移动端设备特性（android/ios/web_android/web_ios）自动启用，或设置面板「手机版 UI（调试）」强制开启（PC 调试入口，ConfigFile 持久化）。**架构 = 数据/行为两端注入**：
+  - **TableLayoutProfile 布局档案（数据端，`script/table/layout_profile.gd`）**：桌面/手机全部布局数值的单一载体——桌面档案 `capture()` 在 `_ready`（首次分支应用前）从场景现值捕获，tscn 与组件类常量即桌面事实源（代码零处复写桌面数值）；手机档案 `mobile()` 取自 MobileLayout 常量组。组件各自实现 `apply_layout(profile)` 接收属于自己的字段（HandArea/ActionBar/BidBubbles/PileViewer/TrickHistoryPanel/CrownAnimator），控制器 `_apply_profile` 只摆布直属节点（容器偏移/锚点）——**新增分支差异 = 档案加字段 + 归属组件接线，禁止控制器内联布局字面量**；档案为只读值对象
+  - **InfoSurface 信息面策略（行为端，`script/table/info_surface.gd`）**：桌面（顶栏局况+中央叫分提示+InfoSidebar）与手机（MobileTopBar+「更多」面板）的呈现差异收进 `DesktopInfoSurface/MobileInfoSurface` 两实现——控制器 `_refresh_top_bar/_refresh_stats` 只喂数据零分支判断；「更多」面板生命周期归手机面（**teardown 走面板 `close()`：全屏 STOP 遮罩 MorePanelDim 由面板负责清理，裸 queue_free 面板会残留遮罩挡死全部输入**——2026-11-22 用户报告 bug 的根治点），面板入口经 `settings_requested/menu_requested/refresh_requested` 信号接控制器
+  - `_apply_layout_mode` 只做「拆旧面 → 应用档案 → 装配新面」三步；**分支未变早退**（设置面板其它项变更不重建任何节点）
   - **顶栏**（MobileTopBar，高 56，程序化）：**只放当局信息**——局况（庄/叫分）+ 主牌小牌面（揭主飞牌落点，CardWidget 第四档 SIZE_BAR 36×50）+ 捉分 + **手牌统计（图标+数字 ×4：花色字符着色，主花色金色突出、王计入主牌数，未叫主=四门；恒 4 组，set_suit_stats）** + 「更多」按钮（**右端避让壳层 ⛶ 全屏按钮**：DOM `top10/right10/46×38`，hitbox x∈[1224,1270]，按钮右缘 -64 留 8px 空隙防遮挡）；桌面版顶栏/中央叫分提示在手机分支隐藏
-  - **「更多」面板**（MobileMorePanel，居中弹层、ScoresDialog 口径）：局数、四家累计、手牌统计（点数行灰显）、设置/主菜单入口；点窗外/✕ 关闭（closed 信号清控制器引用）；打开期间由 _refresh 状态驱动实时更新
-  - **手牌**：卡 96×134（HandArea 覆写 hand_card_size）、贴底（hand_base_y 分支值）、步距 40·12（桌面 24·8）、宽 ≈90% 屏宽（BottomArea 左右 64）；出牌十字居中、乙/丁面板对称贴两缘、操作按钮 150×52；发牌逐拍/虚线框显隐/气泡/选中上浮 20% 口径全部沿用（DealAnimator 尺寸与步距随 HandArea 取值；出牌区步距同口径读 `hand_area.spacing_max`）
+  - **「更多」面板**（MobileMorePanel，居中弹层、ScoresDialog 口径）：局数、四家累计、手牌统计（点数行灰显）、设置/主菜单入口；点窗外/✕ 关闭（closed 信号清 MobileInfoSurface 引用）；打开即经 refresh_requested 请求喂数据，打开期间由 _refresh 状态驱动实时更新
+  - **手牌**：卡 96×134（HandArea 档案字段）、贴底（hand_base_y 分支值）、步距 40·12（桌面 24·8）、宽 ≈90% 屏宽（BottomArea 左右 64）；出牌十字居中、乙/丁面板对称贴两缘、操作按钮 150×52；发牌逐拍/虚线框显隐/气泡/选中上浮 20% 口径全部沿用（DealAnimator 尺寸与步距随 HandArea 取值；出牌区步距同口径读 `hand_area.spacing_max`）
   - **移动端专用数据收拢（2026-11-22）**：`MobileLayout` 为手机布局数值的单一事实源——
     除锚点/手牌/按钮组外，还含 BottomArea 子件偏移（操作按钮条/提示行/手牌区）、
-    甲家无主印章位、「历史」「牌堆」入口按钮位（`PileViewer.set_entry_offsets` 搬移）、
-    甲家皇冠落点（`CrownAnimator.human_target` 覆写）、叫分气泡尺度（`BidBubbles.set_metrics`：
-    字号 15/36/13、上限 360×130 ≈ 手机中央空白 1/3）；`_apply_layout_mode` 应用、
-    桌面分支还原（入口按钮位还原 `_ready` 捕获原值，其余还原桌面常量）。新增手机
+    甲家无主印章位、「历史」「牌堆」入口按钮位、甲家皇冠落点、叫分气泡尺度
+    （字号 15/36/13、上限 360×130 ≈ 手机中央空白 1/3）——全部经
+    `TableLayoutProfile.mobile()` 汇入档案后由各组件 apply_layout 应用。新增手机
     表现差异数值一律进 MobileLayout，禁止控制器内联字面量
-  - **居中锚**：牌桌内程序化居中组件（结算面板/底牌弹层/牌堆与历史弹层/叫主面板/
-    中央牌叠/皇冠/揭主出现点）统一走 `UiStyle.table_center(node)`——桌面=十字中心
-    0.419（不变），手机=屏幕正中（无右栏偏置）；结算面板（tscn 锚）由
-    `_apply_layout_mode` 按分支切换锚点
-  - **重建防御**：`_apply_layout_mode` 重建顶栏后置 `_last_trump_shown = null`——
+  - **居中锚**：档案 `table_center` 字段（桌面=十字中心 0.419，手机=屏幕正中）——
+    结算面板（tscn 锚）与牌堆/历史弹层锚随 `_apply_profile` 切换（弹层在 setup 时
+    按当时分支取值，分支切换必须重锚）；皇冠/揭主出现点/中央牌叠等播放时读取
+    `UiStyle.table_center(node)`（与档案同一判定口径的运行时查询）
+  - **重建防御**：`_apply_layout_mode` 装配新信息面后置 `_last_trump_shown = null`——
     主牌槽重渲交由 _refresh 守卫自愈（防重建丢主牌显示，用户报告的顶栏占位根因）
   - 桌面版布局完全不变；布局改动先改视觉稿（ui-mockup.svg 手机版画板）
 - **联机界面（2026-11-18，M4）**：主菜单新增【联机对战】→ `scene/menu/online_menu.tscn`（昵称/服务器地址默认 ws://127.0.0.1:9080/新建房间/房间码+加入/返回；状态行报错；昵称 ConfigFile 记忆；**「最近成功连接」列表（2026-11-20）**：连接成功即记录地址（去重置顶、封顶 5 条），点按条目填入地址框）→ `scene/menu/room_lobby.tscn`（房间码大字、四座位成员列表——房主/你/电脑/离线标注、开始游戏仅房主可见、退出房间）。**人数不满开局流程**：房主点开始 → 居中确认弹层「人数不满（X/4），是否自动补充电脑玩家？」——是 → `start{fill_ai:true}` 补满即开；否 → 仅关闭弹层留在房间页；满 4 人直接开。**累计分数弹层** `script/menu/scores_dialog.gd`（居中锚点按场景取 `UiStyle.center_anchor` + 全屏遮罩）：主动退出（本地立即弹）、他人退出/离线超时/服务器失联（`room_closed`/`connection_lost` 数据弹出），确定 → 主菜单。牌桌联机态复用单机布局：座位名 = 成员昵称（本地座位序，0 号位带（你）），AI 补位名「电脑·乙/丙/丁」；结算面板【下一局】仅房主可见（其余等待）。布局注记见 static/ui-mockup.svg 联机屏。

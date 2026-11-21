@@ -15,7 +15,10 @@
   （牌背程序化花背重绘、主牌标识守卫自愈、发牌逐张入手 + 排序同长平移 + AI 叫分
   挂起至排序完成、气泡尖角贴面板、手机版 UI 布局与调试入口）；2026-11-22 完成牌桌
   表现层批次三（揭主飞牌落点尺寸自适应 + 落位回调分支分派、移动端专用数据收拢
-  MobileLayout 单独维护、test_mobile_more_panel 静默假绿根治）
+  MobileLayout 单独维护、test_mobile_more_panel 静默假绿根治）；2026-11-22 完成牌桌
+  表现层依赖注入重构（TableLayoutProfile 布局档案 + InfoSurface 信息面策略：桌面/手机
+  分支的数值与呈现差异全部注入化，控制器零分支判断、零布局字面量；根治「手机版经设置
+  关闭后『更多』面板遮罩残留挡死输入」与「弹层锚点分支切换不重锚」两 bug；用例 170→174）
 - **待启动**：M3 AI 强化与胜率分析（蒙特卡洛）、M5 部署上线（联机服务器公网部署）
 
 ## 2. 技术栈与环境
@@ -30,7 +33,7 @@
 常用命令（在本仓库根目录执行）：
 
 ```bash
-# 单元/规则测试（顺序全量，约 100s；全部通过退出码 0；当前 14 套件 164 用例，含联机回环与存储套件）
+# 单元/规则测试（顺序全量，约 100s；全部通过退出码 0；当前 14 套件 174 用例，含联机回环与存储套件）
 S:/Program/Godot/Godot_v4.7.2-stable_win64_console.exe --headless --path . -s test/run_tests.gd
 
 # 并行全量（push 前必跑；分片并发墙钟 ~25s，分片数默认 = 逻辑核数封顶 8，可 N=6 覆盖）
@@ -100,8 +103,11 @@ script/   表现层脚本（按模块划分子目录；ui_style.gd 为跨模块�
                trick_history_panel 出牌历史 / action_bar 操作按钮条 / trump_rank_picker 叫主面板 /
                crown_animator 皇冠动画 / trump_reveal 揭主双飞 / card_widget 卡牌 / crown_badge 皇冠 /
                void_stamp 无主印章 / dashed_frame 虚线框 / seat_panel 座位面板 / info_sidebar 信息栏 /
-               bid_bubbles 叫分对话气泡 / deal_animator 发牌动画
-  mobile/        手机版 UI 分支：layout 布局常量组 / top_bar 当局信息顶栏 / more_panel「更多」面板
+               bid_bubbles 叫分对话气泡 / deal_animator 发牌动画 /
+               layout_profile 布局档案（桌面 capture 自场景 / 手机取 MobileLayout；组件 apply_layout 注入）/
+               info_surface 信息面策略（Desktop=顶栏+中央提示+信息栏 / Mobile=顶栏 bar+「更多」面板）
+  mobile/        手机版 UI 分支：layout 布局常量组（手机数值单一事实源，经 TableLayoutProfile.mobile 汇入）/
+               top_bar 当局信息顶栏 / more_panel「更多」面板
   menu/        界面流程模块：main_menu 主菜单 / online_menu 联机入口 / room_lobby 房间大厅 /
                scores_dialog 累计分数弹层 / reconnect_overlay 断线等待重连弹层 /
                settings_dialog 游戏设置弹层
@@ -114,7 +120,7 @@ font/     NotoSansSC-Regular.subset.otf（中文子集 ~230KB；重生成走 too
 theme/    default.tres（项目默认字体主题，project.godot gui/theme/custom 引用）
 tool/     subset_font.py（字体子集化脚本；文案新增字符后重跑）
 test/     test_framework.gd + test_base.gd/ui_test_base.gd（共享基类）+ suite_registry.gd（套件注册单一事实源）
-          + test_*.gd（14 套件 164 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环、
+          + test_*.gd（14 套件 174 用例，含 test_architecture.gd 架构守护、test_online.gd 联机回环、
           test_store.gd 存储套件）+ run_tests.gd + smoke_ui.gd
           + calibrate_bidding.gd（叫分校准工具，独立 -s 入口）
 doc/      三打哈规则.md（唯一规则依据）、三打哈-Godot工程计划.md、重构规范.md、coding.md（编码规范，编码时查阅）、update.md（代码变更史归档）
@@ -263,3 +269,15 @@ build/    导出产物（不入库；_font_src/ 为字体源本地缓存；导�
   出牌区步距改读实例 `hand_area.spacing_max`（与手牌同口径）；发牌牌叠按实际尺寸居中；
   测试：`test_mobile_more_panel` 改 spawn 后覆写修复静默假绿（脚本中止不计失败的框架
   弱点记 TODO），新增手机揭主落位用例与桌面落位尺寸同源断言
+- **牌桌表现层依赖注入重构（2026-11-22）**：桌面/手机双 UI 的适配从「控制器 if/else 摆布
+  30 余项属性」重构为两端注入——**TableLayoutProfile 布局档案**（数据端：桌面档案 `_ready`
+  时 capture 自场景现值，tscn 与组件类常量即桌面事实源、代码零处复写桌面数值；手机档案取
+  MobileLayout；HandArea/ActionBar/BidBubbles/PileViewer/TrickHistoryPanel/CrownAnimator 六组件
+  各自 `apply_layout(profile)` 接收 own 字段）+ **InfoSurface 信息面策略**（行为端：
+  Desktop/Mobile 两实现收拢顶栏局况/中央叫分提示/信息栏 vs 顶栏 bar/「更多」面板的全部
+  呈现差异，`_refresh_top_bar/_refresh_stats` 零分支喂数据；「更多」面板生命周期归手机面，
+  teardown 走 `close()` 连全屏 STOP 遮罩一并清理——根治用户报告的「手机版经设置关闭后
+  阴影盖住整体无法操作」）；`_apply_layout_mode` 只做拆旧面→应用档案→装配新面，分支未变
+  早退；弹层（牌堆/历史）锚随档案重锚（根治切手机后弹层仍停桌面十字中心的潜在 bug）。
+  用例：遮罩回归（真实路径：面板设置入口→切换→遮罩清理）、弹层重锚、档案数值逐项锁、
+  早退不重建、手机口径全流程（发牌→拍卖→叫主→扣底→出牌落位）——174 例全量绿

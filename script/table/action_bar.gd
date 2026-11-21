@@ -10,6 +10,13 @@ var button_min := Vector2(120, 44)
 var button_font := 18
 
 
+## 应用布局档案（分支切换）：按钮触屏目标尺寸/字号 + 本条于 BottomArea 内的底缘
+func apply_layout(p: TableLayoutProfile) -> void:
+	button_min = p.button_min
+	button_font = p.button_font
+	offset_bottom = p.action_bar_offset_bottom
+
+
 func reset() -> void:
 	for child in get_children():
 		child.queue_free()

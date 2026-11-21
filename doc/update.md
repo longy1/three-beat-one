@@ -8,6 +8,38 @@
 
 ## 2026-11-22
 
+- **牌桌表现层依赖注入重构 + 手机版关闭遮罩残留根治**（新增 `script/table/layout_profile.gd`、
+  `script/table/info_surface.gd`；改 `script/table/game_table.gd`、`hand_area.gd`、`action_bar.gd`、
+  `bid_bubbles.gd`、`pile_viewer.gd`、`trick_history_panel.gd`、`crown_animator.gd`、
+  `script/table/mobile/layout.gd`、`test/test_ui.gd`、`test/test_components.gd`；用户需求：
+  「PC/移动端两份 UI 的适配用更优雅的依赖注入实现、对 UI 整体方案有足够抽象」+ 修复
+  「移动端经设置关闭手机版 UI 后阴影界面盖住整体、无法任何操作」）：
+  - **TableLayoutProfile 布局档案**（数据端）：桌面/手机全部布局数值的单一载体——桌面档案
+    `capture()` 在 `_ready` 从场景现值捕获（tscn 与组件类常量即事实源），手机档案 `mobile()`
+    取自 MobileLayout；组件各自实现 `apply_layout(profile)` 接收属于自己的字段
+    （HandArea/ActionBar/BidBubbles/PileViewer/TrickHistoryPanel/CrownAnimator 六件）。
+    根治三处硬编码：控制器 else 分支的桌面还原字面量（48/54/80/86/-12/958… 与 tscn 重复）、
+    四个 `_desktop_*` 捕获散字段、`set_entry_offsets/set_anchors/set_metrics` 逐项摆布
+  - **InfoSurface 信息面策略**（行为端）：桌面（顶栏局况+中央叫分提示+InfoSidebar）与手机
+    （MobileTopBar+「更多」面板）的呈现差异收进 `DesktopInfoSurface/MobileInfoSurface`——
+    `_refresh_top_bar/_refresh_stats` 的全部 `if _mobile_ui` 分支判断删除，控制器只喂数据；
+    面板入口经 `settings_requested/menu_requested/refresh_requested` 信号接控制器；`_toggle_more_panel`、
+    `_mobile_bar/_more_panel` 字段与 `_set_trump_display/_trump_slot_center/_trump_slot_size` 分派助手移除
+  - **遮罩残留 bug 根治**（用户报告）：旧版 `_apply_layout_mode` 对「更多」面板裸 `queue_free`，
+    其全屏 `MOUSE_FILTER_STOP` 遮罩 `MorePanelDim`（由面板 `close()` 负责清理）残留桌面——
+    手机版经设置关闭后阴影盖住全部 UI、任何点击无效。根治 = 面板生命周期归
+    `MobileInfoSurface`，分支切换 teardown 统一走 `close()`；回归用例
+    `test_mobile_mode_off_via_settings_clears_dim` 走完整真实路径（☰ 开面板 → 面板设置入口 →
+    切「手机版 UI」→ 断言遮罩清理 + 桌面信息面就位 + 二次切换同样干净）
+  - **分支切换重锚弹层**（顺手根治的潜在 bug）：牌堆/历史弹层锚点旧版在 `setup` 时按当时
+    分支烘焙，对局中途切手机后弹层仍停桌面十字中心（偏右让位信息栏处）——`apply_layout`
+    增弹层重锚；`test_mobile_mode_switch_midgame` 补断言
+  - **分支未变早退**：`_apply_layout_mode` 检测模式未变直接返回（设置面板其它项变更不再
+    无谓重建顶栏/重置主牌守卫基线）；`test_apply_layout_mode_noop_when_mode_unchanged` 守护
+  - **用例增补**（170→174）：上述回归三例 + `test_mobile_play_interaction_flow`
+    （手机口径全流程：发牌动画→拍卖→叫主→扣底→出牌落位手机锚点带）+
+    `test_layout_profile_capture_and_mobile`（档案数值逐项锁）；
+    `test_mobile_layout_mode` 桌面还原段补捕获值回归锁（旧硬编码值全部改由捕获回放）
 - **揭主飞牌落点尺寸自适应**（`script/table/trump_reveal.gd`、`script/table/game_table.gd`、
   `script/table/info_sidebar.gd`、`script/table/mobile/top_bar.gd`、`test/test_ui.gd`；用户报告
   「移动端 R 牌相对更小，飞行要越来越小直到和目标图形匹配」）：

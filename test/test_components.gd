@@ -346,3 +346,42 @@ func test_app_settings_roundtrip(test) -> void:
 	AppSettings.main_side = AppSettings.MainSide.LEFT
 	AppSettings.sort_order = AppSettings.SortOrder.BIG_FIRST
 	DirAccess.remove_absolute(path)
+
+
+## TableLayoutProfile（布局档案）：桌面档案 capture 自场景现值（tscn 与组件类常量
+## 即事实源——桌面数值不在代码第二处复写）；手机档案字段与 MobileLayout 常量一致
+func test_layout_profile_capture_and_mobile(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var table = load("res://scene/table/game_table.tscn").instantiate()
+	tree.root.add_child(table)
+	await tree.process_frame
+	var p: TableLayoutProfile = table._desktop_profile
+	test.eq(p.bottom_offsets, Vector4(12.0, -230.0, -220.0, -14.0), "桌面底部区偏移捕获自场景")
+	test.eq(Vector2(p.hint_offset_top, p.hint_offset_bottom), Vector2(54.0, 80.0), "桌面提示行偏移捕获")
+	test.eq(Vector2(p.hand_offset_top, p.hand_offset_bottom), Vector2(86.0, -12.0), "桌面手牌区偏移捕获")
+	test.eq(p.action_bar_offset_bottom, 48.0, "桌面按钮条底缘捕获")
+	test.eq(p.void_stamp_offsets, Vector4(958.0, -232.0, 1014.0, -176.0), "桌面无主印章位捕获")
+	test.eq(p.entry_history_offs, Vector4(12.0, -196.0, 58.0, -166.0), "桌面「历史」按钮位捕获")
+	test.eq(p.entry_bottom_offs, Vector4(66.0, -196.0, 118.0, -166.0), "桌面「牌堆」按钮位捕获")
+	test.eq(p.result_anchor, UiStyle.MAIN_TABLE_CENTER, "桌面结算面板锚捕获")
+	test.eq(p.table_center, UiStyle.MAIN_TABLE_CENTER, "桌面居中锚")
+	test.check(p.trick_anchors == table.TRICK_ANCHORS, "桌面出牌锚点捕获")
+	test.check(p.bubble_anchors == BidBubbles.ANCHORS, "气泡锚点桌面缺省")
+	test.eq(p.crown_human_target, CrownAnimator.CROWN_HUMAN_TARGET, "皇冠人类落点桌面缺省")
+	test.eq(p.button_min, Vector2(120.0, 44.0), "按钮尺寸桌面缺省")
+	test.eq(p.hand_card_size, CardWidget.SIZE_NORMAL, "手牌卡尺寸桌面缺省")
+	# 手机档案 = MobileLayout 常量组逐项一致（单一事实源）
+	var m := TableLayoutProfile.mobile()
+	test.eq(m.table_center, UiStyle.SCREEN_CENTER, "手机居中锚=屏幕正中")
+	test.eq(m.hand_card_size, MobileLayout.HAND_CARD_SIZE, "手机手牌卡尺寸")
+	test.eq(Vector2(m.spacing_max, m.spacing_min), Vector2(MobileLayout.SPACING_MAX, MobileLayout.SPACING_MIN), "手机步距")
+	test.eq(m.bubble_max_size, MobileLayout.BUBBLE_MAX_SIZE, "手机气泡上限")
+	test.eq(m.crown_human_target, MobileLayout.CROWN_HUMAN_TARGET, "手机皇冠落点")
+	test.eq(m.entry_history_offs, MobileLayout.ENTRY_HISTORY_OFFS, "手机「历史」按钮位")
+	test.eq(m.void_stamp_offsets, Vector4(MobileLayout.VOID_STAMP_LEFT, MobileLayout.VOID_STAMP_TOP,
+		MobileLayout.VOID_STAMP_RIGHT, MobileLayout.VOID_STAMP_BOTTOM), "手机无主印章位")
+	test.check(m.trick_anchors == MobileLayout.TRICK_ANCHORS, "手机出牌锚点组")
+	test.check(m.seat_anchors == MobileLayout.SEAT_ANCHORS, "手机座位锚点组")
+	test.check(m.bubble_anchors == MobileLayout.BUBBLE_ANCHORS, "手机气泡锚点组")
+	table.queue_free()
+	await tree.process_frame

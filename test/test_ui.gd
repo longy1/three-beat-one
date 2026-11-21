@@ -596,7 +596,7 @@ func test_trump_reveal_flies_to_sidebar(test) -> void:
 
 
 ## 手机版揭主落位（用户需求）：顶栏主牌槽（36×50）比桌面更小，飞牌渐缩至槽位尺寸
-## 落位；落位回调走 _set_trump_display 分派——旧版写死 sidebar，顶栏主牌槽整局
+## 落位；落位回调经 InfoSurface 分派——旧版写死 sidebar，顶栏主牌槽整局
 ## 停在未叫主占位态（真牌被写进隐藏侧栏）
 func test_mobile_trump_reveal_lands_bar_slot(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
@@ -613,15 +613,16 @@ func test_mobile_trump_reveal_lands_bar_slot(test) -> void:
 		table.engine.submit_bid(s, GameEngine.BID_PASS)
 	table.engine.submit_bid(0, GameEngine.BID_PASS)
 	table.engine.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	var bar: MobileTopBar = table._info.mobile_bar()
 	test.check(table._trump_reveal.active, "手机揭主动画进行中")
-	test.eq(table._trump_slot_size(), CardWidget.SIZE_BAR, "手机落点目标尺寸 = 顶栏槽 36×50")
+	test.eq(table._info.trump_slot_size(), CardWidget.SIZE_BAR, "手机落点目标尺寸 = 顶栏槽 36×50")
 	var flying: CardWidget = table._trump_reveal._card_widget
 	test.check(flying != null and flying.pivot_offset == CardWidget.SIZE_NORMAL / 2.0,
 		"飞牌 pivot 居中（起点居中于屏幕正中）")
 	test.check(flying != null and flying.scale.is_equal_approx(Vector2(2.2, 2.2)), "起点中央放大 ×2.2")
 	await tree.create_timer(0.9).timeout  # > 飞行时长 0.5s
 	var landed: CardWidget = null
-	for c in table._mobile_bar._slot.get_children():
+	for c in bar._slot.get_children():
 		if c is CardWidget and c.card != null and c.card.suit == Card.Suit.SPADE and c.card.rank == Card.RANK_9:
 			landed = c
 	test.check(landed != null, "落位后顶栏主牌槽显示 ♠9（落位回调分支分派）")
@@ -904,8 +905,9 @@ func test_mobile_layout_mode(test) -> void:
 	await tree.process_frame
 	await tree.process_frame
 	var bottom: Control = table.get_node("BottomArea")
-	test.check(table._mobile_bar != null and table._mobile_bar.visible, "手机版顶栏当局信息 bar 生效")
-	test.eq(float(table._mobile_bar.offset_bottom), 56.0, "顶栏高 56（当局信息 bar）")
+	var bar: MobileTopBar = table._info.mobile_bar()
+	test.check(bar != null and bar.visible, "手机版顶栏当局信息 bar 生效")
+	test.eq(float(bar.offset_bottom), 56.0, "顶栏高 56（当局信息 bar）")
 	test.check(not table.sidebar.visible, "手机版无右侧信息栏")
 	test.check(not table.get_node("TopBar").visible, "桌面版顶栏隐藏（局况入 bar）")
 	test.eq(float(bottom.offset_left), 64.0, "底部区左缘 64（手牌 ≈90% 屏宽）")
@@ -917,10 +919,10 @@ func test_mobile_layout_mode(test) -> void:
 	test.eq(table.trick_anchors[0], Vector2(0.5, 0.60), "出牌十字居中（手机锚点组）")
 	test.eq(table.result_panel.anchor_left, 0.5, "结算面板居屏幕正中（手机无右栏偏置）")
 	test.check(table._bid_bubbles._anchors == MobileLayout.BUBBLE_ANCHORS, "气泡锚点切手机组（尖角贴面板）")
-	test.eq(table._mobile_bar._slot.size, CardWidget.SIZE_BAR, "主牌槽为 BAR 档 36×50")
-	test.check(table._mobile_bar.trump_slot_center() != Vector2.ZERO, "顶栏主牌槽可测量（揭主落点）")
-	test.eq(float(table._mobile_bar.size.x), 1280.0, "顶栏全宽（右锚子件定位正确，「更多」按钮可见）")
-	test.eq(float((table._mobile_bar._more as Button).offset_right), -96.0,
+	test.eq(bar._slot.size, CardWidget.SIZE_BAR, "主牌槽为 BAR 档 36×50")
+	test.check(bar.trump_slot_center() != Vector2.ZERO, "顶栏主牌槽可测量（揭主落点）")
+	test.eq(float(bar.size.x), 1280.0, "顶栏全宽（右锚子件定位正确，「更多」按钮可见）")
+	test.eq(float((bar._more as Button).offset_right), -96.0,
 		"「更多」按钮避让壳层 ⛶ 全屏按钮（右缘 -96，间隙 40px）")
 	# 移动端专用数据收拢（MobileLayout 单一事实源）：容器偏移/印章位/入口按钮/皇冠落点/气泡尺度
 	test.eq(float(table.action_bar.offset_bottom), 52.0, "操作按钮条底缘 52")
@@ -960,12 +962,20 @@ func test_mobile_layout_mode(test) -> void:
 	test.check(is_equal_approx(float(table2.result_panel.anchor_left), 0.419), "桌面版结算面板锚回十字中心")
 	test.check(table2._bid_bubbles._anchors == BidBubbles.ANCHORS, "桌面版气泡锚点还原")
 	test.check(table2.sidebar.visible, "桌面版信息栏常显")
-	test.check(table2._mobile_bar == null, "桌面版无手机顶栏")
+	test.check(table2._info.mobile_bar() == null, "桌面版无手机顶栏")
 	test.eq(float(table2.human_void_stamp.offset_left), 958.0, "桌面版无主印章位还原")
 	test.eq(table2._crown_anim.human_target, CrownAnimator.CROWN_HUMAN_TARGET, "桌面版皇冠落点还原")
 	test.eq(table2._bid_bubbles.font_max, BidBubbles.FONT_MAX, "桌面版气泡尺度还原")
 	test.eq(table2._bid_bubbles.max_size, BidBubbles.MAX_SIZE, "桌面版气泡上限还原")
 	test.eq(float(table2._piles.history_chip.offset_top), -196.0, "桌面版「历史」按钮位还原（捕获原值）")
+	# 桌面还原 = 捕获档案回放（旧版这些值硬编码在控制器 else 分支，与 tscn 重复）
+	test.eq(float(table2.action_bar.offset_bottom), 48.0, "桌面版按钮条底缘还原（tscn 捕获）")
+	test.eq(float(table2.hint_label.offset_top), 54.0, "桌面版提示行上缘还原（tscn 捕获）")
+	test.eq(float(table2.hint_label.offset_bottom), 80.0, "桌面版提示行下缘还原（tscn 捕获）")
+	test.eq(float(table2.hand_area.offset_top), 86.0, "桌面版手牌区上缘还原（tscn 捕获）")
+	test.eq(float(table2.hand_area.offset_bottom), -12.0, "桌面版手牌区下缘还原（tscn 捕获）")
+	test.eq(float(table2.human_void_stamp.offset_top), -232.0, "桌面版无主印章距底还原（tscn 捕获）")
+	test.eq(float(table2._piles.bottom_button.offset_left), 66.0, "桌面版「牌堆」按钮位还原（捕获原值）")
 	await _release_table(table2)
 
 
@@ -1001,7 +1011,9 @@ func test_mobile_frame_alignment(test) -> void:
 	AppSettings.mobile_ui = false
 
 
-## 对局中途切 UI 分支（PC 调试入口的实际用法）：手机 ⇄ 桌面状态与 UI 完整重建
+## 对局中途切 UI 分支（PC 调试入口的实际用法）：手机 ⇄ 桌面状态与 UI 完整重建；
+## 弹层居中锚随档案重锚（旧版 setup 时烘焙桌面十字锚、切换后弹层仍偏在让位
+## 信息栏的位置）；切回桌面 = 捕获档案回放（桌面数值零硬编码）
 func test_mobile_mode_switch_midgame(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
 	AppSettings.mobile_ui = true
@@ -1013,12 +1025,30 @@ func test_mobile_mode_switch_midgame(test) -> void:
 	var deadline := Time.get_ticks_msec() + 8000
 	while table._deal_active and Time.get_ticks_msec() < deadline:
 		await tree.process_frame
-	# 手机 → 桌面：顶栏/面板销毁、信息栏恢复、手牌参数还原
+	# 手机态：弹层锚居屏幕正中（档案重锚，非 setup 烘焙值）
+	test.check(is_equal_approx(float(table._trick_history.popup.anchor_left), 0.5),
+		"手机态历史弹层锚居屏幕正中")
+	test.check(is_equal_approx(float(table._piles.bottom_popup.anchor_left), 0.5),
+		"手机态牌堆弹层锚居屏幕正中")
+	# 手机 → 桌面：顶栏/面板销毁、信息栏恢复、手牌参数还原、弹层锚回十字中心
 	AppSettings.mobile_ui = false
 	table._apply_layout_mode()
-	test.check(table._mobile_bar == null, "切桌面：手机顶栏销毁")
+	test.check(table._info.mobile_bar() == null, "切桌面：手机顶栏销毁")
 	test.check(table.sidebar.visible, "切桌面：信息栏恢复")
 	test.eq(table.hand_area.hand_card_size, Vector2(72, 100), "切桌面：手牌卡还原")
+	test.check(is_equal_approx(float(table._trick_history.popup.anchor_left), 0.419),
+		"切桌面：历史弹层锚回十字中心")
+	test.check(is_equal_approx(float(table._piles.bottom_popup.anchor_left), 0.419),
+		"切桌面：牌堆弹层锚回十字中心")
+	# 桌面还原 = 捕获档案回放：此前硬编码在控制器 else 分支的值逐项回归
+	test.eq(float(table.action_bar.offset_bottom), 48.0, "切桌面：按钮条底缘还原（捕获）")
+	test.eq(float(table.hint_label.offset_top), 54.0, "切桌面：提示行上缘还原（捕获）")
+	test.eq(float(table.hint_label.offset_bottom), 80.0, "切桌面：提示行下缘还原（捕获）")
+	test.eq(float(table.hand_area.offset_top), 86.0, "切桌面：手牌区上缘还原（捕获）")
+	test.eq(float(table.hand_area.offset_bottom), -12.0, "切桌面：手牌区下缘还原（捕获）")
+	test.eq(float(table.human_void_stamp.offset_left), 958.0, "切桌面：无主印章位还原（捕获）")
+	test.eq(float(table.human_void_stamp.offset_top), -232.0, "切桌面：无主印章距底还原（捕获）")
+	test.eq(table._crown_anim.human_target, CrownAnimator.CROWN_HUMAN_TARGET, "切桌面：皇冠落点还原（捕获）")
 	var widgets_desktop := 0
 	for c in table.hand_area.get_children():
 		if c is CardWidget and not c.is_queued_for_deletion():
@@ -1027,7 +1057,7 @@ func test_mobile_mode_switch_midgame(test) -> void:
 	# 桌面 → 手机：顶栏重建、手牌参数再切
 	AppSettings.mobile_ui = true
 	table._apply_layout_mode()
-	test.check(table._mobile_bar != null, "切回手机：顶栏重建")
+	test.check(table._info.mobile_bar() != null, "切回手机：顶栏重建")
 	test.check(not table.sidebar.visible, "切回手机：信息栏隐藏")
 	test.eq(table.hand_area.hand_card_size, Vector2(96, 134), "切回手机：手牌卡再切")
 	var widgets_mobile := 0
@@ -1053,29 +1083,30 @@ func test_mobile_more_panel(test) -> void:
 	await tree.process_frame
 	_deal(table.engine, 0)
 	# ☰ 开 → 再点 ☰ 关（toggle 语义）→ 再开
-	table._mobile_bar.more_pressed.emit()
+	var bar: MobileTopBar = table._info.mobile_bar()
+	bar.more_pressed.emit()
 	await tree.process_frame
-	var panel: MobileMorePanel = table._more_panel
+	var panel: MobileMorePanel = table._info.more_panel()
 	test.check(panel != null and panel.visible, "☰ 打开更多面板")
 	test.check("第" in panel._round_label.text, "面板展示局数")
 	test.check("甲" in panel._cumulative_label.text, "面板展示四家累计")
 	test.check(not panel._stats_main.text.is_empty(), "面板展示手牌统计")
-	table._mobile_bar.more_pressed.emit()
+	bar.more_pressed.emit()
 	await tree.process_frame
-	test.check(table._more_panel == null, "再点 ☰ 关闭（toggle 语义）")
+	test.check(table._info.more_panel() == null, "再点 ☰ 关闭（toggle 语义）")
 	# ✕ 按钮关闭 → 再开
-	table._mobile_bar.more_pressed.emit()
+	bar.more_pressed.emit()
 	await tree.process_frame
-	panel = table._more_panel
+	panel = table._info.more_panel()
 	test.check(panel != null, "再次打开")
 	test.eq(panel._stats_grid.columns, 3, "点数统计三列排布（面板紧凑）")
 	panel._close_btn.pressed.emit()
 	await tree.process_frame
-	test.check(table._more_panel == null, "✕ 按钮关闭")
+	test.check(table._info.more_panel() == null, "✕ 按钮关闭")
 	# 设置入口：开设置弹层（与桌面同口径），清理后继续
-	table._mobile_bar.more_pressed.emit()
+	bar.more_pressed.emit()
 	await tree.process_frame
-	panel = table._more_panel
+	panel = table._info.more_panel()
 	panel.settings_pressed.emit()
 	await tree.process_frame
 	test.check(tree.root.get_node_or_null("SettingsDialog") != null, "面板设置入口打开设置弹层")
@@ -1083,22 +1114,22 @@ func test_mobile_more_panel(test) -> void:
 	tree.root.get_node_or_null("SettingsDialogDim").queue_free()
 	await tree.process_frame
 	# 顶栏局况/捉分（当局信息 bar 分派）
-	test.check("捉分" in (table._mobile_bar._captured as Label).text, "顶栏展示捉分")
-	# 点窗外关闭（控制器引用清空）
+	test.check("捉分" in (bar._captured as Label).text, "顶栏展示捉分")
+	# 点窗外关闭（信息面引用清空）
 	var evt := InputEventMouseButton.new()
 	evt.button_index = MOUSE_BUTTON_LEFT
 	evt.pressed = true
-	table._more_panel.get_parent().get_node("MorePanelDim").gui_input.emit(evt)
+	table._info.more_panel().get_parent().get_node("MorePanelDim").gui_input.emit(evt)
 	await tree.process_frame
-	test.check(table._more_panel == null, "点窗外关闭更多面板（引用清空）")
+	test.check(table._info.more_panel() == null, "点窗外关闭更多面板（引用清空）")
 	# 顶栏手牌统计（图标+数字 ×4）：_refresh_stats 分派——未叫主=四门花色数（王不计入）
 	table._refresh()
 	var icons: Array = []
 	for i in 4:
-		icons.append(str((table._mobile_bar._suit_icons[i] as Label).text))
+		icons.append(str((bar._suit_icons[i] as Label).text))
 	var counts: Array = []
 	for i in 4:
-		counts.append(int((table._mobile_bar._suit_counts[i] as Label).text))
+		counts.append(int((bar._suit_counts[i] as Label).text))
 	test.check(icons == ["♠", "♥", "♣", "♦"], "未叫主统计展示四门花色图标")
 	var jokers := 0
 	for c in table.engine.get_hand(0):
@@ -1112,13 +1143,13 @@ func test_mobile_more_panel(test) -> void:
 	table.engine.submit_bid(0, GameEngine.BID_PASS)
 	table.engine.submit_trump(0, Card.Suit.HEART, Card.RANK_9)
 	table._refresh()
-	test.check("出牌庄" in (table._mobile_bar._info as Label).text, "叫主后顶栏局况切出牌庄口径")
+	test.check("出牌庄" in (bar._info as Label).text, "叫主后顶栏局况切出牌庄口径")
 	# 揭主落位集成：飞牌落进顶栏主牌槽（守卫自愈 + 落位回调渲染，桌面同链路）；
 	# 拍卖可能被 AI 竞速抢先定庄，按引擎实际主牌校验槽位牌面
 	await tree.create_timer(0.3).timeout
 	var slot_trump := false
 	var trump: TrumpInfo = table.engine.trump
-	for c in table._mobile_bar._slot.get_children():
+	for c in bar._slot.get_children():
 		if c is CardWidget and c.card != null and trump != null \
 				and c.card.suit == trump.suit and c.card.rank == trump.rank:
 			slot_trump = true
@@ -1127,9 +1158,133 @@ func test_mobile_more_panel(test) -> void:
 	for c in table.engine.get_hand(0):
 		if table.engine.trump.is_trump(c):
 			heart_count += 1
-	var bar_main: Label = table._mobile_bar._suit_icons[0]
+	var bar_main: Label = bar._suit_icons[0]
 	test.eq(str(bar_main.text), "♥", "叫主后首位图标为主花色")
 	test.check(bar_main.modulate.is_equal_approx(Color(1, 0.9, 0.4)), "主花色图标金色突出")
-	test.eq(int((table._mobile_bar._suit_counts[0] as Label).text), heart_count, "主牌数（含王）")
+	test.eq(int((bar._suit_counts[0] as Label).text), heart_count, "主牌数（含王）")
+	AppSettings.mobile_ui = false
+	await _release_table(table)
+
+
+## 回归（用户报告）：手机版经设置弹层关闭手机 UI 时，「更多」面板被直接销毁而
+## 其全屏拦截遮罩（MorePanelDim）残留桌面——阴影盖住整个 UI、任何点击都无效。
+## 分支切换须走面板 close() 清遮罩；本用例走完整真实路径（☰ 开面板 → 面板设置
+## 入口 → 设置弹层切换「手机版 UI」→ on_changed 重应用布局）
+func test_mobile_mode_off_via_settings_clears_dim(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var table = await _spawn_table()
+	AppSettings.mobile_ui = true  # spawn 后覆写（_spawn_table 强制桌面口径防污染）
+	table._apply_layout_mode()
+	await tree.process_frame
+	var bar: MobileTopBar = table._info.mobile_bar()
+	bar.more_pressed.emit()  # ☰ 打开「更多」面板（遮罩 MorePanelDim 随之出现）
+	await tree.process_frame
+	test.check(table.get_node_or_null("MorePanelDim") != null, "面板打开时遮罩存在")
+	# 面板设置入口 → 设置弹层 → 切换「手机版 UI」为关（触发 on_changed → 重应用布局）
+	table._info.more_panel().settings_pressed.emit()
+	await tree.process_frame
+	var dialog: SettingsDialog = tree.root.get_node_or_null("SettingsDialog")
+	test.check(dialog != null, "面板设置入口打开设置弹层")
+	var mobile_btn: Button = null
+	for c in dialog.get_children()[0].get_children():
+		if c is Button and "手机版 UI" in (c as Button).text:
+			mobile_btn = c
+	test.check(mobile_btn != null, "找到「手机版 UI」切换按钮")
+	mobile_btn.pressed.emit()
+	await tree.process_frame
+	# 遮罩随面板 close() 一并清理（旧版残留 → 全屏阴影挡死输入）；桌面信息面就位
+	test.check(table.get_node_or_null("MorePanelDim") == null, "切换后遮罩随面板清理（无阴影残留）")
+	test.check(table._info.more_panel() == null, "「更多」面板已销毁")
+	test.check(table._info.mobile_bar() == null, "手机顶栏已销毁")
+	test.check(table.sidebar.visible, "桌面信息栏恢复（后续操作可用）")
+	# 设置弹层自身照常可关（完成按钮）
+	var done: Button = null
+	for c in dialog.get_children()[0].get_children():
+		if c is Button and c.text == "完成":
+			done = c
+	done.pressed.emit()
+	await tree.process_frame
+	test.check(tree.root.get_node_or_null("SettingsDialog") == null, "设置弹层完成关闭")
+	# 再切回手机（二次切换路径同样不残留遮罩）：开面板 → 直接 _apply_layout_mode 切桌面
+	AppSettings.mobile_ui = true
+	table._apply_layout_mode()
+	await tree.process_frame
+	table._info.mobile_bar().more_pressed.emit()
+	await tree.process_frame
+	test.check(table.get_node_or_null("MorePanelDim") != null, "再开面板遮罩恢复")
+	AppSettings.mobile_ui = false
+	table._apply_layout_mode()
+	await tree.process_frame
+	test.check(table.get_node_or_null("MorePanelDim") == null, "二次切换遮罩同样清理")
+	test.check(table._info.mobile_bar() == null, "二次切换顶栏销毁")
+	await _release_table(table)
+
+
+## 分支未变时 _apply_layout_mode 早退：不重建顶栏/信息面（设置面板其它项变更也
+## 走这里）——重建会造成主牌槽闪断与无谓的守卫基线重置
+func test_apply_layout_mode_noop_when_mode_unchanged(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var table = await _spawn_table()
+	var info_before = table._info
+	table._apply_layout_mode()  # 桌面态重复应用
+	test.check(table._info == info_before, "桌面态重复应用不重建信息面")
+	AppSettings.mobile_ui = true
+	table._apply_layout_mode()
+	await tree.process_frame
+	var bar: MobileTopBar = table._info.mobile_bar()
+	var mobile_info = table._info
+	table._apply_layout_mode()  # 手机态重复应用
+	test.check(table._info == mobile_info, "手机态重复应用不重建信息面")
+	test.check(table._info.mobile_bar() == bar, "顶栏实例保持（未销毁重建）")
+	AppSettings.mobile_ui = false
+	await _release_table(table)
+
+
+## 手机分支完整交互链路（发牌动画 → 拍卖 → 叫主 → 扣底 → 出牌）：动画/交互/界面
+## 覆盖手机口径——出牌落位按手机锚点组居中，手牌重渲按手机卡尺寸
+func test_mobile_play_interaction_flow(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var table = await _spawn_table()
+	table._ai_delay_scale = 1e9  # 挂起 UI AI：本用例直驱全部人类决策
+	AppSettings.mobile_ui = true
+	table._apply_layout_mode()
+	await tree.process_frame
+	_deal(table.engine, 0)
+	var deadline := Time.get_ticks_msec() + 8000
+	while table._deal_active and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	# 拍卖：庄家 0 号位底叫 130 由引擎自动完成，三家过 + 人类过 → 0 号位定庄叫主
+	for s in [1, 2, 3]:
+		table.engine.submit_bid(s, GameEngine.BID_PASS)
+	table.engine.submit_bid(0, GameEngine.BID_PASS)
+	table.engine.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	await tree.process_frame
+	# 扣底（人类）：底牌 8 张入手即预选，直接确认扣回
+	test.check(table.hand_area.selected.size() == 8, "底牌入手即预选 8 张")
+	table._submit_human_discard()
+	await tree.process_frame
+	test.check(table.engine.phase == GameEngine.Phase.TRICKS, "扣底后进入出牌阶段")
+	# 出牌（人类领出单张）：手机口径下选择/提交照常
+	table.hand_area.select_cards([table.engine.get_hand(0)[0]])
+	table._submit_human_play()
+	await tree.process_frame
+	test.check(table.engine.current_plays.size() >= 1, "人类领出已入本轮")
+	# 出牌落位在手机锚点带（十字居中，±1 卡高容差）
+	var row: Control = null
+	for c in table.trick_area.get_children():
+		if c.name != "BottomCards" and not c.is_queued_for_deletion() and c.get_child_count() > 0:
+			row = c
+			break
+	test.check(row != null, "出牌区已渲染牌行")
+	if row != null:
+		var expect: Vector2 = MobileLayout.TRICK_ANCHORS[0] * table.trick_area.size
+		test.check(absf(row.position.y + row.size.y / 2.0 - expect.y) < 140.0,
+			"出牌落位在手机锚点带（十字居中）")
+	# 手牌按手机尺寸重渲（扣 8 出 1 → 18 张）
+	var widgets := 0
+	for c in table.hand_area.get_children():
+		if c is CardWidget and not c.is_queued_for_deletion():
+			widgets += 1
+	test.eq(widgets, 18, "手机口径手牌重渲 18 张")
 	AppSettings.mobile_ui = false
 	await _release_table(table)

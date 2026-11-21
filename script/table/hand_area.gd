@@ -21,12 +21,22 @@ const SPACING_MAX := 24.0       ## 相邻牌步距上限（紧凑重叠：露左
 const SPACING_MIN := 8.0        ## 相邻牌步距下限（拥挤时收紧）
 const MIN_USABLE_WIDTH := 100.0 ## 尺寸低于此值视为布局未就绪
 
-## 可分支覆写的呈现参数（桌面默认 = 上方常量；手机分支由控制器按 MobileLayout
-## 设置——卡 96×134/步距 40·12/贴底基线，独立 UI 分支 [码4]）
+## 可分支覆写的呈现参数（桌面默认 = 上方常量；手机档案经 apply_layout 注入——
+## 卡 96×134/步距 40·12/贴底基线，独立 UI 分支 [码4]）
 var hand_card_size := CardWidget.SIZE_NORMAL
 var spacing_max := SPACING_MAX
 var spacing_min := SPACING_MIN
 var hand_base_y := HAND_BASE_Y
+
+
+## 应用布局档案（分支切换）：手牌参数 + 本区于 BottomArea 内的上下偏移
+func apply_layout(p: TableLayoutProfile) -> void:
+	hand_card_size = p.hand_card_size
+	spacing_max = p.spacing_max
+	spacing_min = p.spacing_min
+	hand_base_y = p.hand_base_y
+	offset_top = p.hand_offset_top
+	offset_bottom = p.hand_offset_bottom
 
 
 var select_mode := ""   # "" | "discard" | "play"；空串时交互关闭

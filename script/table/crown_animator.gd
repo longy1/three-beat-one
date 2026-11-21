@@ -10,7 +10,12 @@ const CROWN_SIZE := Vector2(24, 18)  ## 高度 = NameLabel 字号（18）
 const FLY_DURATION := 1.0
 
 
-var human_target := CROWN_HUMAN_TARGET  ## 人类 0 号位落点（比例×根尺寸；手机分支由控制器覆写 MobileLayout.CROWN_HUMAN_TARGET）
+var human_target := CROWN_HUMAN_TARGET  ## 人类 0 号位落点（比例×根尺寸；布局档案下发）
+
+
+## 应用布局档案（分支切换）：人类 0 号位皇冠落点
+func apply_layout(p: TableLayoutProfile) -> void:
+	human_target = p.crown_human_target
 
 var _crown: CrownBadge = null
 

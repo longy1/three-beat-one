@@ -47,18 +47,19 @@ func setup(root: Control) -> void:
 	_build_bottom_contents()
 
 
-## 入口按钮位搬移（UI 分支切换由控制器调用；桌面还原传捕获原值）：
-## offsets 相对根节点左下点锚（x = l..r 绝对坐标、y = 距根底缘 t..b），
-## Vector4 = (left, top, right, bottom)
-func set_entry_offsets(history: Vector4, bottom: Vector4) -> void:
-	history_chip.offset_left = history.x
-	history_chip.offset_top = history.y
-	history_chip.offset_right = history.z
-	history_chip.offset_bottom = history.w
-	bottom_button.offset_left = bottom.x
-	bottom_button.offset_top = bottom.y
-	bottom_button.offset_right = bottom.z
-	bottom_button.offset_bottom = bottom.w
+## 应用布局档案（分支切换）：入口按钮位 + 弹层居中锚。弹层锚在 setup 时按当时
+## 分支取值，分支切换必须重锚——否则手机分支的弹层仍停在桌面十字中心
+## （偏右让位信息栏的位置）。
+func apply_layout(p: TableLayoutProfile) -> void:
+	history_chip.offset_left = p.entry_history_offs.x
+	history_chip.offset_top = p.entry_history_offs.y
+	history_chip.offset_right = p.entry_history_offs.z
+	history_chip.offset_bottom = p.entry_history_offs.w
+	bottom_button.offset_left = p.entry_bottom_offs.x
+	bottom_button.offset_top = p.entry_bottom_offs.y
+	bottom_button.offset_right = p.entry_bottom_offs.z
+	bottom_button.offset_bottom = p.entry_bottom_offs.w
+	_anchor_popup(bottom_popup, p.table_center)
 
 
 ## 悬停「牌堆」按钮：查看所扣底牌（2 行 × 4 张，仅自己可见）
@@ -90,7 +91,8 @@ func hide_all() -> void:
 		bottom_popup.visible = false
 
 
-## 居中弹层骨架：点锚 = 主牌桌十字中心，grow 向四周自适应（尺寸随内容）。
+## 居中弹层骨架：点锚 = 当前分支居中锚（setup 时取值；分支切换经 apply_layout
+## 重锚），grow 向四周自适应（尺寸随内容）。
 ## z_index=10：桌面级弹层（盖过扣底阶段底牌展示 z=1，见 game_table 层级约定）。
 ## 移出弹层走 request_hide（0.1s 粘滞延迟）
 func _build_popup(root: Control, popup_name: String) -> PanelContainer:
@@ -101,14 +103,19 @@ func _build_popup(root: Control, popup_name: String) -> PanelContainer:
 	popup.z_index = 10
 	popup.mouse_entered.connect(hide_timer.stop)
 	popup.mouse_exited.connect(request_hide)
-	popup.anchor_left = UiStyle.table_center(root).x
-	popup.anchor_right = UiStyle.table_center(root).x
-	popup.anchor_top = UiStyle.table_center(root).y
-	popup.anchor_bottom = UiStyle.table_center(root).y
+	_anchor_popup(popup, UiStyle.table_center(root))
 	popup.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	popup.grow_vertical = Control.GROW_DIRECTION_BOTH
 	root.add_child(popup)
 	return popup
+
+
+## 弹层居中锚应用（点锚 + grow BOTH；setup 与 apply_layout 共用）
+func _anchor_popup(popup: PanelContainer, center: Vector2) -> void:
+	popup.anchor_left = center.x
+	popup.anchor_right = center.x
+	popup.anchor_top = center.y
+	popup.anchor_bottom = center.y
 
 
 func _build_bottom_contents() -> void:

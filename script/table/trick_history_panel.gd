@@ -33,6 +33,15 @@ var _seat_names: Array = []
 var _page := 0                    ## 当前轮次页（0 = 第 1 轮 … size-1 = 最后一轮；打开时定位最后一轮）
 
 
+## 应用布局档案（分支切换）：弹层居中锚重锚（setup 时按当时分支取值，
+## 手机分支弹层须居屏幕正中而非桌面十字中心）
+func apply_layout(p: TableLayoutProfile) -> void:
+	popup.anchor_left = p.table_center.x
+	popup.anchor_right = p.table_center.x
+	popup.anchor_top = p.table_center.y
+	popup.anchor_bottom = p.table_center.y
+
+
 func setup(root: Control) -> void:
 	# 全屏遮罩：透明拦截点击（MOUSE_FILTER_STOP 不依赖可见色），点击即关；
 	# z_index=10：盖过桌面级浮层（如扣底阶段的底牌展示 z=1），见 game_table 层级约定
@@ -45,7 +54,8 @@ func setup(root: Control) -> void:
 	backdrop.z_index = 10
 	backdrop.gui_input.connect(_on_backdrop_input)
 	root.add_child(backdrop)
-	# 弹层本体：点锚主牌桌十字中心 + grow BOTH（居中规范，与各弹层同口径）
+	# 弹层本体：点锚当前分支居中锚 + grow BOTH（居中规范，与各弹层同口径；
+	# 分支切换经 apply_layout 重锚）
 	popup = PanelContainer.new()
 	popup.name = "TrickHistoryPopup"
 	popup.visible = false
