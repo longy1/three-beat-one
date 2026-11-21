@@ -163,8 +163,9 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 		total += LAYOUT_GAP
 	var x := (avail - total) / 2.0
 	var frame_h := card_h + 2 * LAYOUT_PAD
-	var frame_y := 6.0  # 固定纵向位置：不随布局高度变化，避免整排手牌上下漂移
-	# 手牌基线（贴底口径由分支设置 hand_base_y）
+	# 虚线框随手牌基线走（框顶 = 卡顶 − 框内边距）：桌面基线 16 → 框 6（历史值），
+	# 手机分支基线贴底（30）时框同步下移——框与牌永不脱节（用户报告错位）
+	var frame_y := hand_base_y - LAYOUT_PAD
 	var base_y := hand_base_y
 
 	_hit_cards.clear()

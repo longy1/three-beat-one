@@ -63,6 +63,13 @@
     「加宽+信息栏折叠」半套实现；`_apply_layout_mode` 变分支应用器（桌面原值捕获还原）；
     重写 test_mobile_layout_mode + 新增 test_mobile_more_panel；修复新组件两处
     （close 变量遮蔽方法名的编译错、_apply_layout_mode 开局 hands 未发时 _render_hand 越界）
+  - **手机版虚线框错位与 ⛶ 全屏黑边修复**（`script/table/hand_area.gd`、`export_presets.cfg`
+    head_include；用户报告）：①框基线 `frame_y` 由写死 6.0 改为 `hand_base_y - LAYOUT_PAD`
+    （手机贴底基线 30 时框同步下移，桌面值 6 不变）——手机分支框与牌错位 24px 根治；
+    ②⛶ 全屏切换（fullscreenchange/webkitfullscreenchange）全平台三拍+补发合成 resize，
+    每拍自检 canvas style 与视口不符则硬设再补发——全屏过渡期引擎读瞬态 clientWidth 把
+    canvas CSS 锁死在错误尺寸（画面占左上 62.5%、下方右侧黑边，IAB 复现）；
+    **IAB 全屏行为非标准，真机复验为准**
   - **手机顶栏加手牌统计**（`script/table/mobile/top_bar.gd`、`script/table/game_table.gd`；
     用户需求：图标+数字展示）：花色图标着色（主花色金色突出/红门亮红/黑门浅白，深底可读）
     + 数字 ×4 恒 4 组——未叫主=四门花色数（王不计入），叫主后=主花色数（含王）+ 三门副；
