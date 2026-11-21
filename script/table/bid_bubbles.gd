@@ -124,19 +124,29 @@ class Bubble:
 			return
 		var body := Rect2(Vector2.ZERO, size)
 		draw_style_box(_style, body)
-		# 尾巴：三角形指向座位（避开圆角，偏中放置）
+		# 尾巴与框一体化（接缝处无描边横线，填充整块连续）：填充三角的底边向框体
+		# 内推进越过边框（盖掉接缝段的框描边），描边只走两条斜边、不走底边，起点取
+		# 斜边与框外缘的交点——与框描边自然相接
 		var cx := size.x / 2.0
 		var cy := size.y / 2.0
 		var t := BidBubbles.TAIL
-		var pts: PackedVector2Array
+		var hw := 8.0  # 尾巴底边半宽（避开圆角，偏中放置）
+		var d := 4.0   # 填充底边推进框体的深度（越过 2px 边框）
+		var ex := hw * t / (t + d)  # 斜边与框外缘交点到尾部中轴的距离
+		var fill: PackedVector2Array
+		var stroke: PackedVector2Array
 		match _tail_dir:
-			0:
-				pts = PackedVector2Array([Vector2(cx - 8, size.y - 1), Vector2(cx + 8, size.y - 1), Vector2(cx, size.y + t)])
-			1:
-				pts = PackedVector2Array([Vector2(size.x - 1, cy - 8), Vector2(size.x - 1, cy + 8), Vector2(size.x + t, cy)])
-			2:
-				pts = PackedVector2Array([Vector2(cx - 8, 1), Vector2(cx + 8, 1), Vector2(cx, -t)])
-			3:
-				pts = PackedVector2Array([Vector2(1, cy - 8), Vector2(1, cy + 8), Vector2(-t, cy)])
-		draw_colored_polygon(pts, _style.bg_color)
-		draw_polyline(pts + PackedVector2Array([pts[0]]), _style.border_color, 2.0)
+			0:  # 朝下（底缘）
+				fill = PackedVector2Array([Vector2(cx - hw, size.y - d), Vector2(cx + hw, size.y - d), Vector2(cx, size.y + t)])
+				stroke = PackedVector2Array([Vector2(cx - ex, size.y - 1), Vector2(cx, size.y + t), Vector2(cx + ex, size.y - 1)])
+			1:  # 朝右（右缘）
+				fill = PackedVector2Array([Vector2(size.x - d, cy - hw), Vector2(size.x - d, cy + hw), Vector2(size.x + t, cy)])
+				stroke = PackedVector2Array([Vector2(size.x - 1, cy - ex), Vector2(size.x + t, cy), Vector2(size.x - 1, cy + ex)])
+			2:  # 朝上（顶缘）
+				fill = PackedVector2Array([Vector2(cx - hw, d), Vector2(cx + hw, d), Vector2(cx, -t)])
+				stroke = PackedVector2Array([Vector2(cx - ex, 1), Vector2(cx, -t), Vector2(cx + ex, 1)])
+			3:  # 朝左（左缘）
+				fill = PackedVector2Array([Vector2(d, cy - hw), Vector2(d, cy + hw), Vector2(-t, cy)])
+				stroke = PackedVector2Array([Vector2(1, cy - ex), Vector2(-t, cy), Vector2(1, cy + ex)])
+		draw_colored_polygon(fill, _style.bg_color)
+		draw_polyline(stroke, _style.border_color, 2.0)
