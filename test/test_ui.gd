@@ -615,6 +615,25 @@ func test_deal_animation_non_blocking(test) -> void:
 	await _release_table(table)
 
 
+## 发牌动画期间手牌虚线框隐藏（汇聚/收拢/展开阶段牌未分区排序、框位与牌不对齐），
+## 排序完成（动画结束放行真实渲染）后随牌一起展现
+func test_deal_animation_hides_frames(test) -> void:
+	var table = await _spawn_table()
+	var visible_frames := func() -> int:
+		var n := 0
+		for c in table.hand_area.get_children():
+			if c is DashedRoundedFrame and c.visible and not c.is_queued_for_deletion():
+				n += 1
+		return n
+	test.eq(visible_frames.call(), 0, "发牌动画期间虚线框整体隐藏")
+	var tree: SceneTree = Engine.get_main_loop()
+	var deadline := Time.get_ticks_msec() + 8000
+	while table._deal_active and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	test.check(visible_frames.call() >= 1, "排序完成后虚线框随真实渲染展现")
+	await _release_table(table)
+
+
 ## 叫分对话气泡：叫分/放弃以气泡呈现（带尾巴指向座位），姓名版状态行腾空；
 ## 更高分出现清除低分气泡；拍卖结束全清
 func test_bid_bubbles_replace_seat_status(test) -> void:

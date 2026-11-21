@@ -197,11 +197,13 @@ func _on_background_input(event: InputEvent) -> void:
 
 ## ============================= 发牌动画 =============================
 
-## 开局发牌动画：先做一次真实渲染（展开目标位的测量来源）并隐藏真实牌面，
-## 动画结束回调里重渲放行。播放期间 _render_hand 全部挂起。
+## 开局发牌动画：先做一次真实渲染（展开目标位的测量来源）并隐藏真实牌面与
+## 虚线框（牌未分区排序前框位与牌不对齐），动画结束回调里重渲放行（虚线框
+## 随排序完成一起展现）。播放期间 _render_hand 全部挂起。
 func _start_deal_animation() -> void:
 	_deal_active = true
 	hand_area.render(engine.get_hand(HUMAN_SEAT), engine.trump)
+	hand_area.set_frames_visible(false)
 	hand_area.set_widgets_visible(false)
 	_deal_animator.play(self, hand_area, seat_panels, engine.get_hand(HUMAN_SEAT), _on_deal_done)
 
@@ -209,6 +211,7 @@ func _start_deal_animation() -> void:
 func _on_deal_done() -> void:
 	_deal_active = false
 	_render_hand()
+	hand_area.set_frames_visible(true)
 	# 发牌期间被挂起的拍卖在此放行：以引擎状态为准补跑（期间 AI 未表态或联机
 	# 远端回放已到，都按当前轮转处理；拍卖已结束则后续阶段处理器早已接管）
 	if engine.phase == GameEngine.Phase.AUCTION:

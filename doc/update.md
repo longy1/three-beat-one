@@ -34,6 +34,10 @@
     web_ios）+ `effective_mobile_ui`；设置第三行「手机版 UI（调试）：关/开」（设置弹层用例
     2→3 按钮同步）；`game_table._apply_layout_mode`：手机版手牌区右缘 -220→-128（≈90% 屏宽）+
     信息栏默认收起 + 右上角「信息/收起」切换按钮；新增 `test_mobile_layout_mode`（含桌面还原口径）
+  - **发牌期间隐藏手牌虚线框**（`script/table/hand_area.gd`、`script/table/game_table.gd`、
+    `test/test_ui.gd`；用户报告截图）：汇聚/收拢/展开阶段牌未分区排序、双虚线框位与牌不对齐——
+    动画期间整体隐藏（`HandArea.set_frames_visible`，测量渲染后即藏），`_on_deal_done` 放行
+    真实渲染（排序完成）后再展现；新增 `test_deal_animation_hides_frames` 用例
 
 ## 2026-11-20
 

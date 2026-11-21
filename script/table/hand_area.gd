@@ -26,6 +26,7 @@ var select_mode := ""   # "" | "discard" | "play"；空串时交互关闭
 var selected: Array = []  # Array[Card]，选中的手牌（引用来自最近一次 render 的手牌）
 
 var _widgets := {}            # Card → CardWidget（精准刷新，避免整排重建闪烁）
+var _frames: Array = []       # DashedRoundedFrame 引用（发牌动画期间整体隐藏，见 set_frames_visible）
 var _drag_selecting := false  # 左键按住滑动批量选择中
 var _drag_target := false     # 本次拖选的目标态（首张牌的新态），滑过的牌对齐到该态
 var _render_pending := false  # 布局未就绪时挂起的渲染请求
@@ -87,6 +88,7 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 	for child in get_children():
 		child.queue_free()
 	_widgets.clear()
+	_frames.clear()
 	_drag_selecting = false
 	var trump_cards: Array = []
 	var side_cards: Array = []
@@ -166,6 +168,7 @@ func _do_render(hand: Array, trump: TrumpInfo) -> void:
 		frame.size = Vector2(widths[i], frame_h)
 		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(frame)
+		_frames.append(frame)
 		var cx: float = x + LAYOUT_PAD
 		for c in g:
 			var card_widget := CardWidget.create(c, true)
@@ -272,6 +275,14 @@ func set_widgets_visible(v: bool) -> void:
 		var widget: CardWidget = _widgets[card]
 		if is_instance_valid(widget):
 			widget.modulate.a = 1.0 if v else 0.0
+
+
+## 虚线框显隐（发牌动画期间隐藏：汇聚/收拢/展开阶段牌尚未分区排序，框位与牌
+## 不对齐；动画结束放行真实渲染（排序完成）后再展现）
+func set_frames_visible(v: bool) -> void:
+	for f in _frames:
+		if is_instance_valid(f):
+			f.visible = v
 
 
 func _on_card_left_press(card: Card) -> void:
