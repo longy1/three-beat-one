@@ -59,6 +59,8 @@ var _more_panel: MobileMorePanel = null  ## 手机版「更多」面板（打开
 var trick_anchors := TRICK_ANCHORS       ## 出牌显示锚点（手机分支切 MobileLayout.TRICK_ANCHORS）
 var _desktop_seat_anchors := {}          ## 桌面版座位锚点（_ready 捕获，切回桌面还原用）
 var _desktop_bottom := Vector4()         ## 桌面版底部区偏移（捕获同上）
+var _desktop_pile_history := Vector4()   ## 桌面版「历史」按钮位（捕获同上；手机分支搬移后还原）
+var _desktop_pile_bottom := Vector4()    ## 桌面版「牌堆」按钮位（捕获同上）
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var top_bar: Control = $TopBar
@@ -139,6 +141,10 @@ func _ready() -> void:
 	# 捕获桌面版布局原值（手机分支切换后可还原；tscn 即桌面事实源）
 	var bottom: Control = $BottomArea
 	_desktop_bottom = Vector4(bottom.offset_left, bottom.offset_top, bottom.offset_right, bottom.offset_bottom)
+	_desktop_pile_history = Vector4(_piles.history_chip.offset_left, _piles.history_chip.offset_top,
+		_piles.history_chip.offset_right, _piles.history_chip.offset_bottom)
+	_desktop_pile_bottom = Vector4(_piles.bottom_button.offset_left, _piles.bottom_button.offset_top,
+		_piles.bottom_button.offset_right, _piles.bottom_button.offset_bottom)
 	for seat in seat_panels:
 		_desktop_seat_anchors[seat] = Vector2(seat_panels[seat].anchor_left, seat_panels[seat].anchor_top)
 	_apply_layout_mode()
@@ -201,11 +207,11 @@ func _apply_layout_mode() -> void:
 		bottom.offset_top = MobileLayout.BOTTOM_TOP
 		bottom.offset_right = MobileLayout.BOTTOM_RIGHT
 		bottom.offset_bottom = MobileLayout.BOTTOM_BOTTOM
-		action_bar.offset_bottom = 52.0
-		hint_label.offset_top = 56.0
-		hint_label.offset_bottom = 84.0
-		hand_area.offset_top = 92.0
-		hand_area.offset_bottom = -8.0
+		action_bar.offset_bottom = MobileLayout.ACTION_BAR_OFFSET_BOTTOM
+		hint_label.offset_top = MobileLayout.HINT_OFFSET_TOP
+		hint_label.offset_bottom = MobileLayout.HINT_OFFSET_BOTTOM
+		hand_area.offset_top = MobileLayout.HAND_OFFSET_TOP
+		hand_area.offset_bottom = MobileLayout.HAND_OFFSET_BOTTOM
 		for seat in seat_panels:
 			var a: Vector2 = MobileLayout.SEAT_ANCHORS[seat]
 			seat_panels[seat].anchor_left = a.x
@@ -218,10 +224,15 @@ func _apply_layout_mode() -> void:
 		action_bar.button_min = MobileLayout.BUTTON_MIN
 		action_bar.button_font = MobileLayout.BUTTON_FONT
 		_bid_bubbles.set_anchors(MobileLayout.BUBBLE_ANCHORS)
-		human_void_stamp.offset_left = 1120.0
-		human_void_stamp.offset_right = 1176.0
-		human_void_stamp.offset_top = -250.0
-		human_void_stamp.offset_bottom = -194.0
+		_bid_bubbles.set_metrics(MobileLayout.BUBBLE_FONT_MIN, MobileLayout.BUBBLE_FONT_MAX,
+			MobileLayout.BUBBLE_FONT_PASS, MobileLayout.BUBBLE_MAX_SIZE)
+		# 入口按钮/皇冠人类落点/无主印章：桌面基准随手机布局搬移（数据在 MobileLayout）
+		_piles.set_entry_offsets(MobileLayout.ENTRY_HISTORY_OFFS, MobileLayout.ENTRY_BOTTOM_OFFS)
+		_crown_anim.human_target = MobileLayout.CROWN_HUMAN_TARGET
+		human_void_stamp.offset_left = MobileLayout.VOID_STAMP_LEFT
+		human_void_stamp.offset_right = MobileLayout.VOID_STAMP_RIGHT
+		human_void_stamp.offset_top = MobileLayout.VOID_STAMP_TOP
+		human_void_stamp.offset_bottom = MobileLayout.VOID_STAMP_BOTTOM
 	else:
 		sidebar.visible = true
 		top_bar.visible = true
@@ -247,11 +258,15 @@ func _apply_layout_mode() -> void:
 		action_bar.button_min = Vector2(120, 44)
 		action_bar.button_font = 18
 		_bid_bubbles.set_anchors(BidBubbles.ANCHORS)
+		_bid_bubbles.set_metrics(BidBubbles.FONT_MIN, BidBubbles.FONT_MAX,
+			BidBubbles.FONT_PASS, BidBubbles.MAX_SIZE)
 		# 结算面板锚回桌面十字中心（tscn 原值）
 		result_panel.anchor_left = UiStyle.MAIN_TABLE_CENTER.x
 		result_panel.anchor_right = UiStyle.MAIN_TABLE_CENTER.x
 		result_panel.anchor_top = UiStyle.MAIN_TABLE_CENTER.y
 		result_panel.anchor_bottom = UiStyle.MAIN_TABLE_CENTER.y
+		_piles.set_entry_offsets(_desktop_pile_history, _desktop_pile_bottom)
+		_crown_anim.human_target = CrownAnimator.CROWN_HUMAN_TARGET
 		human_void_stamp.offset_left = 958.0
 		human_void_stamp.offset_right = 1014.0
 		human_void_stamp.offset_top = -232.0
@@ -283,6 +298,11 @@ func _set_trump_display(card: Card) -> void:
 ## 主牌槽全局中心（揭主飞牌落点）
 func _trump_slot_center() -> Vector2:
 	return _mobile_bar.trump_slot_center() if _mobile_ui else sidebar.trump_slot_center()
+
+
+## 主牌槽目标牌面尺寸（揭主飞牌的渐缩终点；与 _trump_slot_center 同源分支感知）
+func _trump_slot_size() -> Vector2:
+	return _mobile_bar.trump_slot_size() if _mobile_ui else sidebar.trump_slot_size()
 
 
 ## 双击牌桌空白（背景层）：清空手牌选择（把选中的牌全部放回）
@@ -442,15 +462,18 @@ func _on_trump_required(seat: int) -> void:
 
 
 func _on_discard_required(seat: int) -> void:
-	# 揭主双飞：叫主完成的此刻皇冠已飞向庄家，主 R 牌从中央飞向信息栏主牌展示位。
+	# 揭主双飞：叫主完成的此刻皇冠已飞向庄家，主 R 牌从中央飞向主牌展示位
+	# （桌面=信息栏、手机=顶栏，落点/尺寸均分支感知；飞行渐缩至目标槽位尺寸）。
 	# 主牌标识 = 守卫自愈渲染：飞行中（_trump_reveal.active）_refresh_top_bar 跳过，
-	# 落位回调里 set_trump 并记 _last_trump_shown；若飞行被 clear() 打断（新局/新拍卖
-	# 的防御性清理，回调不再触发），active 已复位 → 下次 _refresh 由守卫重渲——
-	# 根治旧版「落位回调丢失 + _last_trump_shown 引用比较永久跳过」的标识消失
+	# 落位回调里按分支放入主牌展示位并记 _last_trump_shown；若飞行被 clear() 打断
+	# （新局/新拍卖的防御性清理，回调不再触发），active 已复位 → 下次 _refresh 由
+	# 守卫重渲——根治旧版「落位回调丢失 + _last_trump_shown 引用比较永久跳过」的
+	# 标识消失（回调必须走 _set_trump_display 分派：写死 sidebar 会把手机顶栏
+	# 主牌槽永久留在未叫主占位态）
 	var trump_card := Card.new(engine.trump.suit, engine.trump.rank)
-	_trump_reveal.play(self, trump_card, _trump_slot_center(), func():
+	_trump_reveal.play(self, trump_card, _trump_slot_center(), _trump_slot_size(), func():
 		_last_trump_shown = engine.trump
-		sidebar.set_trump(trump_card)
+		_set_trump_display(trump_card)
 		_trump_reveal.clear())
 	_refresh()
 	if seat == HUMAN_SEAT:
@@ -850,13 +873,13 @@ func _refresh_trick_area() -> void:
 		var seat: int = play.seat
 		# 出牌区只渲染牌（归属信息在姓名版）；赢家标记见姓名版「✓ 上轮赢」。
 		# 卡牌尺寸按张数自适应：≤2 张正常、≥3 张中号；相邻牌重叠步距与手牌紧凑
-		# 口径一致（HandArea.SPACING_MAX，后牌盖前牌各露左缘角标条），多张组合
-		# 不再摊成全宽横排（与手牌同款摆法）
+		# 口径一致（读实例 spacing_max——手机分支 40 与手牌步距同口径，桌面还原后
+		# 值相同，后牌盖前牌各露左缘角标条），多张组合不再摊成全宽横排（与手牌同款摆法）
 		var card_size: Vector2 = CardWidget.SIZE_NORMAL if play.cards.size() <= 2 \
 				else CardWidget.SIZE_MEDIUM
 		var cards_row := Control.new()
 		cards_row.mouse_filter = Control.MOUSE_FILTER_IGNORE  # 出牌区不收输入，避免重叠区挡点
-		var step: float = HandArea.SPACING_MAX
+		var step: float = hand_area.spacing_max
 		for i in play.cards.size():
 			var widget := CardWidget.create_sized(play.cards[i], true, card_size)
 			widget.mouse_filter = Control.MOUSE_FILTER_IGNORE

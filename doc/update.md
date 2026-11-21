@@ -6,6 +6,42 @@
 > 里程碑级决策仍归《三打哈-Godot工程计划.md》，本文档只收代码注释层的历史注记。
 > 条目按日期倒序，新条目置顶；每条注明迁出前所在的文件。
 
+## 2026-11-22
+
+- **揭主飞牌落点尺寸自适应**（`script/table/trump_reveal.gd`、`script/table/game_table.gd`、
+  `script/table/info_sidebar.gd`、`script/table/mobile/top_bar.gd`、`test/test_ui.gd`；用户报告
+  「移动端 R 牌相对更小，飞行要越来越小直到和目标图形匹配」）：
+  - `play()` 增 `target_size` 参数，缩放终点由硬编码 `Vector2.ONE` 改为 `target_size / SIZE_NORMAL`
+    （桌面 52×76、手机 36×50），落位视觉尺寸=目标槽位尺寸、落位零跳变（旧版恒缩回 72×100：
+    桌面与槽位 1.38 倍、手机 2 倍跳变）；飞牌补 `pivot_offset = SIZE_NORMAL/2`（缩放围绕牌心，
+    旧版缺省左上角、×2.2 时起点视觉中心偏右下 43×60px，皇冠本就有、飞牌漏了）；
+    落点/尺寸查询对称分支感知：`trump_slot_size()`（InfoSidebar 实测 / MobileTopBar 返 SLOT_SIZE）
+    + 控制器 `_trump_slot_size()`
+  - **落位回调分支分派**（`game_table._on_discard_required`）：`sidebar.set_trump` 写死 →
+    `_set_trump_display`——旧版手机分支把真牌写进隐藏侧栏、顶栏主牌槽整局停在问号占位
+    （`_last_trump_shown` 同帧被置同引用、守卫永久跳过）
+  - **测试基建假绿根治**（`test/test_ui.gd`、`test/ui_test_base.gd` 关联）：`test_mobile_more_panel`
+    在 `_spawn_table()`（内部强制 mobile_ui=false 防污染）前置 true → 桌面实例化 →
+    `_mobile_bar` null 首断言处脚本中止、后续断言从未执行（框架不把脚本中止计失败）——
+    setup 改为 spawn 后置 true + `_apply_layout_mode()`；新增 `test_mobile_trump_reveal_lands_bar_slot`
+    （pivot/起点缩放/落点目标尺寸/BAR 档落位）与桌面落位尺寸同源断言
+- **移动端专用数据收拢 MobileLayout**（`script/table/mobile/layout.gd`、`script/table/game_table.gd`、
+  `script/table/pile_viewer.gd`、`script/table/crown_animator.gd`、`script/table/bid_bubbles.gd`；
+  「检查类似问题、移动端专用数据单独维护一套」）：
+  - `_apply_layout_mode` 手机分支字面量入常量组（值不变）：BottomArea 子件偏移
+    （操作按钮条 52、提示行 56/84、手牌区 92/-8）、甲家无主印章位（1120/-250/1176/-194）
+  - **入口按钮手机位**：`PileViewer.set_entry_offsets(history, bottom)`（控制器搬移，
+    桌面还原 `_ready` 捕获原值）——手机手牌框顶更低，按钮上移至距底 210~180 留隙
+  - **甲家皇冠落点**：`CrownAnimator.human_target` 实例化（默认=桌面常量），手机覆写
+    `MobileLayout.CROWN_HUMAN_TARGET (0.108, 0.729)`（对齐手机入口按钮行）
+  - **叫分气泡尺度**：`BidBubbles` 字号/上限参数化（`font_min/font_max/font_pass/max_size` +
+    `set_metrics` 下发气泡），手机 15/36/13 与 360×130（≈手机中央空白 y 56~444 的 1/3，
+    桌面还原回类常量）
+  - 出牌区步距口径统一（`game_table._refresh_trick_area`）：`HandArea.SPACING_MAX` 类常量 →
+    实例 `hand_area.spacing_max`（桌面还原后同值行为不变；手机出牌步距 40 与手牌一致）
+  - 发牌动画中央牌叠居中修正（`deal_animator.gd`）：SIZE_SMALL 牌按实际尺寸定位（旧版按
+    SIZE_NORMAL/2 偏右下 10×12px，桌面亦有偏差）
+
 ## 2026-11-21
 
 - TODO.md 牌桌表现层批次二实现（用户需求：修复 6 项 TODO、本地提交后清理，分三提交落地）：

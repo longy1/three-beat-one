@@ -155,3 +155,8 @@ func set_trump(card: Card) -> void:
 ## 主牌槽全局中心（揭主飞牌落点；须在布局完成后测量）
 func trump_slot_center() -> Vector2:
 	return _slot.get_global_rect().get_center()
+
+
+## 主牌槽目标牌面尺寸（揭主飞牌的渐缩终点，= SLOT_SIZE）
+func trump_slot_size() -> Vector2:
+	return _slot.size

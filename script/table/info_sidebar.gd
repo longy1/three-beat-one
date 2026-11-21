@@ -24,6 +24,12 @@ func trump_slot_center() -> Vector2:
 	return slot.get_global_rect().get_center()
 
 
+## 主牌槽目标牌面尺寸（揭主飞牌的渐缩终点；与 set_trump 重建牌面同源实测）
+func trump_slot_size() -> Vector2:
+	var slot: Control = $VBox/TrumpRow/TrumpStack/TrumpSlot
+	return slot.size
+
+
 ## 主牌展示：一张「正 R」牌面（主花色 + R，如 ♠ 主 R=2 → ♠2）。
 ## 未叫主：牌背微透明 + 居中问号，下方注明「未叫主」。
 func set_trump(card: Card) -> void:

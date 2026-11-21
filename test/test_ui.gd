@@ -570,19 +570,65 @@ func test_trump_reveal_flies_to_sidebar(test) -> void:
 			in_slot = true
 	test.check(not in_slot, "飞行中信息栏尚未显示主牌（落位后才显示）")
 	test.check(table._trump_reveal.active, "揭主动画进行中")
-	var flying := false
+	var flying_widget: CardWidget = null
 	for c in table.get_children():
 		if c is CardWidget and c.card != null and c.card.rank == Card.RANK_9:
-			flying = true
-	test.check(flying, "中央存在飞行中的主 R 牌面")
+			flying_widget = c
+	test.check(flying_widget != null, "中央存在飞行中的主 R 牌面")
+	if flying_widget != null:
+		test.check(flying_widget.pivot_offset == CardWidget.SIZE_NORMAL / 2.0,
+			"飞牌 pivot 居中（缩放围绕牌心，起点不偏右下）")
+		test.check(flying_widget.scale.is_equal_approx(Vector2(2.2, 2.2)), "起点中央放大 ×2.2")
 	var tree: SceneTree = Engine.get_main_loop()
 	await tree.create_timer(1.2).timeout  # > 飞行时长 0.8s
 	var has_card := false
+	var landed: CardWidget = null
 	for c in slot.get_children():
 		if c is CardWidget and c.card != null and c.card.suit == Card.Suit.SPADE and c.card.rank == Card.RANK_9:
 			has_card = true
+			landed = c
 	test.check(has_card, "落位后信息栏显示 ♠9 牌面")
+	# 落位尺寸与槽位同源（飞牌渐缩终点 = 目标槽位尺寸；旧版恒缩回 72×100 与 52×76 槽一次跳变）
+	test.check(landed != null and landed.size == table.sidebar.trump_slot_size(),
+		"落位牌面尺寸 = 主牌槽实测尺寸（落位零跳变）")
 	test.check(not table._trump_reveal.active, "落位后动画结束")
+	await _release_table(table)
+
+
+## 手机版揭主落位（用户需求）：顶栏主牌槽（36×50）比桌面更小，飞牌渐缩至槽位尺寸
+## 落位；落位回调走 _set_trump_display 分派——旧版写死 sidebar，顶栏主牌槽整局
+## 停在未叫主占位态（真牌被写进隐藏侧栏）
+func test_mobile_trump_reveal_lands_bar_slot(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	var table = await _spawn_table()
+	AppSettings.mobile_ui = true  # spawn 后覆写（_spawn_table 强制桌面口径防污染）
+	table._apply_layout_mode()
+	await tree.process_frame
+	_deal(table.engine, 0)
+	var deadline := Time.get_ticks_msec() + 8000
+	while table._deal_active and Time.get_ticks_msec() < deadline:
+		await tree.process_frame
+	table._trump_reveal.fly_duration = 0.5  # 本用例用真实时长观察飞行起点
+	for s in [1, 2, 3]:
+		table.engine.submit_bid(s, GameEngine.BID_PASS)
+	table.engine.submit_bid(0, GameEngine.BID_PASS)
+	table.engine.submit_trump(0, Card.Suit.SPADE, Card.RANK_9)
+	test.check(table._trump_reveal.active, "手机揭主动画进行中")
+	test.eq(table._trump_slot_size(), CardWidget.SIZE_BAR, "手机落点目标尺寸 = 顶栏槽 36×50")
+	var flying: CardWidget = table._trump_reveal._card_widget
+	test.check(flying != null and flying.pivot_offset == CardWidget.SIZE_NORMAL / 2.0,
+		"飞牌 pivot 居中（起点居中于屏幕正中）")
+	test.check(flying != null and flying.scale.is_equal_approx(Vector2(2.2, 2.2)), "起点中央放大 ×2.2")
+	await tree.create_timer(0.9).timeout  # > 飞行时长 0.5s
+	var landed: CardWidget = null
+	for c in table._mobile_bar._slot.get_children():
+		if c is CardWidget and c.card != null and c.card.suit == Card.Suit.SPADE and c.card.rank == Card.RANK_9:
+			landed = c
+	test.check(landed != null, "落位后顶栏主牌槽显示 ♠9（落位回调分支分派）")
+	if landed != null:
+		test.eq(landed.size, CardWidget.SIZE_BAR, "顶栏槽牌面为 BAR 档尺寸（落位零跳变）")
+	test.check(not table._trump_reveal.active, "落位后动画结束")
+	AppSettings.mobile_ui = false
 	await _release_table(table)
 
 
@@ -876,6 +922,19 @@ func test_mobile_layout_mode(test) -> void:
 	test.eq(float(table._mobile_bar.size.x), 1280.0, "顶栏全宽（右锚子件定位正确，「更多」按钮可见）")
 	test.eq(float((table._mobile_bar._more as Button).offset_right), -96.0,
 		"「更多」按钮避让壳层 ⛶ 全屏按钮（右缘 -96，间隙 40px）")
+	# 移动端专用数据收拢（MobileLayout 单一事实源）：容器偏移/印章位/入口按钮/皇冠落点/气泡尺度
+	test.eq(float(table.action_bar.offset_bottom), 52.0, "操作按钮条底缘 52")
+	test.eq(float(table.hint_label.offset_top), 56.0, "提示行上缘 56")
+	test.eq(float(table.hint_label.offset_bottom), 84.0, "提示行下缘 84")
+	test.eq(float(table.hand_area.offset_top), 92.0, "手牌区上缘 92")
+	test.eq(float(table.hand_area.offset_bottom), -8.0, "手牌区下缘 -8")
+	test.eq(float(table.human_void_stamp.offset_left), 1120.0, "无主印章手机位（右缘侧）")
+	test.eq(float(table.human_void_stamp.offset_top), -250.0, "无主印章手机位（距底 250）")
+	test.eq(float(table._piles.history_chip.offset_top), -210.0, "「历史」按钮上移（手牌框顶上方留隙）")
+	test.eq(float(table._piles.bottom_button.offset_left), 66.0, "「牌堆」按钮同行右侧")
+	test.eq(table._crown_anim.human_target, MobileLayout.CROWN_HUMAN_TARGET, "甲家皇冠落点切手机值")
+	test.eq(table._bid_bubbles.font_max, 36, "气泡字号上限切手机 36")
+	test.eq(table._bid_bubbles.max_size, Vector2(360, 130), "气泡尺寸上限切手机 360×130")
 	# 手机模式发牌/渲染链路照常：动画完成 → 19 张真实牌面、无渲染挂起
 	var deadline := Time.get_ticks_msec() + 8000
 	while table._deal_active and Time.get_ticks_msec() < deadline:
@@ -902,6 +961,11 @@ func test_mobile_layout_mode(test) -> void:
 	test.check(table2._bid_bubbles._anchors == BidBubbles.ANCHORS, "桌面版气泡锚点还原")
 	test.check(table2.sidebar.visible, "桌面版信息栏常显")
 	test.check(table2._mobile_bar == null, "桌面版无手机顶栏")
+	test.eq(float(table2.human_void_stamp.offset_left), 958.0, "桌面版无主印章位还原")
+	test.eq(table2._crown_anim.human_target, CrownAnimator.CROWN_HUMAN_TARGET, "桌面版皇冠落点还原")
+	test.eq(table2._bid_bubbles.font_max, BidBubbles.FONT_MAX, "桌面版气泡尺度还原")
+	test.eq(table2._bid_bubbles.max_size, BidBubbles.MAX_SIZE, "桌面版气泡上限还原")
+	test.eq(float(table2._piles.history_chip.offset_top), -196.0, "桌面版「历史」按钮位还原（捕获原值）")
 	await _release_table(table2)
 
 
@@ -980,8 +1044,13 @@ func test_mobile_mode_switch_midgame(test) -> void:
 ## 三种关闭方式，设置入口开设置弹层；顶栏局况/捉分分派与主牌槽语义同信息栏
 func test_mobile_more_panel(test) -> void:
 	var tree: SceneTree = Engine.get_main_loop()
-	AppSettings.mobile_ui = true
 	var table = await _spawn_table()
+	# 手机分支覆写须在 spawn 之后（_spawn_table 强制桌面口径防 settings.cfg 污染）：
+	# 旧版在 spawn 前置 true 被 reset → 桌面实例化 → _mobile_bar 为 null，首个断言处
+	# 脚本错误中止、后续断言从未执行（框架不把脚本中止计失败，用例静默假绿）
+	AppSettings.mobile_ui = true
+	table._apply_layout_mode()
+	await tree.process_frame
 	_deal(table.engine, 0)
 	# ☰ 开 → 再点 ☰ 关（toggle 语义）→ 再开
 	table._mobile_bar.more_pressed.emit()

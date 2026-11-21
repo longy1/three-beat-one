@@ -47,6 +47,20 @@ func setup(root: Control) -> void:
 	_build_bottom_contents()
 
 
+## 入口按钮位搬移（UI 分支切换由控制器调用；桌面还原传捕获原值）：
+## offsets 相对根节点左下点锚（x = l..r 绝对坐标、y = 距根底缘 t..b），
+## Vector4 = (left, top, right, bottom)
+func set_entry_offsets(history: Vector4, bottom: Vector4) -> void:
+	history_chip.offset_left = history.x
+	history_chip.offset_top = history.y
+	history_chip.offset_right = history.z
+	history_chip.offset_bottom = history.w
+	bottom_button.offset_left = bottom.x
+	bottom_button.offset_top = bottom.y
+	bottom_button.offset_right = bottom.z
+	bottom_button.offset_bottom = bottom.w
+
+
 ## 悬停「牌堆」按钮：查看所扣底牌（2 行 × 4 张，仅自己可见）
 func show_bottom(cards: Array) -> void:
 	var title: Label = bottom_popup.get_node("VBox/Title")

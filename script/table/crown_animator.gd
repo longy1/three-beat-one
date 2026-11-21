@@ -5,10 +5,12 @@ extends RefCounted
 ## 高度与名字字号一致；人类 0 号位无面板，落手牌上方按钮行（历史/牌堆按钮右侧，不随牌变动）。
 
 
-const CROWN_HUMAN_TARGET := Vector2(0.108, 0.749)  ## 相对窗口比例：手牌上方按钮行、牌堆按钮右侧（不遮挡手牌）
+const CROWN_HUMAN_TARGET := Vector2(0.108, 0.749)  ## 相对窗口比例：手牌上方按钮行、牌堆按钮右侧（不遮挡手牌；桌面默认值）
 const CROWN_SIZE := Vector2(24, 18)  ## 高度 = NameLabel 字号（18）
 const FLY_DURATION := 1.0
 
+
+var human_target := CROWN_HUMAN_TARGET  ## 人类 0 号位落点（比例×根尺寸；手机分支由控制器覆写 MobileLayout.CROWN_HUMAN_TARGET）
 
 var _crown: CrownBadge = null
 
@@ -43,11 +45,11 @@ func play(root: Control, seat: int, seat_panels: Dictionary) -> void:
 
 
 ## 皇冠落点（中心）：庄家名字文字左缘前方（SeatPanel.crown_anchor 封装测量）；
-## 人类 0 号位或名字未就绪时用左下常量
+## 人类 0 号位或名字未就绪时用 human_target（分支感知，控制器覆写）
 func _target(root: Control, seat: int, seat_panels: Dictionary) -> Vector2:
 	if seat == 0 or not seat_panels.has(seat):
-		return CROWN_HUMAN_TARGET * root.size
+		return human_target * root.size
 	var anchor: Vector2 = seat_panels[seat].crown_anchor(CROWN_SIZE.x)
 	if anchor.x == Vector2.INF.x:
-		return CROWN_HUMAN_TARGET * root.size
+		return human_target * root.size
 	return anchor

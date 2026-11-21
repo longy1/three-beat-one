@@ -28,6 +28,10 @@ const TAIL_DIRS := {0: 0, 1: 1, 2: 2, 3: 3}
 
 var _bubbles := {}         # seat → Bubble
 var _anchors := ANCHORS    ## 锚点表（尾巴尖角位置；手机分支由控制器覆写为 MobileLayout.BUBBLE_ANCHORS）
+var font_min := FONT_MIN   ## 底叫 130 的字号（UI 分支由控制器覆写，桌面还原回常量）
+var font_max := FONT_MAX   ## 封顶 200 的字号
+var font_pass := FONT_PASS ## 放弃气泡字号
+var max_size := MAX_SIZE   ## 气泡尺寸上限（手机分支覆写为 MobileLayout.BUBBLE_MAX_SIZE）
 
 
 func setup(root: Control, anchors := ANCHORS) -> void:
@@ -50,6 +54,17 @@ func set_anchors(anchors: Dictionary) -> void:
 		_bubbles[seat].anchors = anchors
 
 
+## 运行中切换尺度组（UI 分支切换：桌面默认=类常量，手机=MobileLayout.BUBBLE_*）：
+## 字号梯度进 apply，尺寸上限下发各气泡（_layout 布局用）
+func set_metrics(p_font_min: int, p_font_max: int, p_font_pass: int, p_max_size: Vector2) -> void:
+	font_min = p_font_min
+	font_max = p_font_max
+	font_pass = p_font_pass
+	max_size = p_max_size
+	for seat in _bubbles:
+		_bubbles[seat].max_size = p_max_size
+
+
 ## 全量幂等应用（控制器 _refresh_seats 每次刷新按引擎竞叫状态调用）：
 ## bids 为按座位下标的 [{ value, passed }]；highest 为当前最高叫分。
 ## 只有当前最高叫分的气泡在展示（低分已被更高分取代即消失——气泡停留
@@ -61,10 +76,10 @@ func apply(bids: Array, highest: int) -> void:
 			continue
 		var b: Dictionary = bids[seat]
 		if bool(b.get("passed", false)):
-			_bubbles[seat].show_text("不要", FONT_PASS)
+			_bubbles[seat].show_text("不要", font_pass)
 		elif int(b.get("value", 0)) > 0 and int(b.value) >= highest:
-			var fs: int = FONT_MIN + int(round(float(int(b.value) - 130) / float(200 - 130) * float(FONT_MAX - FONT_MIN)))
-			_bubbles[seat].show_text(str(int(b.value)), clampi(fs, FONT_MIN, FONT_MAX))
+			var fs: int = font_min + int(round(float(int(b.value) - 130) / float(200 - 130) * float(font_max - font_min)))
+			_bubbles[seat].show_text(str(int(b.value)), clampi(fs, font_min, font_max))
 		else:
 			_bubbles[seat].show_text("", 0)
 
@@ -80,6 +95,7 @@ class Bubble:
 
 	var seat := -1
 	var anchors: Dictionary = BidBubbles.ANCHORS  ## 尾巴尖角锚点表（分支可覆写）
+	var max_size: Vector2 = BidBubbles.MAX_SIZE   ## 尺寸上限（分支可覆写，set_metrics 下发）
 	var _label: Label
 	var _style: StyleBoxFlat
 	var _tail_dir := 0
@@ -115,7 +131,7 @@ class Bubble:
 		var font: Font = _label.get_theme_font("font")
 		var fs: int = _label.get_theme_font_size("font_size")
 		var text_size: Vector2 = font.get_string_size(_label.text, HORIZONTAL_ALIGNMENT_CENTER, -1, fs)
-		var sz := (text_size + Vector2(PAD * 2, PAD * 2)).min(BidBubbles.MAX_SIZE)
+		var sz := (text_size + Vector2(PAD * 2, PAD * 2)).min(max_size)
 		size = sz
 		_label.size = sz
 		var anchor: Vector2 = anchors[seat] * get_parent().size

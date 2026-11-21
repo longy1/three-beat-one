@@ -59,7 +59,8 @@ func play(root: Control, hand_area: HandArea, my_hand: Array,
 	for i in 3:
 		var back := CardWidget.create(null, false, true)
 		back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		back.position = deck_center - CardWidget.SIZE_NORMAL / 2.0 + Vector2(i * 2.0, -i * 2.0)
+		# 按实际牌尺寸（SIZE_SMALL）居中：旧版按 SIZE_NORMAL/2 定位偏右下 10×12px
+		back.position = deck_center - back.size / 2.0 + Vector2(i * 2.0, -i * 2.0)
 		_deck_stack.add_child(back)
 	# 我方汇聚槽（提前算好：发牌顺序紧凑行，居中于手牌区）与预建正面牌（隐藏待落位）。
 	# 卡尺寸/步距随 HandArea（手机分支 96×134、步距 40·12）；行基线 y 与真实手牌行
