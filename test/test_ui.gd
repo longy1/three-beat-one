@@ -873,8 +873,8 @@ func test_mobile_layout_mode(test) -> void:
 	test.eq(table._mobile_bar._slot.size, CardWidget.SIZE_BAR, "主牌槽为 BAR 档 36×50")
 	test.check(table._mobile_bar.trump_slot_center() != Vector2.ZERO, "顶栏主牌槽可测量（揭主落点）")
 	test.eq(float(table._mobile_bar.size.x), 1280.0, "顶栏全宽（右锚子件定位正确，「更多」按钮可见）")
-	test.eq(float((table._mobile_bar._more as Button).offset_right), -64.0,
-		"「更多」按钮避让壳层 ⛶ 全屏按钮（hitbox 右缘 10px/宽 46）")
+	test.eq(float((table._mobile_bar._more as Button).offset_right), -96.0,
+		"「更多」按钮避让壳层 ⛶ 全屏按钮（右缘 -96，间隙 40px）")
 	# 手机模式发牌/渲染链路照常：动画完成 → 19 张真实牌面、无渲染挂起
 	var deadline := Time.get_ticks_msec() + 8000
 	while table._deal_active and Time.get_ticks_msec() < deadline:
@@ -1000,6 +1000,7 @@ func test_mobile_more_panel(test) -> void:
 	await tree.process_frame
 	panel = table._more_panel
 	test.check(panel != null, "再次打开")
+	test.eq(panel._stats_grid.columns, 3, "点数统计三列排布（面板紧凑）")
 	panel._close_btn.pressed.emit()
 	await tree.process_frame
 	test.check(table._more_panel == null, "✕ 按钮关闭")

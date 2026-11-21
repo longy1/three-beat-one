@@ -1,5 +1,5 @@
 class_name MobileMorePanel
-extends Control
+extends PanelContainer
 ## 手机版「更多」面板（☰ 打开）：局数、四家累计、手牌统计、设置/主菜单入口。
 ## 居中弹层（全屏遮罩 + 面板，ScoresDialog/SettingsDialog 口径；点窗外/✕ 关闭）。
 ## 仅移动分支使用；状态驱动——打开期间由控制器 _refresh 喂（update_stats/set_state）。
@@ -103,7 +103,7 @@ func _build(on_settings: Callable, on_menu: Callable) -> void:
 	_stats_main.add_theme_color_override("font_color", Color(0.91, 0.94, 0.92))
 	box.add_child(_stats_main)
 	_stats_grid = GridContainer.new()
-	_stats_grid.columns = 1
+	_stats_grid.columns = 3
 	box.add_child(_stats_grid)
 
 	var line2 := ColorRect.new()

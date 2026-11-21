@@ -88,9 +88,9 @@ func _ready() -> void:
 	_more.anchor_left = 1.0
 	_more.anchor_right = 1.0
 	# 右端避让 Web 壳层 ⛶ 全屏按钮（DOM：top 10 / right 10 / 46×38，hitbox
-	# x∈[1224,1270]——按钮右缘收到 -64 留出 8px 空隙，防遮挡影响点击）
-	_more.offset_left = -116.0
-	_more.offset_right = -64.0
+	# x∈[1224,1270]——按钮右缘收到 -96 留 40px 空隙，宽屏/黑边下也不显拥挤）
+	_more.offset_left = -148.0
+	_more.offset_right = -96.0
 	_more.offset_top = 8.0
 	_more.offset_bottom = 48.0
 	_more.add_theme_font_size_override("font_size", 14)
