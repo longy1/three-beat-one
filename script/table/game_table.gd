@@ -52,6 +52,8 @@ var _last_trump_shown = null             ## 上次送入信息栏的主牌（Tru
 var _ai_timer: Timer
 var _trick_timer: Timer
 var _ai_delay_scale := 1.0  ## AI 延迟缩放（UI 测试调小以加速；_run_ai 按比例设置 wait_time）
+var _mobile_ui := false               ## 手机版布局生效中（移动端设备特性或设置强制）
+var _sidebar_toggle: Button = null    ## 手机版右上角信息栏切换按钮（桌面版隐藏）
 
 @onready var game_info: Label = $TopBar/GameInfoLabel
 @onready var bid_center_label: Label = $BidCenterLabel
@@ -128,6 +130,7 @@ func _ready() -> void:
 		var panel: SeatPanel = seat_panels[seat]
 		panel.setup(seat)  # 注入座位号（印章定位/测试断言用）
 	_bid_bubbles.setup(self)
+	_apply_layout_mode()
 
 	if _online:
 		_setup_online()
@@ -147,7 +150,42 @@ func _ready() -> void:
 ## ============================= 设置（主菜单/牌桌共用弹层） =============================
 
 func _on_settings() -> void:
-	SettingsDialog.create(get_tree().root, func(): _render_hand())
+	SettingsDialog.create(get_tree().root, func():
+		_apply_layout_mode()
+		_render_hand())
+
+
+## ============================= 手机版 UI（仅移动端生效） =============================
+
+## 手机版布局：手牌区加宽至约 90% 屏宽（BottomArea 右缘 -220 → -128，不再让位
+## 信息栏）；右侧信息栏默认收起，右上角「信息」按钮展开/收起（浮层，腾出操作
+## 空间）。判定 = 移动端设备特性自动启用，或设置项强制开启（PC 调试入口，
+## AppSettings.effective_mobile_ui）；桌面版布局完全不变。
+func _apply_layout_mode() -> void:
+	_mobile_ui = AppSettings.effective_mobile_ui()
+	var bottom: Control = $BottomArea
+	bottom.offset_right = -128.0 if _mobile_ui else -220.0
+	sidebar.visible = not _mobile_ui
+	if _sidebar_toggle == null:
+		_sidebar_toggle = Button.new()
+		_sidebar_toggle.text = "信息"
+		_sidebar_toggle.anchor_left = 1.0
+		_sidebar_toggle.anchor_right = 1.0
+		_sidebar_toggle.offset_left = -94.0
+		_sidebar_toggle.offset_right = -12.0
+		_sidebar_toggle.offset_top = 8.0
+		_sidebar_toggle.offset_bottom = 48.0
+		UiStyle.pad_button(_sidebar_toggle)
+		_sidebar_toggle.pressed.connect(_toggle_sidebar)
+		add_child(_sidebar_toggle)  # 树序后置：绘制在信息栏浮层之上
+	_sidebar_toggle.visible = _mobile_ui
+	_sidebar_toggle.text = "收起" if sidebar.visible else "信息"
+
+
+## 右上角按钮：翻转信息栏显隐（手机版默认收起，点按展开为浮层）
+func _toggle_sidebar() -> void:
+	sidebar.visible = not sidebar.visible
+	_sidebar_toggle.text = "收起" if sidebar.visible else "信息"
 
 
 ## 双击牌桌空白（背景层）：清空手牌选择（把选中的牌全部放回）

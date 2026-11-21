@@ -1,15 +1,17 @@
 class_name SettingsDialog
 extends PanelContainer
-## 游戏设置弹层：手牌区主牌框位置（左/右）与牌点数排序方向（从大到小/从小到大）。
-## 两项均为循环切换按钮（点按翻转并即时保存生效，AppSettings 单一事实源）；
-## on_changed 在每次变更时回调（牌桌据此重渲手牌）。程序化构建（与 ScoresDialog
-## 同口径：遮罩 + 居中锚点 UiStyle.center_anchor + 面板 z_index 60 + content_margin 15）。
-## 【完成】关闭。主菜单设置入口与牌桌右下信息栏设置入口共用本弹层。
+## 游戏设置弹层：手牌区主牌框位置（左/右）、牌点数排序方向（从大到小/从小到大）、
+## 手机版 UI（调试，关/开）。各项均为循环切换按钮（点按翻转并即时保存生效，
+## AppSettings 单一事实源）；on_changed 在每次变更时回调（牌桌据此重应用布局与
+## 重渲手牌）。程序化构建（与 ScoresDialog 同口径：遮罩 + 居中锚点
+## UiStyle.center_anchor + 面板 z_index 60 + content_margin 15）。【完成】关闭。
+## 主菜单设置入口与牌桌右下信息栏设置入口共用本弹层。
 
 
 var _changed: Callable
 var _main_button: Button
 var _order_button: Button
+var _mobile_button: Button
 
 
 static func create(parent: Node, on_changed: Callable) -> SettingsDialog:
@@ -71,6 +73,11 @@ func _build(on_close: Callable) -> void:
 		AppSettings.sort_order = AppSettings.SortOrder.SMALL_FIRST \
 			if AppSettings.sort_order == AppSettings.SortOrder.BIG_FIRST else AppSettings.SortOrder.BIG_FIRST
 		_apply_change(_order_button, _order_text()))
+	# 手机版 UI（调试）：关 ⇄ 开（移动端设备自动生效；PC 经此调试入口强制开启验证）
+	_mobile_button = _row_button(box, "手机版 UI", _mobile_text())
+	_mobile_button.pressed.connect(func():
+		AppSettings.mobile_ui = not AppSettings.mobile_ui
+		_apply_change(_mobile_button, _mobile_text()))
 
 	var done := Button.new()
 	done.text = "完成"
@@ -106,3 +113,7 @@ func _main_text() -> String:
 
 func _order_text() -> String:
 	return "从大到小" if AppSettings.sort_order == AppSettings.SortOrder.BIG_FIRST else "从小到大"
+
+
+func _mobile_text() -> String:
+	return "开" if AppSettings.mobile_ui else "关"

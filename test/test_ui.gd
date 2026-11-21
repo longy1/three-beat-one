@@ -767,15 +767,17 @@ func test_settings_dialog_toggles(test) -> void:
 	AppSettings.cfg_path = "user://test_settings_dialog.cfg"
 	var prev_side: int = AppSettings.main_side
 	var prev_order: int = AppSettings.sort_order
+	var prev_mobile: bool = AppSettings.mobile_ui
 	var changed := {"n": 0}
 	var dialog := SettingsDialog.create(tree.root, func(): changed.n += 1)
 	var buttons: Array = []
 	for c in dialog.get_children()[0].get_children():
 		if c is Button:
 			buttons.append(c)
-	test.eq(buttons.size(), 2, "两个循环切换按钮（完成按钮在中央容器内）")
+	test.eq(buttons.size(), 3, "三个循环切换按钮（完成按钮在中央容器内）")
 	var main_btn: Button = buttons[0]
 	var order_btn: Button = buttons[1]
+	var mobile_btn: Button = buttons[2]
 	var side_before: int = AppSettings.main_side
 	main_btn.pressed.emit()
 	test.check(int(AppSettings.main_side) != side_before, "切换主牌框位置")
@@ -784,8 +786,45 @@ func test_settings_dialog_toggles(test) -> void:
 	order_btn.pressed.emit()
 	test.check(int(AppSettings.sort_order) != order_before, "切换排序方向")
 	test.eq(int(changed.n), 2, "变更回调再次触发")
+	var mobile_before: bool = AppSettings.mobile_ui
+	mobile_btn.pressed.emit()
+	test.check(AppSettings.mobile_ui != mobile_before, "切换手机版 UI 调试开关")
+	test.eq(int(changed.n), 3, "变更回调第三次触发")
 	AppSettings.main_side = prev_side
 	AppSettings.sort_order = prev_order
+	AppSettings.mobile_ui = prev_mobile
 	AppSettings.cfg_path = prev_path
 	dialog.queue_free()
 	await tree.process_frame
+
+
+## 手机版 UI（仅移动端生效 + PC 调试入口）：手牌区加宽至约 90% 屏宽、
+## 信息栏默认收起（右上角「信息」按钮展开/收起浮层）；桌面版布局不变
+func test_mobile_layout_mode(test) -> void:
+	var tree: SceneTree = Engine.get_main_loop()
+	AppSettings.mobile_ui = true  # 强制开启（headless 桌面环境无移动端特性）
+	var table = load("res://scene/table/game_table.tscn").instantiate()
+	tree.root.add_child(table)
+	await tree.process_frame
+	await tree.process_frame
+	var bottom: Control = table.get_node("BottomArea")
+	test.eq(float(bottom.offset_right), -128.0, "手机版手牌区加宽（右缘 -128 ≈ 90% 屏宽）")
+	test.check(not table.sidebar.visible, "信息栏默认收起")
+	test.check(table._sidebar_toggle.visible, "右上角「信息」切换按钮可见")
+	table._sidebar_toggle.pressed.emit()
+	test.check(table.sidebar.visible, "点按钮展开信息栏浮层")
+	test.eq(str(table._sidebar_toggle.text), "收起", "展开后按钮文案为「收起」")
+	table._sidebar_toggle.pressed.emit()
+	test.check(not table.sidebar.visible, "再点收起")
+	test.eq(str(table._sidebar_toggle.text), "信息", "收起后按钮文案为「信息」")
+	table.queue_free()
+	await tree.process_frame
+	AppSettings.mobile_ui = false  # 还原（桌面版布局口径）
+	var table2 = load("res://scene/table/game_table.tscn").instantiate()
+	tree.root.add_child(table2)
+	await tree.process_frame
+	await tree.process_frame
+	test.eq(float(table2.get_node("BottomArea").offset_right), -220.0, "桌面版保持让位信息栏")
+	test.check(table2.sidebar.visible, "桌面版信息栏常显")
+	test.check(not table2._sidebar_toggle.visible, "桌面版隐藏切换按钮")
+	await _release_table(table2)
