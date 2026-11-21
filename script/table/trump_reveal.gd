@@ -11,6 +11,7 @@ var fly_duration := CrownAnimator.FLY_DURATION  ## 飞行时长（UI 测试调�
 var active := false                             ## 揭主动画进行中（期间信息栏不显示主牌）
 
 var _card_widget: CardWidget = null
+var _tween: Tween = null
 
 
 ## 揭主期间标记（控制器据此跳过信息栏主牌的即时刷新）
@@ -18,8 +19,12 @@ func begin() -> void:
 	active = true
 
 
-## 清理飞行牌面并结束标记
+## 清理飞行牌面并结束标记（同时杀掉飞行 tween：飞行被打断时落位回调不再
+## 触发，信息栏主牌由控制器守卫自愈重渲——本方法复位 active 即恢复守卫放行）
 func clear() -> void:
+	if _tween != null and _tween.is_valid():
+		_tween.kill()
+	_tween = null
 	if _card_widget != null:
 		_card_widget.queue_free()
 		_card_widget = null
@@ -38,6 +43,7 @@ func play(root: Control, trump_card: Card, target: Vector2, on_done: Callable) -
 	_card_widget.z_index = 60
 	root.add_child(_card_widget)
 	var tw := root.create_tween()
+	_tween = tw
 	tw.set_parallel(true)
 	# TRANS_CUBIC + EASE_OUT：起步快、逐渐减速（与皇冠动画一致）
 	tw.tween_property(_card_widget, "position", target - CardWidget.SIZE_NORMAL / 2.0, fly_duration) \

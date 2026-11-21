@@ -32,8 +32,8 @@ func set_trump(card: Card) -> void:
 	for child in slot.get_children():
 		child.queue_free()
 	if card == null:
-		# 未叫主：无字牌背微透明 + 问号（问号颜色与牌背哈字一致）
-		var back := CardWidget.create(null, false, true, "")
+		# 未叫主：牌背微透明 + 问号（问号颜色与牌背纹样色一致）
+		var back := CardWidget.create(null, false, true)
 		back.modulate = Color(1, 1, 1, 0.45)
 		slot.add_child(back)
 		var q := Label.new()

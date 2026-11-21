@@ -287,11 +287,16 @@ func _on_trump_required(seat: int) -> void:
 
 
 func _on_discard_required(seat: int) -> void:
-	# 揭主双飞：叫主完成的此刻皇冠已飞向庄家，主 R 牌从中央飞向
-	# 信息栏主牌展示位；信息栏在牌面落位后才显示主牌（_last_trump_shown 先行
-	# 标记，_refresh 跳过即时刷新，落位回调里 set_trump）
+	# 揭主双飞：叫主完成的此刻皇冠已飞向庄家，主 R 牌从中央飞向信息栏主牌展示位。
+	# 主牌标识 = 守卫自愈渲染：飞行中（_trump_reveal.active）_refresh_top_bar 跳过，
+	# 落位回调里 set_trump 并记 _last_trump_shown；若飞行被 clear() 打断（新局/新拍卖
+	# 的防御性清理，回调不再触发），active 已复位 → 下次 _refresh 由守卫重渲——
+	# 根治旧版「落位回调丢失 + _last_trump_shown 引用比较永久跳过」的标识消失
 	var trump_card := Card.new(engine.trump.suit, engine.trump.rank)
-	_last_trump_shown = engine.trump
+	_trump_reveal.play(self, trump_card, sidebar.trump_slot_center(), func():
+		_last_trump_shown = engine.trump
+		sidebar.set_trump(trump_card)
+		_trump_reveal.clear())
 	_refresh()
 	if seat == HUMAN_SEAT:
 		hand_area.begin_select("discard")
@@ -304,11 +309,8 @@ func _on_discard_required(seat: int) -> void:
 		action_bar.reset()
 		hint_label.text = "等待 %s 扣底…" % seat_names[seat]
 		if _online:
-			return  # 联机：远端动作由服务器回放驱动
+			return  # 联机：远端动作由服务器回放驱动（AI/托管代打均在服务端）
 		_run_ai(func(): engine.submit_discard(seat, AiPolicy.choose_discard(engine.hands[seat], engine.trump)), AI_DISCARD_DELAY)
-	_trump_reveal.play(self, trump_card, sidebar.trump_slot_center(), func():
-		sidebar.set_trump(trump_card)
-		_trump_reveal.clear())
 
 
 func _on_play_required(seat: int) -> void:
@@ -604,8 +606,9 @@ func _refresh_top_bar() -> void:
 	game_info.text = info
 	if engine.phase != GameEngine.Phase.AUCTION:
 		bid_center_label.text = ""
-	# 主牌提示：一张「正 R」牌面放入信息栏（仅叫主变化时重建）
-	if engine.trump != _last_trump_shown:
+	# 主牌提示：一张「正 R」牌面放入信息栏（仅叫主变化时重建；揭主飞行期间跳过
+	# ——落位回调渲染；飞行被打断时 active 复位，此处守卫自愈重渲）
+	if engine.trump != _last_trump_shown and not _trump_reveal.active:
 		_last_trump_shown = engine.trump
 		if engine.trump != null:
 			sidebar.set_trump(Card.new(engine.trump.suit, engine.trump.rank))

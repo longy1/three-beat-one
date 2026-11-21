@@ -33,14 +33,18 @@ func test_card_widget_face(test) -> void:
 	test.check(joker_red, "大王着红色")
 
 
-## CardWidget：牌背与空牌安全渲染
+## CardWidget：牌背（程序化花背纹样，无文字标记）与空牌安全渲染
 func test_card_widget_back(test) -> void:
 	var w := CardWidget.create(Card.new(Card.Suit.SPADE, Card.RANK_A), false)
-	var texts: Array[String] = []
+	var has_pattern := false
+	var has_text := false
 	for c in w.get_children():
-		if c is Label:
-			texts.append(c.text)
-	test.check("哈" in texts, "牌背显示哈字")
+		if c is CardWidget.CardBackPattern:
+			has_pattern = true
+		if c is Label and c.text != "":
+			has_text = true
+	test.check(has_pattern, "牌背为程序化纹样（CardBackPattern）")
+	test.check(not has_text, "牌背无文字标记（旧版「哈」字已移除）")
 	var hidden := CardWidget.create(null, false)  # card=null 也走背面
 	var hidden_ok := hidden.get_child_count() > 0
 	test.check(hidden_ok, "null 牌安全渲染背面")

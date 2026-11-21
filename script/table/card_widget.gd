@@ -37,14 +37,12 @@ const JOKER_JESTER_POS := [Vector2(24, 33), Vector2(18, 27), Vector2(22, 32)]
 var card: Card = null
 var face_up := true
 var selected := false
-var back_mark := "哈"  ## 背面中央标记字；置空则背面无字（如信息栏未叫主态，仅问号）
 
 
-static func create(p_card: Card, p_face_up: bool, small := false, p_back_mark := "哈") -> CardWidget:
+static func create(p_card: Card, p_face_up: bool, small := false) -> CardWidget:
 	var w := CardWidget.new()
 	w.card = p_card
 	w.face_up = p_face_up
-	w.back_mark = p_back_mark
 	var sz := SIZE_SMALL if small else SIZE_NORMAL
 	w.custom_minimum_size = sz
 	w.size = sz
@@ -53,11 +51,10 @@ static func create(p_card: Card, p_face_up: bool, small := false, p_back_mark :=
 
 
 ## 指定尺寸创建（出牌区按张数自适应：拖拉机等 4 张用中号，避免遮挡姓名版）
-static func create_sized(p_card: Card, p_face_up: bool, p_size: Vector2, p_back_mark := "哈") -> CardWidget:
+static func create_sized(p_card: Card, p_face_up: bool, p_size: Vector2) -> CardWidget:
 	var w := CardWidget.new()
 	w.card = p_card
 	w.face_up = p_face_up
-	w.back_mark = p_back_mark
 	w.custom_minimum_size = p_size
 	w.size = p_size
 	w._refresh()
@@ -87,16 +84,10 @@ func _refresh() -> void:
 
 	if not face_up or card == null:
 		style.bg_color = BACK_COLOR
-		if back_mark != "":
-			var back := Label.new()
-			back.text = back_mark
-			back.set_anchors_preset(Control.PRESET_FULL_RECT)
-			back.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			back.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-			back.add_theme_font_size_override("font_size", [36, 28, 32][2 if medium else (1 if small else 0)])
-			back.modulate = Color(0.72, 0.8, 0.95)
-			back.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			add_child(back)
+		var pattern := CardBackPattern.new()
+		pattern.set_anchors_preset(Control.PRESET_FULL_RECT)
+		pattern.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(pattern)
 		return
 
 	var is_red: bool = card.suit == Card.Suit.HEART or card.suit == Card.Suit.DIAMOND \
@@ -242,3 +233,82 @@ class PixelJester:
 				return Color(0.15, 0.15, 0.2)  # 眼（深）
 			_:
 				return Color(0.36, 0.52, 0.78)  # 身（蓝）
+
+
+## 牌背纹样（经典扑克花背的程序化重绘，无图片素材 [码4]）：深蓝底上浅色内缩
+## 圆角内框 + 内区 45° 双向斜线菱形格纹 + 中央菱形徽章。全部按控件实际尺寸
+## 自绘，三档卡牌尺寸通吃（与 PixelJester 同手法）。
+class CardBackPattern:
+	extends Control
+
+	const FRAME_COLOR := Color(0.72, 0.8, 0.95, 0.8)   ## 内框与徽章描边（浅蓝）
+	const LATTICE_COLOR := Color(0.72, 0.8, 0.95, 0.3) ## 格纹斜线（更淡）
+	const MEDAL_FILL := Color(0.1, 0.17, 0.34)         ## 徽章底（比牌背更深）
+
+	func _draw() -> void:
+		var inset := 5.0
+		var inner := Rect2(Vector2(inset, inset), size - Vector2(inset * 2.0, inset * 2.0))
+		if inner.size.x < 8.0 or inner.size.y < 8.0:
+			return
+		# 浅色内缩圆角内框（只描边）
+		var frame := StyleBoxFlat.new()
+		frame.bg_color = Color(0, 0, 0, 0)
+		frame.set_border_width_all(1.5)
+		frame.border_color = FRAME_COLOR
+		frame.set_corner_radius_all(4)
+		draw_style_box(frame, inner)
+		# 内区 45° 双向斜线（与矩形边界求交裁剪，不出格）：
+		# y = x + c 的有效截距 c ∈ [t−r, b−l]；y = −x + c 的有效截距 c ∈ [t+l, b+r]
+		var step := 7.0
+		var c := inner.position.y - inner.end.x
+		var c_end := inner.end.y - inner.position.x
+		while c <= c_end:
+			var seg := _diag_points(inner, c, false)
+			if seg.size() == 2:
+				draw_line(seg[0], seg[1], LATTICE_COLOR, 1.0)
+			c += step
+		c = inner.position.x + inner.position.y
+		c_end = inner.end.x + inner.end.y
+		while c <= c_end:
+			var seg := _diag_points(inner, c, true)
+			if seg.size() == 2:
+				draw_line(seg[0], seg[1], LATTICE_COLOR, 1.0)
+			c += step
+		# 中央菱形徽章
+		var center := inner.get_center()
+		var r := minf(inner.size.x, inner.size.y) * 0.16
+		var pts := PackedVector2Array([
+			center + Vector2(0, -r), center + Vector2(r, 0),
+			center + Vector2(0, r), center + Vector2(-r, 0),
+		])
+		draw_colored_polygon(pts, MEDAL_FILL)
+		draw_polyline(pts + PackedVector2Array([pts[0]]), FRAME_COLOR, 1.5)
+
+	## 直线 y = x + c（down=false）或 y = -x + c（down=true）与 rect 的交点
+	## （0 或 2 个，角点相交时去重）
+	func _diag_points(rect: Rect2, c: float, down: bool) -> Array:
+		var pts: Array = []
+		var l := rect.position.x
+		var t := rect.position.y
+		var r := rect.end.x
+		var b := rect.end.y
+		if down:
+			if t <= c - l and c - l <= b: pts.append(Vector2(l, c - l))
+			if t <= c - r and c - r <= b: pts.append(Vector2(r, c - r))
+			if l <= c - t and c - t <= r: pts.append(Vector2(c - t, t))
+			if l <= c - b and c - b <= r: pts.append(Vector2(c - b, b))
+		else:
+			if t <= l + c and l + c <= b: pts.append(Vector2(l, l + c))
+			if t <= r + c and r + c <= b: pts.append(Vector2(r, r + c))
+			if l <= t - c and t - c <= r: pts.append(Vector2(t - c, t))
+			if l <= b - c and b - c <= r: pts.append(Vector2(b - c, b))
+		var uniq: Array = []
+		for p in pts:
+			var dup := false
+			for q in uniq:
+				if q.distance_squared_to(p) < 0.01:
+					dup = true
+					break
+			if not dup:
+				uniq.append(p)
+		return uniq
