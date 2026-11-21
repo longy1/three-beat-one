@@ -8,7 +8,8 @@ extends Control
 ## 刷新纪律：_refresh() 是唯一刷新入口，仅由引擎信号处理器调用；
 ## 按钮界面只由 *_required 处理器重建（ActionBar.reset 幂等清理）。
 ## 发牌动画：开局播放（单机开局/下一局、联机 game_start；快照恢复不播），期间
-## _render_hand 挂起，动画结束回调统一放行（DealAnimator 持有过渡牌面）。
+## _render_hand 挂起、拍卖表态挂起（AI 叫分与人类按钮等排序完成放行，见
+## _on_deal_done 补跑），动画结束回调统一放行（DealAnimator 持有过渡牌面）。
 
 
 const HUMAN_SEAT := 0
@@ -170,6 +171,10 @@ func _start_deal_animation() -> void:
 func _on_deal_done() -> void:
 	_deal_active = false
 	_render_hand()
+	# 发牌期间被挂起的拍卖在此放行：以引擎状态为准补跑（期间 AI 未表态或联机
+	# 远端回放已到，都按当前轮转处理；拍卖已结束则后续阶段处理器早已接管）
+	if engine.phase == GameEngine.Phase.AUCTION:
+		_on_auction_required(engine.auction.turn)
 
 
 func _on_menu() -> void:
@@ -249,6 +254,7 @@ func _on_net_game_started(data: Dictionary) -> void:
 		engine.restore(data)
 		_toast("已重连，对局状态已恢复")
 	else:
+		_deal_active = true  # 先于引擎信号置位：game_start 的首个 auction_required 挂起至动画结束
 		engine.load_game(data)
 		_start_deal_animation()
 
@@ -261,6 +267,9 @@ func _on_auction_required(seat: int) -> void:
 	_crown_anim.clear()  # 新局拍卖开始：清除上一局的庄家皇冠
 	_trump_reveal.clear()  # 及揭主牌面（正常对局不会残留，防御性清理）
 	_refresh()
+	if _deal_active:
+		return  # 发牌/排序动画未完：AI 不表态、人类不出拍卖条（气泡等状态驱动
+		# 刷新照常）；动画结束 _on_deal_done 按引擎当前轮转补跑本处理器
 	if seat == HUMAN_SEAT:
 		_show_auction_bar()
 	else:
@@ -743,6 +752,7 @@ func _on_next_game() -> void:
 	_trick_display_cleared = false
 	_clear_trick_area()
 	_deal_animator.clear()
+	_deal_active = true  # 先于引擎信号置位：新局首个 auction_required 挂起至动画结束
 	engine.start_next_game()
 	_start_deal_animation()
 
