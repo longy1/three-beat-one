@@ -43,6 +43,7 @@ var _trump_reveal := TrumpReveal.new()  ## 竞叫结束揭主动画（皇冠+主
 var _bid_bubbles := BidBubbles.new()    ## 叫分对话气泡（_refresh_seats 状态驱动）
 var _deal_animator := DealAnimator.new()  ## 发牌动画（开局/下一局；快照恢复不播）
 var _deal_active := false               ## 发牌动画进行中（_render_hand 挂起）
+var _deal_shown_count := 0              ## 发牌逐拍已发张数（动画期间座位面板显示值，on_tick 驱动）
 var _discard_button: Button = null       ## 扣底确认按钮（计数文案更新用）
 var _pending_trump_suit := -1
 var _last_trick_winner := -1
@@ -199,13 +200,21 @@ func _on_background_input(event: InputEvent) -> void:
 
 ## 开局发牌动画：先做一次真实渲染（展开目标位的测量来源）并隐藏真实牌面与
 ## 虚线框（牌未分区排序前框位与牌不对齐），动画结束回调里重渲放行（虚线框
-## 随排序完成一起展现）。播放期间 _render_hand 全部挂起。
+## 随排序完成一起展现）。播放期间 _render_hand 全部挂起；逐拍回调驱动各家
+## 座位面板张数随发牌增长。
 func _start_deal_animation() -> void:
 	_deal_active = true
 	hand_area.render(engine.get_hand(HUMAN_SEAT), engine.trump)
 	hand_area.set_frames_visible(false)
 	hand_area.set_widgets_visible(false)
-	_deal_animator.play(self, hand_area, seat_panels, engine.get_hand(HUMAN_SEAT), _on_deal_done)
+	_deal_animator.play(self, hand_area, engine.get_hand(HUMAN_SEAT), _on_deal_done, _on_deal_tick)
+
+
+## 发牌逐拍回调：记录已发张数并刷新座位面板（各家张数随发牌一张一张增加）
+func _on_deal_tick(count: int) -> void:
+	_deal_shown_count = count
+	if _deal_active:
+		_refresh_seats()
 
 
 func _on_deal_done() -> void:
@@ -679,7 +688,12 @@ func _refresh_seats() -> void:
 		var status := ""
 		if engine.phase == GameEngine.Phase.TRICKS and _last_trick_winner == seat:
 			status = "✓ 上轮赢"
-		panel.set_info(seat_names[seat], "%d 张" % engine.hand_count(seat), status)
+		# 发牌动画期间：面板张数随逐拍计数增长（DealAnimator on_tick 驱动），
+		# 动画结束后回归引擎权威值（用户需求：各家张数随发牌一张一张增加）
+		var shown_count: int = engine.hand_count(seat)
+		if _deal_active:
+			shown_count = mini(_deal_shown_count, shown_count)
+		panel.set_info(seat_names[seat], "%d 张" % shown_count, status)
 		var is_turn: bool = (engine.phase == GameEngine.Phase.AUCTION and engine.auction.turn == seat) \
 			or (engine.phase == GameEngine.Phase.TRICKS and engine.turn_seat == seat)
 		panel.set_highlight(is_turn)

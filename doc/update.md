@@ -45,6 +45,12 @@
     此前在发牌动画期间即出现（`_refresh_seats` 状态驱动 apply 未被门控）——气泡 apply 加
     `not _deal_active` 条件，排序完成后随拍卖呈现一起出现；用例改断言「动画期挂起 →
     排序完成后 130 出现」，并以放大 `_ai_delay_scale` 挂起 UI AI 避免补跑竞速
+  - **移除发牌飞牌动画、面板张数逐拍增长**（`script/table/deal_animator.gd`、
+    `script/table/game_table.gd`、`test/test_ui.gd`；用户需求：只保留手牌一张一张变多）：
+    删除中央到座位面板的背面飞牌（`_fliers` 池/`FLIGHT`/`_seat_target` 整体移除，
+    中央牌叠保留作发牌来源示意），逐拍循环改为手牌在汇聚槽直接现身 + `on_tick(已发张数)`
+    回调——控制器 `_deal_shown_count`/`_refresh_seats` 使各家座位面板张数从 0 张
+    逐拍增长到 19 张（动画结束回归引擎权威值）；新增 `test_deal_animation_counts_tick`
 
 ## 2026-11-20
 

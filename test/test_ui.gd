@@ -634,6 +634,29 @@ func test_deal_animation_hides_frames(test) -> void:
 	await _release_table(table)
 
 
+## 发牌逐拍（无飞行牌）：各家座位面板张数随发牌一张一张增加（轮询观察到计数
+## 上升），动画结束回归引擎权威 19 张
+func test_deal_animation_counts_tick(test) -> void:
+	var table = await _spawn_table()
+	test.check(table._deal_active, "动画进行中")
+	var count_of := func(seat: int) -> String:
+		return str((table.seat_panels[seat].get_node("VBox/CountLabel") as Label).text)
+	var tree: SceneTree = Engine.get_main_loop()
+	var first := -1
+	var saw_rise := false
+	var deadline := Time.get_ticks_msec() + 8000
+	while table._deal_active and Time.get_ticks_msec() < deadline:
+		var v := int(count_of.call(3).trim_suffix(" 张"))
+		if first < 0:
+			first = v
+		elif v > first:
+			saw_rise = true
+		await tree.process_frame
+	test.check(saw_rise, "发牌过程中张数逐拍增长（观察到计数上升）")
+	test.eq(count_of.call(3), "19 张", "发牌完成回归引擎权威 19 张")
+	await _release_table(table)
+
+
 ## 叫分对话气泡：叫分/放弃以气泡呈现（带尾巴指向座位），姓名版状态行腾空；
 ## 更高分出现清除低分气泡；拍卖结束全清
 func test_bid_bubbles_replace_seat_status(test) -> void:

@@ -1,18 +1,17 @@
 class_name DealAnimator
 extends RefCounted
 ## 发牌动画（表现层，不阻塞对局逻辑）：开局牌桌中央出现背面牌叠，逐拍一张一张
-## 发牌——每拍约 0.2 秒，3 张背面飞向闲家座位面板、1 张背面飞进自己手牌的汇聚槽，
-## 落位即翻正面现身（手里实时多一张，按发牌顺序排成紧凑行）；全部到齐后从两边
-## 往中间收拢到一张，最后展开到真实牌序布局——展开前把牌按目标位 x 升序重排
-## 容器子节点（途中牌与牌的遮盖关系与排序后一致），每张以【相同时长】平移至
-## 应处位置（目标位取自 HandArea 已渲染的真实卡牌位——控制器先做一次测量渲染
-## 并隐藏，动画结束回调里重渲放行；不复制布局数学，单一事实源仍是
-## HandArea._do_render [码4]）。
+## 发牌——每拍约 0.2 秒，自己手牌多一张（在汇聚槽翻正面现身，按发牌顺序排成
+## 紧凑行），各家座位面板的牌数计数经 on_tick 回调同步逐拍增加（无飞行牌）；
+## 全部到齐后从两边往中间收拢到一张，最后展开到真实牌序布局——展开前把牌按
+## 目标位 x 升序重排容器子节点（途中牌与牌的遮盖关系与排序后一致），每张以
+## 【相同时长】平移至应处位置（目标位取自 HandArea 已渲染的真实卡牌位——
+## 控制器先做一次测量渲染并隐藏，动画结束回调里重渲放行；不复制布局数学，
+## 单一事实源仍是 HandArea._do_render [码4]）。
 ## speed 为时长缩放（UI 测试调大以加速）；场景退出/清理时安全早退（[构3.3]）。
 
 
 const TICK := 0.2          ## 发牌节拍：每张约 0.2 秒一张
-const FLIGHT := 0.18       ## 单张飞行时长（小于节拍，落位不与下一拍重叠）
 const LAND_FADE := 0.08    ## 落位翻正面现身的淡入时长
 const CLUMP_DELAY := 0.25  ## 到齐后收拢前的停顿
 const COLLAPSE_DUR := 0.4  ## 收拢时长
@@ -23,7 +22,6 @@ var active := false
 
 var _root: Control = null
 var _hand_area: HandArea = null
-var _fliers: Array = []            ## 飞行牌控件池（3 张闲家 + 1 张我方，逐拍复用）
 var _deck_stack: Control = null
 var _clump_holder: Control = null  ## 我方牌容器（子节点序即 z 序，展开前重排）
 var _clump: Array = []             ## 我方到手牌控件（汇聚/收拢/展开阶段）
@@ -33,9 +31,10 @@ var _on_done: Callable
 
 
 ## 播放完整发牌动画。前提：控制器已做一次真实渲染（布局就绪）并隐藏真实牌面。
-## my_hand 为本地玩家手牌（引擎数组序 = 发牌顺序）。
-func play(root: Control, hand_area: HandArea, seat_panels: Dictionary, my_hand: Array,
-		on_done: Callable) -> void:
+## my_hand 为本地玩家手牌（引擎数组序 = 发牌顺序）；on_tick = 逐拍回调
+## （参数 = 已发张数，控制器驱动各家座位面板计数随发牌增长）。
+func play(root: Control, hand_area: HandArea, my_hand: Array,
+		on_done: Callable, on_tick: Callable = Callable()) -> void:
 	clear()
 	_root = root
 	_hand_area = hand_area
@@ -62,14 +61,6 @@ func play(root: Control, hand_area: HandArea, seat_panels: Dictionary, my_hand: 
 		back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		back.position = deck_center - CardWidget.SIZE_NORMAL / 2.0 + Vector2(i * 2.0, -i * 2.0)
 		_deck_stack.add_child(back)
-	# 飞行牌池（4 张：3 张闲家 + 1 张我方，逐拍复用）
-	for i in 4:
-		var w := CardWidget.create(null, false, true)
-		w.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		w.z_index = 41
-		w.visible = false
-		root.add_child(w)
-		_fliers.append(w)
 	# 我方汇聚槽（提前算好：发牌顺序紧凑行，居中于手牌区）与预建正面牌（隐藏待落位）。
 	# 行基线 y 与真实手牌行同步（取测量位任一牌的全局中心 y——同排固定 HAND_BASE_Y；
 	# 旧版「手牌区中心上方 8px」比实际手牌行偏高，用户报告改同步）
@@ -99,37 +90,24 @@ func play(root: Control, hand_area: HandArea, seat_panels: Dictionary, my_hand: 
 		_clump.append(w)
 		_clump_cards.append(card)
 		_clump_slots.append(clump_center + Vector2((i - (n - 1) / 2.0) * gather_spacing, 0))
-	# 逐拍发牌：每拍 3 张背面飞向闲家面板 + 1 张背面飞向我方下一张的汇聚槽，
-	# 节拍到点落位（飞行牌隐去、真实牌面在槽位现身 = 手里实时多一张）
+	# 逐拍发牌（无飞行牌，用户需求：只保留手牌一张一张变多）：每拍我方牌在汇聚槽
+	# 翻正面现身，各家牌数计数经 on_tick 同步 +1（控制器刷新座位面板张数）
+	if on_tick.is_valid():
+		on_tick.call(0)
 	for i in n:
 		if not _guard():
 			return
-		for seat in 3:
-			var f: CardWidget = _fliers[seat]
-			f.visible = true
-			f.position = deck_center - CardWidget.SIZE_SMALL / 2.0
-			var tw := root.create_tween()
-			tw.tween_property(f, "position", _seat_target(root, seat + 1, hand_area, seat_panels),
-				FLIGHT / speed).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		var mine: CardWidget = _fliers[3]
-		mine.visible = true
-		mine.position = deck_center - CardWidget.SIZE_SMALL / 2.0
-		var my_tw := root.create_tween()
-		my_tw.tween_property(mine, "position", _clump_slots[i] - CardWidget.SIZE_NORMAL / 2.0,
-			FLIGHT / speed).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		await tree.create_timer(TICK / speed).timeout
-		if not _guard():
-			return
-		mine.visible = false
 		var landed: CardWidget = _clump[i]
 		var fade := root.create_tween()
 		fade.tween_property(landed, "modulate:a", 1.0, LAND_FADE / speed)
+		if on_tick.is_valid():
+			on_tick.call(i + 1)
+		if i < n - 1:
+			await tree.create_timer(TICK / speed).timeout
 	if not _guard():
 		return
 	_deck_stack.queue_free()
 	_deck_stack = null
-	for w in _fliers:
-		w.visible = false
 	# 停顿后两边往中间收拢到一张
 	await tree.create_timer(CLUMP_DELAY / speed).timeout
 	if not _guard():
@@ -178,13 +156,6 @@ func _clump_target(positions: Dictionary, card: Card, idx: int) -> Vector2:
 	return Vector2(rect.position.x + 36 + idx * HandArea.SPACING_MAX, y)
 
 
-## 飞行目标：闲家 = 座位面板中心；我 = 手牌区中心（防御兜底）
-func _seat_target(root: Control, seat: int, hand_area: HandArea, seat_panels: Dictionary) -> Vector2:
-	if seat == 0 or not seat_panels.has(seat):
-		return hand_area.get_global_rect().get_center()
-	return seat_panels[seat].get_global_rect().get_center()
-
-
 ## 每个等待点后的安全守卫：场景退出/被清理即终止动画链
 func _guard() -> bool:
 	if not active or _root == null or not is_instance_valid(_root) or not _root.is_inside_tree():
@@ -199,10 +170,6 @@ func clear() -> void:
 	if _deck_stack != null and is_instance_valid(_deck_stack):
 		_deck_stack.queue_free()
 	_deck_stack = null
-	for w in _fliers:
-		if is_instance_valid(w):
-			w.queue_free()
-	_fliers.clear()
 	if _clump_holder != null and is_instance_valid(_clump_holder):
 		_clump_holder.queue_free()
 	_clump_holder = null

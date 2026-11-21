@@ -84,7 +84,7 @@
   <!-- 中央空旷区标注 -->
   <text x="536" y="230" font-size="12" fill="#5a7a68" text-anchor="middle">中央空旷区（y136~432）</text>
   <text x="536" y="248" font-size="12" fill="#5a7a68" text-anchor="middle">居中展示层（叫主点数面板 / 牌堆弹层 / 翻底底牌面板 / 结算面板）：点锚主牌桌十字中心 + grow BOTH</text>
-  <text x="536" y="266" font-size="12" fill="#8fd0a8" text-anchor="middle">发牌动画（DealAnimator，开局/下一局；快照恢复不播）：中央牌叠 → 逐拍一张（约 0.2s/张：3 背面飞闲家 + 1 背面飞入我方汇聚槽，落位翻正现身）→ 收拢 → 展开成牌序（同长平移、途中遮盖按排序后；AI 表态挂起至排序完成）</text>
+  <text x="536" y="266" font-size="12" fill="#8fd0a8" text-anchor="middle">发牌动画（DealAnimator，开局/下一局；快照恢复不播）：中央牌叠 → 逐拍一张（约 0.2s/张，无飞牌：手牌在汇聚槽现身，各家面板张数同步逐拍 +1）→ 收拢 → 展开成牌序（同长平移、途中遮盖按排序后；AI 表态与叫分气泡挂起至排序完成）</text>
 
   <!-- ═══ 你的出牌（手牌正上方 y384~461；重叠步距与手牌同款，2026-11-19） ═══ -->
   <rect x="460" y="388" width="48" height="64" rx="5" fill="#f7f3e8" stroke="#888"/>
